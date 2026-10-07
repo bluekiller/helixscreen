@@ -105,45 +105,6 @@ using helix::ui::ExcludeObjectMapView;
 using helix::ui::ExcludeTapMode;
 
 // ============================================================================
-// KeyBarMode tests (pure logic, no LVGL widget creation needed)
-// ============================================================================
-
-TEST_CASE("key_bar_mode returns FullNames for <= 4 objects", "[exclude_map][key_bar_mode]") {
-    using helix::ui::ExcludeObjectMapView;
-    REQUIRE(ExcludeObjectMapView::key_bar_mode(0) == ExcludeObjectMapView::KeyBarMode::FullNames);
-    REQUIRE(ExcludeObjectMapView::key_bar_mode(1) == ExcludeObjectMapView::KeyBarMode::FullNames);
-    REQUIRE(ExcludeObjectMapView::key_bar_mode(4) == ExcludeObjectMapView::KeyBarMode::FullNames);
-}
-
-TEST_CASE("key_bar_mode returns Abbreviated for 5-7 objects", "[exclude_map][key_bar_mode]") {
-    using helix::ui::ExcludeObjectMapView;
-    REQUIRE(ExcludeObjectMapView::key_bar_mode(5) == ExcludeObjectMapView::KeyBarMode::Abbreviated);
-    REQUIRE(ExcludeObjectMapView::key_bar_mode(6) == ExcludeObjectMapView::KeyBarMode::Abbreviated);
-    REQUIRE(ExcludeObjectMapView::key_bar_mode(7) == ExcludeObjectMapView::KeyBarMode::Abbreviated);
-}
-
-TEST_CASE("key_bar_mode returns Summary for >= 8 objects", "[exclude_map][key_bar_mode]") {
-    using helix::ui::ExcludeObjectMapView;
-    REQUIRE(ExcludeObjectMapView::key_bar_mode(8) == ExcludeObjectMapView::KeyBarMode::Summary);
-    REQUIRE(ExcludeObjectMapView::key_bar_mode(12) == ExcludeObjectMapView::KeyBarMode::Summary);
-    REQUIRE(ExcludeObjectMapView::key_bar_mode(100) == ExcludeObjectMapView::KeyBarMode::Summary);
-}
-
-// ============================================================================
-// Adaptive key bar mode selection (consolidated)
-// ============================================================================
-
-TEST_CASE("Adaptive key bar mode selection", "[exclude_map][key_bar]") {
-    using KBM = ExcludeObjectMapView::KeyBarMode;
-    REQUIRE(ExcludeObjectMapView::key_bar_mode(2) == KBM::FullNames);
-    REQUIRE(ExcludeObjectMapView::key_bar_mode(4) == KBM::FullNames);
-    REQUIRE(ExcludeObjectMapView::key_bar_mode(5) == KBM::Abbreviated);
-    REQUIRE(ExcludeObjectMapView::key_bar_mode(7) == KBM::Abbreviated);
-    REQUIRE(ExcludeObjectMapView::key_bar_mode(8) == KBM::Summary);
-    REQUIRE(ExcludeObjectMapView::key_bar_mode(20) == KBM::Summary);
-}
-
-// ============================================================================
 // Coordinate mapping tests
 // ============================================================================
 
@@ -469,4 +430,74 @@ TEST_CASE_METHOD(XMLTestFixture, "A picked object's outline fades on the map lik
 
     view.destroy();
     process_lvgl(20);
+}
+
+TEST_CASE_METHOD(XMLTestFixture, "Every object rect and its badge fit inside the map's plate",
+                 "[exclude_map][fit]") {
+    REQUIRE(register_component("components/exclude_object_map"));
+    auto& st = state().excluded_objects_state();
+    using ObjectInfo = helix::PrinterExcludedObjectsState::ObjectInfo;
+    std::vector<ObjectInfo> objs;
+    // Objects at the corners of their extent, long names as slicers emit them.
+    const std::vector<std::pair<glm::vec2, glm::vec2>> boxes = {
+        {{10, 10}, {40, 40}}, {{95, 10}, {125, 40}}, {{10, 76}, {40, 106}}, {{95, 76}, {125, 106}}};
+    for (size_t i = 0; i < boxes.size(); ++i) {
+        ObjectInfo o;
+        o.name = "Cylinder_id_" + std::to_string(i) + "_copy_0_with_a_long_slicer_name";
+        o.bbox_min = boxes[i].first;
+        o.bbox_max = boxes[i].second;
+        o.center = (o.bbox_min + o.bbox_max) * 0.5f;
+        o.has_bbox = true;
+        o.has_center = true;
+        o.polygon = {o.bbox_min, {o.bbox_max.x, o.bbox_min.y}, o.bbox_max};
+        objs.push_back(std::move(o));
+    }
+    st.set_defined_objects_with_geometry(objs);
+
+    struct Shape {
+        const char* label;
+        int32_t w, h;
+    };
+    for (const Shape shape : {Shape{"portrait", 220, 360}, Shape{"landscape", 420, 160}}) {
+        DYNAMIC_SECTION(shape.label) {
+            lv_obj_t* card = lv_obj_create(test_screen());
+            lv_obj_set_size(card, shape.w, shape.h);
+
+            ExcludeObjectMapView view;
+            view.create(card, &st, 235.0f, 235.0f, {}, ExcludeTapMode::Toggle, nullptr);
+            REQUIRE(view.is_active());
+            process_lvgl(30);
+
+            lv_obj_update_layout(test_screen());
+
+            lv_obj_t* plate = lv_obj_find_by_name(view.root(), "plate_area");
+            REQUIRE(plate);
+            lv_area_t plate_area;
+            lv_obj_get_coords(plate, &plate_area);
+
+            for (size_t i = 0; i < boxes.size(); ++i) {
+                const std::string name = "obj_rect_" + std::to_string(i);
+                lv_obj_t* rect = lv_obj_find_by_name(view.root(), name.c_str());
+                REQUIRE(rect);
+                lv_obj_t* disc = lv_obj_get_child(rect, 0);
+                REQUIRE(disc);
+                for (lv_obj_t* obj : {rect, disc}) {
+                    lv_area_t a;
+                    lv_obj_get_coords(obj, &a);
+                    INFO(name << " (" << a.x1 << "," << a.y1 << ")-(" << a.x2 << "," << a.y2
+                              << ") in plate (" << plate_area.x1 << "," << plate_area.y1 << ")-("
+                              << plate_area.x2 << "," << plate_area.y2 << ")");
+                    REQUIRE(lv_area_get_width(&a) > 0);
+                    CHECK(a.x1 >= plate_area.x1);
+                    CHECK(a.y1 >= plate_area.y1);
+                    CHECK(a.x2 <= plate_area.x2);
+                    CHECK(a.y2 <= plate_area.y2);
+                }
+            }
+
+            view.destroy();
+            process_lvgl(20);
+            lv_obj_delete(card);
+        }
+    }
 }

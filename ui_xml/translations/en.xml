@@ -2916,7 +2916,6 @@
   <translation tag="Tap Firmware Restart to recover — on K2 this also bounces the rpi MCU bridge" en="Tap Firmware Restart to recover — on K2 this also bounces the rpi MCU bridge"/>
   <translation tag="Tap again to confirm this orientation" en="Tap again to confirm this orientation"/>
   <translation tag="Tap an empty spot inside the enclosure" en="Tap an empty spot inside the enclosure"/>
-  <translation tag="Tap an object to exclude it | {} objects ({} excluded)" en="Tap an object to exclude it | {} objects ({} excluded)"/>
   <translation tag="Tap any tile to open its full controls or toggle its state." en="Tap any tile to open its full controls or toggle its state."/>
   <translation tag="Tap anywhere if this text is right-side up" en="Tap anywhere if this text is right-side up"/>
   <translation tag="Tap anywhere to begin" en="Tap anywhere to begin"/>

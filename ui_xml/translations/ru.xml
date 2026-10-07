@@ -2916,7 +2916,6 @@
   <translation tag="Tap Firmware Restart to recover — on K2 this also bounces the rpi MCU bridge" ru="Нажмите «Перезапуск прошивки» для восстановления. На K2 это также перезапускает мост MCU rpi"/>
   <translation tag="Tap again to confirm this orientation" ru="Нажмите ещё раз для подтверждения ориентации"/>
   <translation tag="Tap an empty spot inside the enclosure" ru="Нажмите на пустое место внутри корпуса"/>
-  <translation tag="Tap an object to exclude it | {} objects ({} excluded)" ru="Коснитесь объекта, чтобы исключить его | {} объектов ({} исключено)"/>
   <translation tag="Tap any tile to open its full controls or toggle its state." ru="Нажмите на любую плитку, чтобы открыть её полные элементы управления или переключить состояние."/>
   <translation tag="Tap anywhere if this text is right-side up" ru="Нажмите в любом месте, если текст расположен правильно"/>
   <translation tag="Tap anywhere to begin" ru="Нажмите в любом месте для начала"/>

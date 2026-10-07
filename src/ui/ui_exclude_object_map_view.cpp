@@ -7,12 +7,10 @@
 
 #include "bed_dimensions.h"
 #include "lv_draw_buf_guard.h"
-#include "lvgl/src/others/translation/lv_translation.h"
 #include "observer_factory.h"
 #include "printer_excluded_objects_state.h"
 #include "theme_manager.h"
 
-#include <spdlog/fmt/fmt.h>
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
@@ -28,18 +26,6 @@ OpenInstances<ExcludeObjectMapView>& open_map_views() {
     return views;
 }
 } // namespace
-
-// ============================================================================
-// KeyBarMode
-// ============================================================================
-
-ExcludeObjectMapView::KeyBarMode ExcludeObjectMapView::key_bar_mode(int object_count) {
-    if (object_count <= 4)
-        return KeyBarMode::FullNames;
-    if (object_count <= 7)
-        return KeyBarMode::Abbreviated;
-    return KeyBarMode::Summary;
-}
 
 // ============================================================================
 // Constructor / Destructor
@@ -106,23 +92,15 @@ void ExcludeObjectMapView::create(lv_obj_t* parent, helix::PrinterExcludedObject
 
     // Find named children
     plate_area_ = lv_obj_find_by_name(root_, "plate_area");
-    key_bar_ = lv_obj_find_by_name(root_, "key_bar");
 
-    // Disable scrolling on plate area and key bar
+    // Disable scrolling on plate area
     if (plate_area_) {
         lv_obj_remove_flag(plate_area_, LV_OBJ_FLAG_SCROLLABLE);
         lv_obj_set_scrollbar_mode(plate_area_, LV_SCROLLBAR_MODE_OFF);
     }
-    if (key_bar_) {
-        lv_obj_remove_flag(key_bar_, LV_OBJ_FLAG_SCROLLABLE);
-        lv_obj_set_scrollbar_mode(key_bar_, LV_SCROLLBAR_MODE_OFF);
-    }
 
     if (!plate_area_) {
         spdlog::error("[ExcludeObjectMapView] Could not find plate_area");
-    }
-    if (!key_bar_) {
-        spdlog::error("[ExcludeObjectMapView] Could not find key_bar");
     }
 
     // Create transparent overlay container for object rects.
@@ -211,9 +189,7 @@ void ExcludeObjectMapView::create(lv_obj_t* parent, helix::PrinterExcludedObject
         }
     }
 
-    // Build object rects and key bar
     build_object_rects();
-    build_key_bar();
 
     // Set up observers to react to state changes
     if (state_) {
@@ -232,7 +208,6 @@ void ExcludeObjectMapView::create(lv_obj_t* parent, helix::PrinterExcludedObject
                 if (!self->root_)
                     return;
                 self->build_object_rects();
-                self->build_key_bar();
             },
             state_->get_subjects_lifetime());
     }
@@ -302,7 +277,6 @@ void ExcludeObjectMapView::destroy() {
             helix::ui::safe_delete_deferred(root);
         }
         plate_area_ = nullptr;
-        key_bar_ = nullptr;
         object_container_ = nullptr;
     }
 
@@ -661,102 +635,6 @@ void ExcludeObjectMapView::update_visual_states() {
     // Redraw canvas outlines to reflect excluded/current state
     if (have_canvas_outlines) {
         draw_first_layer_outlines();
-    }
-}
-
-// ============================================================================
-// build_key_bar (stub — full implementation in Task 6)
-// ============================================================================
-
-void ExcludeObjectMapView::build_key_bar() {
-    if (!key_bar_)
-        return;
-
-    lv_obj_update_layout(key_bar_);
-    helix::ui::safe_clean_children(key_bar_); // [L081] same observer path as build_object_rects
-
-    if (!state_)
-        return;
-
-    const auto& defined = state_->get_defined_objects();
-    int count = static_cast<int>(defined.size());
-    if (count == 0)
-        return;
-
-    KeyBarMode mode = key_bar_mode(count);
-
-    if (mode == KeyBarMode::Summary) {
-        // Summary label
-        const auto& excluded = state_->get_excluded_objects();
-        int excluded_count = static_cast<int>(excluded.size());
-        const std::string summary = fmt::format(
-            lv_tr("Tap an object to exclude it | {} objects ({} excluded)"), count, excluded_count);
-        lv_obj_t* label = lv_label_create(key_bar_);
-        lv_label_set_text(label, summary.c_str());
-        lv_obj_set_style_text_font(label, theme_manager_get_font("font_small"), 0);
-        lv_obj_set_style_text_color(label, theme_manager_get_color("text_muted"), 0);
-        lv_obj_remove_flag(label, LV_OBJ_FLAG_CLICKABLE);
-        lv_obj_add_flag(label, LV_OBJ_FLAG_EVENT_BUBBLE);
-        return;
-    }
-
-    // FullNames or Abbreviated: colored dot + number + name per object
-    for (const auto& badge : compute_object_badges(*state_, parsed_file_.get())) {
-        const bool is_excluded = badge.excluded;
-
-        // Key entry container — dim excluded objects to signal they are skipped
-        lv_obj_t* entry_row = lv_obj_create(key_bar_);
-        lv_obj_set_size(entry_row, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
-        lv_obj_set_style_bg_opa(entry_row, LV_OPA_TRANSP, 0);
-        lv_obj_set_style_border_width(entry_row, 0, 0);
-        lv_obj_set_style_pad_all(entry_row, theme_manager_get_spacing("space_xxs"), 0);
-        lv_obj_set_flex_flow(entry_row, LV_FLEX_FLOW_ROW);
-        lv_obj_set_flex_align(entry_row, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER,
-                              LV_FLEX_ALIGN_CENTER);
-        lv_obj_remove_flag(entry_row, LV_OBJ_FLAG_SCROLLABLE);
-        lv_obj_remove_flag(entry_row, LV_OBJ_FLAG_CLICKABLE);
-        lv_obj_add_flag(entry_row, LV_OBJ_FLAG_EVENT_BUBBLE);
-        if (is_excluded) {
-            lv_obj_set_style_opa(entry_row, LV_OPA_40, 0);
-        }
-
-        // Colored dot
-        lv_color_t color = object_badge_color(badge.defined_index);
-        lv_obj_t* dot = lv_obj_create(entry_row);
-        lv_obj_set_size(dot, 8, 8);
-        lv_obj_set_style_radius(dot, 4, 0);
-        lv_obj_set_style_bg_color(dot, color, 0);
-        lv_obj_set_style_bg_opa(dot, LV_OPA_COVER, 0);
-        lv_obj_set_style_border_width(dot, 0, 0);
-        lv_obj_remove_flag(dot, LV_OBJ_FLAG_CLICKABLE);
-        lv_obj_add_flag(dot, LV_OBJ_FLAG_EVENT_BUBBLE);
-
-        // Number + name label; strikethrough on excluded entries
-        lv_obj_t* name_label = lv_label_create(entry_row);
-        lv_obj_set_style_text_font(name_label, theme_manager_get_font("font_small"), 0);
-        lv_obj_set_style_text_color(name_label, theme_manager_get_color("text_muted"), 0);
-        lv_obj_set_style_pad_left(name_label, theme_manager_get_spacing("space_xxs"), 0);
-        lv_obj_remove_flag(name_label, LV_OBJ_FLAG_CLICKABLE);
-        lv_obj_add_flag(name_label, LV_OBJ_FLAG_EVENT_BUBBLE);
-        if (is_excluded) {
-            lv_obj_set_style_text_decor(name_label, LV_TEXT_DECOR_STRIKETHROUGH, 0);
-        }
-
-        if (mode == KeyBarMode::FullNames) {
-            // Show number + name, auto-truncate with LVGL dot mode
-            char buf[64];
-            snprintf(buf, sizeof(buf), "%s %s", badge.number.c_str(), badge.name.c_str());
-            lv_label_set_text(name_label, buf);
-            lv_label_set_long_mode(name_label, LV_LABEL_LONG_DOT);
-            // Limit width to share space among entries
-            int max_label_w = lv_obj_get_width(key_bar_) / std::max(count, 1) - 20;
-            if (max_label_w > 30) {
-                lv_obj_set_width(name_label, max_label_w);
-            }
-        } else {
-            // Abbreviated: just the number
-            lv_label_set_text(name_label, badge.number.c_str());
-        }
     }
 }
 

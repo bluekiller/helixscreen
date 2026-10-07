@@ -3145,7 +3145,6 @@ translations:
   Tap Firmware Restart to recover — on K2 this also bounces the rpi MCU bridge: Tap Firmware Restart to recover — on K2 this also bounces the rpi MCU bridge
   Tap again to confirm this orientation: Tap again to confirm this orientation
   Tap an empty spot inside the enclosure: Tap an empty spot inside the enclosure
-  Tap an object to exclude it | {} objects ({} excluded): Tap an object to exclude it | {} objects ({} excluded)
   Tap any tile to open its full controls or toggle its state.: Tap any tile to open its full controls or toggle its state.
   Tap anywhere if this text is right-side up: Tap anywhere if this text is right-side
     up

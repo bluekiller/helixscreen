@@ -36,9 +36,6 @@ class ExcludeObjectMapView {
     using PixelRect = helix::PixelRect;
     using CoordMapper = helix::BedCoordMapper;
 
-    enum class KeyBarMode { FullNames, Abbreviated, Summary };
-    static KeyBarMode key_bar_mode(int object_count);
-
     ExcludeObjectMapView();
     ~ExcludeObjectMapView();
 
@@ -67,7 +64,6 @@ class ExcludeObjectMapView {
 
     void build_object_rects();
     void update_visual_states();
-    void build_key_bar();
     void draw_first_layer_outlines();
     lv_obj_t* create_object_rect(lv_obj_t* parent, const ObjectBadge& badge, const PixelRect& rect);
 
@@ -78,7 +74,6 @@ class ExcludeObjectMapView {
     // never touched again.
     WidgetRef root_;
     WidgetRef plate_area_;
-    WidgetRef key_bar_;
     WidgetRef object_container_;
     WidgetRef canvas_;
     lv_draw_buf_t* canvas_buf_{nullptr};

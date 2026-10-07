@@ -206,7 +206,8 @@ TEST_CASE("Object badges with names only (no geometry)", "[exclude_badges]") {
 // Thumbnail map: badge numbers and colours key on the defined index
 // ============================================================================
 
-TEST_CASE_METHOD(XMLTestFixture, "Map view key keeps defined numbering when an object has no bbox",
+TEST_CASE_METHOD(XMLTestFixture,
+                 "Map view badge keeps defined numbering when an object has no bbox",
                  "[exclude_badges][exclude_map]") {
     REQUIRE(register_component("components/exclude_object_map"));
     state().excluded_objects_state().set_defined_objects_with_geometry({
@@ -221,32 +222,17 @@ TEST_CASE_METHOD(XMLTestFixture, "Map view key keeps defined numbering when an o
     REQUIRE(view.is_active());
     process_lvgl(30);
 
-    lv_obj_t* key_bar = lv_obj_find_by_name(view.root(), "key_bar");
-    REQUIRE(key_bar);
-
-    bool found_third = false;
-    const uint32_t n = lv_obj_get_child_count(key_bar);
-    for (uint32_t i = 0; i < n; ++i) {
-        lv_obj_t* entry = lv_obj_get_child(key_bar, static_cast<int32_t>(i));
-        if (lv_obj_get_child_count(entry) < 2) {
-            continue;
-        }
-        lv_obj_t* dot = lv_obj_get_child(entry, 0);
-        lv_obj_t* label = lv_obj_get_child(entry, 1);
-        const std::string text = lv_label_get_text(label);
-        if (text.find("Third") == std::string::npos) {
-            continue;
-        }
-        found_third = true;
-        CHECK(text.rfind("3 ", 0) == 0);
-        CHECK(lv_color_eq(lv_obj_get_style_bg_color(dot, LV_PART_MAIN),
-                          helix::ui::object_badge_color(2)));
-    }
-    CHECK(found_third);
-
-    // The rect's own badge already keyed on the defined index; keep it so.
+    // "Third" is defined third: its rect, disc number and colour all say so,
+    // though only two objects have a rect.
+    CHECK(lv_obj_find_by_name(view.root(), "obj_rect_1") == nullptr);
     lv_obj_t* rect = lv_obj_find_by_name(view.root(), "obj_rect_2");
     REQUIRE(rect);
+    REQUIRE(lv_obj_get_child_count(rect) == 1);
+    lv_obj_t* disc = lv_obj_get_child(rect, 0);
+    REQUIRE(lv_obj_get_child_count(disc) == 1);
+    CHECK(std::string(lv_label_get_text(lv_obj_get_child(disc, 0))) == "3");
+    CHECK(lv_color_eq(lv_obj_get_style_bg_color(disc, LV_PART_MAIN),
+                      helix::ui::object_badge_color(2)));
 
     view.destroy();
     process_lvgl(30);

@@ -3265,7 +3265,6 @@ translations:
   Tap Firmware Restart to recover — on K2 this also bounces the rpi MCU bridge: Appuyez sur Redémarrer le firmware pour récupérer. Sur la K2, cela redémarre aussi le pont MCU rpi
   Tap again to confirm this orientation: Appuyez à nouveau pour confirmer cette orientation
   Tap an empty spot inside the enclosure: Touchez un endroit vide dans le caisson
-  Tap an object to exclude it | {} objects ({} excluded): 'Touchez un objet pour l''exclure | {} objets ({} exclus)'
   Tap any tile to open its full controls or toggle its state.: Appuyez sur n'importe quelle tuile pour ouvrir ses commandes complètes ou basculer son état.
   Tap anywhere if this text is right-side up: Appuyez n'importe où si ce texte est
     à l'endroit

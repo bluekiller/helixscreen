@@ -236,9 +236,10 @@ screen and draw.
 
 - **Side list** (`ExcludeObjectSideList`): each row's chip number and colour, and its idle /
   printing / excluded state.
-- **Thumbnail map** (`ExcludeObjectMapView`): a numbered disc in each object's rect, and the
-  key bar's dot + number. An object with no bounding box gets no rect but keeps its number,
-  so later objects do not renumber.
+- **Thumbnail map** (`ExcludeObjectMapView`): a numbered disc in each object's rect. The map
+  has no legend of its own: it is always shown beside the side list, which names every
+  object, so the plate takes the whole card. An object with no bounding box gets no rect
+  but keeps its number, so later objects do not renumber.
 - **2D/3D render**: while the side list is open, `PrintStatusPanel::refresh_render_badges()`
   pushes the badges to the viewer (`ui_gcode_viewer_set_object_badges()`), and again on every
   `defined_objects_version` / `excluded_objects_version` bump (the current object bumps the
@@ -516,7 +517,7 @@ Tests are run with:
 | `tests/unit/test_exclude_object_long_press_gate.cpp` | `[exclude_object]` | Long-press gate: pending object, timer arming, clear |
 | `tests/unit/test_excluded_objects_char.cpp` | `[excluded_objects]` | `PrinterExcludedObjectsState`: version subjects, set change detection, observer notification |
 | `tests/unit/test_moonraker_api_exclude_object.cpp` | `[security]`, `[mock]` | Input validation, injection prevention, mock client integration |
-| `tests/unit/test_exclude_object_badges.cpp` | `[exclude_badges]` | Badge numbering by defined order, flags, anchor fallback chain, map key numbering with a bbox-less object; the viewer's draw pass (drawn-top Z, off-screen skip, no stale pick targets), pick precedence (badge over geometry, top badge wins, excluded not pickable), equal badges not invalidating, exclusion dropping selection, the 3D shown-image transform |
+| `tests/unit/test_exclude_object_badges.cpp` | `[exclude_badges]` | Badge numbering by defined order, flags, anchor fallback chain, map badge numbering with a bbox-less object; the viewer's draw pass (drawn-top Z, off-screen skip, no stale pick targets), pick precedence (badge over geometry, top badge wins, excluded not pickable), equal badges not invalidating, exclusion dropping selection, the 3D shown-image transform |
 | `tests/unit/test_print_status_exclude_badges.cpp` | `[exclude_badges]` | Panel lifecycle: badges appear with the side list, match its chips, follow version bumps, clear on close |
 | `tests/unit/test_exclude_object_side_list.cpp` | `[exclude_side_list]` | Rows restyle in place, keep scroll and height as the printing object moves |
 | `tests/unit/test_exclude_mode_controller.cpp` | `[exclude_mode]` | The shared exclude mode: list and map over the host's card, taps reaching the host |

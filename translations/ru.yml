@@ -3211,7 +3211,6 @@ translations:
   Tap Firmware Restart to recover — on K2 this also bounces the rpi MCU bridge: Нажмите «Перезапуск прошивки» для восстановления. На K2 это также перезапускает мост MCU rpi
   Tap again to confirm this orientation: Нажмите ещё раз для подтверждения ориентации
   Tap an empty spot inside the enclosure: Нажмите на пустое место внутри корпуса
-  Tap an object to exclude it | {} objects ({} excluded): 'Коснитесь объекта, чтобы исключить его | {} объектов ({} исключено)'
   Tap any tile to open its full controls or toggle its state.: 'Нажмите на любую плитку, чтобы открыть её полные элементы управления или переключить состояние.'
   Tap anywhere if this text is right-side up: Нажмите в любом месте, если текст расположен
     правильно

@@ -2916,7 +2916,6 @@
   <translation tag="Tap Firmware Restart to recover — on K2 this also bounces the rpi MCU bridge" zh="点按“重启固件”以恢复。在 K2 上这也会重启 rpi MCU 桥接"/>
   <translation tag="Tap again to confirm this orientation" zh="再次点击确认此方向"/>
   <translation tag="Tap an empty spot inside the enclosure" zh="点击机箱内的空白处"/>
-  <translation tag="Tap an object to exclude it | {} objects ({} excluded)" zh="点按对象以排除 | {} 个对象（已排除 {} 个）"/>
   <translation tag="Tap any tile to open its full controls or toggle its state." zh="点击任意磁贴以打开其完整控制项或切换其状态。"/>
   <translation tag="Tap anywhere if this text is right-side up" zh="如果文字方向正确请点击任意位置"/>
   <translation tag="Tap anywhere to begin" zh="点击任意位置开始"/>

@@ -3027,7 +3027,6 @@ translations:
   Tap Firmware Restart to recover — on K2 this also bounces the rpi MCU bridge: 点按“重启固件”以恢复。在 K2 上这也会重启 rpi MCU 桥接
   Tap again to confirm this orientation: 再次点击确认此方向
   Tap an empty spot inside the enclosure: 点击机箱内的空白处
-  Tap an object to exclude it | {} objects ({} excluded): '点按对象以排除 | {} 个对象（已排除 {} 个）'
   Tap any tile to open its full controls or toggle its state.: 点击任意磁贴以打开其完整控制项或切换其状态。
   Tap anywhere if this text is right-side up: 如果文字方向正确请点击任意位置
   Tap anywhere to begin: 点击任意位置开始

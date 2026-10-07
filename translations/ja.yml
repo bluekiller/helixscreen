@@ -3035,7 +3035,6 @@ translations:
   Tap Firmware Restart to recover — on K2 this also bounces the rpi MCU bridge: 「ファームウェア再起動」をタップして復旧してください。K2 では rpi MCU ブリッジも再起動されます
   Tap again to confirm this orientation: もう一度タップしてこの向きを確定
   Tap an empty spot inside the enclosure: 筐体内の空いている場所をタップ
-  Tap an object to exclude it | {} objects ({} excluded): 'オブジェクトをタップして除外 | {} 個 ({} 個除外済み)'
   Tap any tile to open its full controls or toggle its state.: タイルをタップすると、全機能のコントロールを開いたり、状態を切り替えたりできます。
   Tap anywhere if this text is right-side up: この文字が正しい向きならどこかをタップ
   Tap anywhere to begin: どこかをタップして開始
