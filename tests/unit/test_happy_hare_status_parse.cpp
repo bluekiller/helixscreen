@@ -1,6 +1,7 @@
 // Copyright (C) 2025-2026 356C LLC
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+#include "../test_helpers/happy_hare_fixture.h"
 #include "happy_hare_status_parse.h"
 
 #include "../catch_amalgamated.hpp"
@@ -192,4 +193,105 @@ TEST_CASE("Happy Hare status parse sensors, drying and the endless-spool bit",
     CHECK_FALSE(emu.drying->object->current_temp_c);
     // The newer key is null, so the older spelling answers.
     CHECK(emu.endless_spool_enabled == false);
+}
+
+// ============================================================================
+// Happy Hare v4 layout
+// ============================================================================
+
+TEST_CASE("Happy Hare layout: a v4 install is recognised from mmu_machine",
+          "[happy_hare][status_parse][hh_v4]") {
+    const json fx = test::load_happy_hare_fixture("happy_hare_v4_single_unit.json");
+    const auto layout =
+        happy_hare::read_machine_layout(fx["configfile_settings"], fx["mmu_machine"]);
+    CHECK(layout.version == "4.0.0");
+    CHECK(layout.v4);
+    CHECK(layout.unit_params_section == "mmu_unit_parameters unit0");
+    CHECK(layout.toolhead_section == "mmu_toolhead default");
+
+    SECTION("configfile alone still names the version and the first unit") {
+        const auto from_config =
+            happy_hare::read_machine_layout(fx["configfile_settings"], json::object());
+        CHECK(from_config.v4);
+        CHECK(from_config.unit_params_section == "mmu_unit_parameters unit0");
+    }
+    SECTION("unit and toolhead names are lowercased the way configfile keys are") {
+        json settings = fx["configfile_settings"];
+        settings["mmu_unit unit0"]["toolhead"] = "Main";
+        json live = fx["mmu_machine"];
+        live["unit_0"]["name"] = "Unit0";
+        const auto mixed = happy_hare::read_machine_layout(settings, live);
+        CHECK(mixed.unit_params_section == "mmu_unit_parameters unit0");
+        CHECK(mixed.toolhead_section == "mmu_toolhead main");
+    }
+}
+
+TEST_CASE("Happy Hare layout: v3 publishes per-unit fields but no version",
+          "[happy_hare][status_parse][hh_v4]") {
+    // v3.4 mmu_machine.get_status(): unit_N objects and num_units, no version.
+    const json live = {{"unit_0", {{"name", "ERCF"}, {"selector_type", "LinearSelector"}}},
+                       {"num_units", 1}};
+    const json settings = {{"mmu", {{"happy_hare_version", 3.42}}}};
+    const auto layout = happy_hare::read_machine_layout(settings, live);
+    CHECK_FALSE(layout.v4);
+    CHECK(layout.version.empty());
+    CHECK(layout.unit_params_section.empty());
+}
+
+TEST_CASE("Happy Hare layout: each tunable is read from its v4 section",
+          "[happy_hare][status_parse][hh_v4]") {
+    const json fx = test::load_happy_hare_fixture("happy_hare_v4_single_unit.json");
+    const json& settings = fx["configfile_settings"];
+    const auto layout = happy_hare::read_machine_layout(settings, fx["mmu_machine"]);
+    const auto number = [&](const char* key) {
+        return happy_hare::read_config_number(happy_hare::find_config_param(settings, layout, key));
+    };
+
+    const json* macro = happy_hare::find_config_param(settings, layout, "form_tip_macro");
+    REQUIRE(macro);
+    CHECK(*macro == "_MMU_CUT_TIP_NOSKEW");
+    CHECK(number("extruder_load_speed") == 12.0f);
+    CHECK(number("extruder_unload_speed") == 12.0f);
+    CHECK(number("gear_from_spool_speed") == 80.0f);
+    CHECK(number("gear_from_buffer_speed") == 150.0f);
+    CHECK(number("gear_unload_speed") == 120.0f);
+    CHECK(number("sync_to_extruder") == 1.0f);
+    CHECK(number("heater_max_temp") == 65.0f);
+    CHECK(number("toolhead_extruder_to_nozzle") == 87.0f);
+    CHECK(number("toolhead_sensor_to_nozzle") == 1.0f);
+    CHECK(number("toolhead_entry_to_extruder") == 6.0f);
+    CHECK(number("toolhead_ooze_reduction") == 0.0f);
+    // A VirtualSelector has no selector speed, and v4 has no clog_detection.
+    CHECK_FALSE(number("selector_move_speed"));
+    CHECK_FALSE(happy_hare::find_config_param(settings, layout, "clog_detection"));
+}
+
+TEST_CASE("Happy Hare layout: v3 reads every tunable from [mmu]",
+          "[happy_hare][status_parse][hh_v4]") {
+    const json settings = {{"mmu",
+                            {{"form_tip_macro", "_MMU_FORM_TIP"},
+                             {"gear_from_spool_speed", "60"},
+                             {"toolhead_ooze_reduction", 2.5},
+                             {"clog_detection", 2}}},
+                           {"mmu_parameters", {{"gear_from_spool_speed", 99}}}};
+    const auto layout = happy_hare::read_machine_layout(settings, json::object());
+    REQUIRE_FALSE(layout.v4);
+    CHECK(*happy_hare::find_config_param(settings, layout, "form_tip_macro") == "_MMU_FORM_TIP");
+    CHECK(happy_hare::read_config_number(
+              happy_hare::find_config_param(settings, layout, "gear_from_spool_speed")) == 60.0f);
+    CHECK(happy_hare::read_config_number(
+              happy_hare::find_config_param(settings, layout, "toolhead_ooze_reduction")) == 2.5f);
+    CHECK(happy_hare::read_config_number(
+              happy_hare::find_config_param(settings, layout, "clog_detection")) == 2.0f);
+}
+
+TEST_CASE("Happy Hare layout: v4 renames two gear speeds", "[happy_hare][status_parse][hh_v4]") {
+    using happy_hare::param_name;
+    CHECK(param_name("gear_from_spool_speed", true) == "gear_load_speed");
+    CHECK(param_name("gear_from_buffer_speed", true) == "gear_from_filament_buffer_speed");
+    CHECK(param_name("gear_unload_speed", true) == "gear_unload_speed");
+    CHECK(param_name("toolhead_ooze_reduction", true) == "toolhead_ooze_reduction");
+    CHECK(param_name("clog_detection", true).empty());
+    CHECK(param_name("gear_from_spool_speed", false) == "gear_from_spool_speed");
+    CHECK(param_name("clog_detection", false) == "clog_detection");
 }

@@ -1469,20 +1469,22 @@ void AmsBackendHappyHare::initialize_slots(int gate_count) {
     }
 }
 
-void AmsBackendHappyHare::apply_tip_method_config(const nlohmann::json& settings) {
+void AmsBackendHappyHare::apply_tip_method_config(const nlohmann::json& settings,
+                                                  const happy_hare::MachineLayout& layout) {
     // form_tip_macro decides the tip method the way Happy Hare does internally: a macro
     // name containing "cut" (e.g., _MMU_CUT_TIP) is a cutter system, anything else
     // (e.g., _MMU_FORM_TIP) is tip-forming.
-    if (!settings.contains("mmu") || !settings["mmu"].is_object()) {
+    if (!layout.v4 && (!settings.contains("mmu") || !settings["mmu"].is_object())) {
         spdlog::debug("[AMS HappyHare] No mmu section in configfile settings");
         return;
     }
 
-    const auto& mmu_cfg = settings["mmu"];
     TipMethod method = TipMethod::NONE;
+    const nlohmann::json* macro_value =
+        happy_hare::find_config_param(settings, layout, "form_tip_macro");
 
-    if (mmu_cfg.contains("form_tip_macro") && mmu_cfg["form_tip_macro"].is_string()) {
-        std::string macro = mmu_cfg["form_tip_macro"].get<std::string>();
+    if (macro_value && macro_value->is_string()) {
+        std::string macro = macro_value->get<std::string>();
 
         // Convert to lowercase for comparison (same as Happy Hare)
         std::string lower_macro = helix::text_io::to_lower(macro);
@@ -1765,31 +1767,20 @@ void AmsBackendHappyHare::apply_heater_config(const nlohmann::json& settings,
         }
     }
 
-    // Parse [mmu] heater_max_temp — can be a number or a numeric string.
-    if (settings.contains("mmu") && settings["mmu"].is_object()) {
-        const auto& mmu = settings["mmu"];
-        if (mmu.contains("heater_max_temp")) {
-            float max_temp = 0.0f;
-            bool parsed = false;
-            if (mmu["heater_max_temp"].is_number()) {
-                max_temp = mmu["heater_max_temp"].get<float>();
-                parsed = true;
-            } else if (mmu["heater_max_temp"].is_string()) {
-                const auto v = tio::parse_leading<float>(mmu["heater_max_temp"].get<std::string>());
-                if (v) {
-                    max_temp = *v;
-                    parsed = true;
-                } else {
-                    spdlog::warn("[AMS HappyHare] Could not parse heater_max_temp string");
-                }
-            }
-            if (parsed) {
-                std::lock_guard<std::mutex> lock(mutex_);
-                // A ceiling, not a capability: Klipper reports configured defaults, so
-                // this key is present whether or not a heater is fitted.
-                dryer_info_.max_temp_c = max_temp;
-                spdlog::info("[AMS HappyHare] Heater max temp: {:.1f}°C", max_temp);
-            }
+    // heater_max_temp: [mmu] on v3, the unit's parameters on v4. A number or a
+    // numeric string.
+    const happy_hare::MachineLayout layout =
+        happy_hare::read_machine_layout(settings, live_mmu_machine);
+    if (const nlohmann::json* v =
+            happy_hare::find_config_param(settings, layout, "heater_max_temp")) {
+        if (const auto max_temp = happy_hare::read_config_number(v)) {
+            std::lock_guard<std::mutex> lock(mutex_);
+            // A ceiling, not a capability: Klipper reports configured defaults, so
+            // this key is present whether or not a heater is fitted.
+            dryer_info_.max_temp_c = *max_temp;
+            spdlog::info("[AMS HappyHare] Heater max temp: {:.1f}°C", *max_temp);
+        } else {
+            spdlog::warn("[AMS HappyHare] Could not parse heater_max_temp");
         }
     }
 }
@@ -1798,33 +1789,26 @@ void AmsBackendHappyHare::apply_heater_config(const nlohmann::json& settings,
 // Config Defaults Query
 // ============================================================================
 
-void AmsBackendHappyHare::apply_config_defaults(const nlohmann::json& settings) {
-    // Initial values of speeds and distances from [mmu]. These serve as defaults until
-    // the user overrides them via the UI.
-    if (!settings.contains("mmu") || !settings["mmu"].is_object()) {
+void AmsBackendHappyHare::apply_config_defaults(const nlohmann::json& settings,
+                                                const happy_hare::MachineLayout& layout) {
+    // Initial values of speeds and distances. These serve as defaults until the
+    // user overrides them via the UI.
+    if (!layout.v4 && (!settings.contains("mmu") || !settings["mmu"].is_object())) {
         spdlog::debug("[AMS HappyHare] No mmu section in configfile for defaults");
         return;
     }
 
-    const auto& mmu = settings["mmu"];
-
-    // Helper to parse a float from config (values are strings in configfile)
     auto parse_float = [&](const char* key, float& out) {
-        if (mmu.contains(key) && mmu[key].is_string()) {
-            if (const auto v = tio::parse_leading<float>(mmu[key].get<std::string>())) {
-                out = *v;
-            }
-            // else: keep default
+        if (const auto v = happy_hare::read_config_number(
+                happy_hare::find_config_param(settings, layout, key))) {
+            out = *v;
         }
     };
 
-    // Helper to parse an int from config
     auto parse_int = [&](const char* key, int& out) {
-        if (mmu.contains(key) && mmu[key].is_string()) {
-            if (const auto v = tio::parse_leading<int>(mmu[key].get<std::string>())) {
-                out = *v;
-            }
-            // else: keep default
+        if (const auto v = happy_hare::read_config_number(
+                happy_hare::find_config_param(settings, layout, key))) {
+            out = static_cast<int>(*v);
         }
     };
 
@@ -1901,11 +1885,22 @@ void AmsBackendHappyHare::query_config_from_printer() {
                     live_mm = &status["mmu_machine"];
                 }
 
-                apply_tip_method_config(settings);
+                const happy_hare::MachineLayout layout =
+                    happy_hare::read_machine_layout(settings, *live_mm);
+                {
+                    std::lock_guard<std::mutex> lock(mutex_);
+                    machine_layout_ = layout;
+                    system_info_.version = layout.version;
+                }
+                spdlog::info("[AMS HappyHare] Happy Hare {} ({} layout)",
+                             layout.version.empty() ? "version unknown" : layout.version,
+                             layout.v4 ? "v4" : "v3");
+
+                apply_tip_method_config(settings, layout);
                 apply_selector_type_config(settings, *live_mm);
                 apply_heater_config(settings, *live_mm);
                 emit_event(EVENT_STATE_CHANGED);
-                apply_config_defaults(settings);
+                apply_config_defaults(settings, layout);
             });
         },
         [](const MoonrakerError& err) {

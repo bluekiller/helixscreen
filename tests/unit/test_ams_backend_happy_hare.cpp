@@ -21,6 +21,7 @@
 #include "spoolman_types.h"
 #include "test_helpers/backend_user_edit.h"
 #include "test_helpers/gcode_recording_api.h"
+#include "test_helpers/happy_hare_fixture.h"
 #include "test_helpers/happy_hare_test_access.h"
 #include "test_helpers/print_state_test_drivers.h"
 #include "test_helpers/registered_backend.h"
@@ -4800,9 +4801,10 @@ TEST_CASE("Happy Hare v4 resolves the filament heater from live status",
     nlohmann::json configfile_settings = {
         {"mmu_machine",
          {{"happy_hare_version", "4.0.0"}, {"units", nlohmann::json::array({"unit0"})}}},
-        {"mmu", {{"heater_max_temp", 65.0}}}};
+        {"mmu_unit_parameters unit0", {{"heater_max_temp", 65.0}}}};
 
     nlohmann::json live_mmu_machine = {
+        {"happy_hare_version", "4.0.0"},
         {"num_units", 1},
         {"unit_0", {{"name", "unit0"}, {"filament_heater", "heater_generic box1_heater"}}}};
 
@@ -4816,7 +4818,7 @@ TEST_CASE("Happy Hare v4 resolves the filament heater from live status",
     REQUIRE(info.units[0].environment.has_value());
     CHECK(info.units[0].environment->temperature_c == Catch::Approx(52.0f));
 
-    // heater_max_temp still comes from [mmu], which v4 did not move.
+    // v4 keeps heater_max_temp on the unit's own parameters section.
     CHECK(helper.get_dryer_info().max_temp_c == Catch::Approx(65.0f));
 }
 
@@ -5811,4 +5813,70 @@ TEST_CASE_METHOD(HappyHareGoldenFixture, "Happy Hare golden status sequence",
         all += name + "\n" + feed(frame) + "\n";
     }
     CHECK(all == kHappyHareGolden);
+}
+
+// ============================================================================
+// Happy Hare v4
+// ============================================================================
+
+namespace {
+
+/// Answer the connect-time query with a golden fixture's configfile and live
+/// mmu_machine, the way a v4 printer does.
+void connect_with_fixture(AmsBackendHappyHareTestHelper& helper, QueryCapturingClient& client,
+                          const nlohmann::json& fx) {
+    HappyHareTestAccess::on_started(helper);
+    REQUIRE(client.answer);
+    client.answer(nlohmann::json{{"result",
+                                  {{"status",
+                                    {{"configfile", {{"settings", fx["configfile_settings"]}}},
+                                     {"mmu_machine", fx["mmu_machine"]}}}}}});
+    helix::ui::UpdateQueue::instance().drain();
+}
+
+} // namespace
+
+TEST_CASE("Happy Hare v4 reads its tunables from the split config sections",
+          "[ams][happy_hare][hh_v4]") {
+    QueryCapturingClient client;
+    helix::test::RegisteredBackend<AmsBackendHappyHareTestHelper> helper_reg(nullptr, &client);
+    AmsBackendHappyHareTestHelper& helper = *helper_reg;
+    helper.initialize_test_gates(4);
+
+    connect_with_fixture(helper, client,
+                         helix::test::load_happy_hare_fixture("happy_hare_v4_single_unit.json"));
+
+    const auto info = helper.get_system_info();
+    CHECK(info.version == "4.0.0");
+    CHECK(info.tip_method == TipMethod::CUT);
+    CHECK(helper.get_dryer_info().max_temp_c == Catch::Approx(65.0f));
+    const auto& d = HappyHareTestAccess::config_defaults(helper);
+    CHECK(d.loaded);
+    CHECK(d.gear_from_spool_speed == Catch::Approx(80.0f));
+    CHECK(d.gear_from_buffer_speed == Catch::Approx(150.0f));
+    CHECK(d.gear_unload_speed == Catch::Approx(120.0f));
+    CHECK(d.extruder_load_speed == Catch::Approx(12.0f));
+    CHECK(d.extruder_unload_speed == Catch::Approx(12.0f));
+    CHECK(d.toolhead_extruder_to_nozzle == Catch::Approx(87.0f));
+    CHECK(d.toolhead_sensor_to_nozzle == Catch::Approx(1.0f));
+    CHECK(d.toolhead_entry_to_extruder == Catch::Approx(6.0f));
+    CHECK(d.sync_to_extruder == 1);
+}
+
+TEST_CASE("Happy Hare v4 multi-unit reads unit parameters from the first unit's section",
+          "[ams][happy_hare][hh_v4]") {
+    QueryCapturingClient client;
+    helix::test::RegisteredBackend<AmsBackendHappyHareTestHelper> helper_reg(nullptr, &client);
+    AmsBackendHappyHareTestHelper& helper = *helper_reg;
+    helper.initialize_test_gates(10);
+
+    connect_with_fixture(helper, client,
+                         helix::test::load_happy_hare_fixture("happy_hare_v4_two_unit.json"));
+
+    CHECK(helper.get_system_info().tip_method == TipMethod::TIP_FORM);
+    const auto& d = HappyHareTestAccess::config_defaults(helper);
+    CHECK(d.gear_from_spool_speed == Catch::Approx(90.0f));
+    CHECK(d.selector_move_speed == Catch::Approx(220.0f));
+    CHECK(d.extruder_unload_speed == Catch::Approx(20.0f));
+    CHECK(d.toolhead_ooze_reduction == Catch::Approx(1.5f));
 }

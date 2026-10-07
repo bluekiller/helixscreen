@@ -541,12 +541,13 @@ class AmsBackendHappyHare : public AmsSubscriptionBackend {
     void query_config_from_printer();
 
     /**
-     * @brief Set the tip method from [mmu] form_tip_macro
+     * @brief Set the tip method from form_tip_macro
      *
      * A macro name containing "cut" (e.g., _MMU_CUT_TIP) is TipMethod::CUT;
      * anything else (e.g., _MMU_FORM_TIP) is TipMethod::TIP_FORM.
      */
-    void apply_tip_method_config(const nlohmann::json& settings);
+    void apply_tip_method_config(const nlohmann::json& settings,
+                                 const happy_hare::MachineLayout& layout);
 
     /**
      * @brief Set selector_type_ and the unit topologies from mmu_machine
@@ -558,14 +559,16 @@ class AmsBackendHappyHare : public AmsSubscriptionBackend {
                                     const nlohmann::json& live_mmu_machine);
 
     /**
-     * @brief Load [mmu] speed/distance defaults, then re-apply persisted overrides
+     * @brief Load speed/distance defaults, then re-apply persisted overrides
      */
-    void apply_config_defaults(const nlohmann::json& settings);
+    void apply_config_defaults(const nlohmann::json& settings,
+                               const happy_hare::MachineLayout& layout);
 
     /**
      * @brief Parse heater config settings into dryer_info_
      *
-     * Reads filament_heater from [mmu_machine] and heater_max_temp from [mmu].
+     * Reads filament_heater from [mmu_machine] and heater_max_temp from wherever
+     * the install's layout keeps it.
      * @param settings The configfile.settings JSON object
      * @param live_mmu_machine The live mmu_machine status object. Happy Hare v4
      *        publishes filament_heater / environment_sensor there, per unit,
@@ -609,6 +612,10 @@ class AmsBackendHappyHare : public AmsSubscriptionBackend {
     void update_unit_topologies();
 
     std::string selector_type_; ///< Selector type from config (e.g., "VirtualSelector" for Type B)
+
+    /// Version and config layout, from the connect-time configfile query. Until
+    /// that answers, the v3 layout.
+    happy_hare::MachineLayout machine_layout_;
 
     // Cached MMU state
     helix::printer::SlotRegistry slots_;    ///< Single source of truth for per-slot state
@@ -680,9 +687,9 @@ class AmsBackendHappyHare : public AmsSubscriptionBackend {
     // Error state tracking
     std::string reason_for_pause_; ///< Last reason_for_pause from MMU (descriptive error text)
 
-    // --- Config defaults from configfile.settings.mmu ---
+    // --- Config defaults from configfile.settings ---
 
-    /// Cached config defaults parsed from configfile.settings.mmu
+    /// Cached config defaults parsed from configfile.settings
     struct ConfigDefaults {
         float gear_from_buffer_speed = 150.0f;
         float gear_from_spool_speed = 60.0f;

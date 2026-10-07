@@ -135,7 +135,148 @@ DryingObjectDelta read_drying_object(const nlohmann::json& drying) {
     return d;
 }
 
+/// Which v4 section holds a tunable.
+enum class ParamScope { Machine, Unit, Toolhead };
+
+struct ParamRow {
+    std::string_view v3;
+    std::string_view v4; ///< empty: v4 has no such parameter
+    ParamScope scope;
+};
+
+// Every tunable the backend reads from configfile or sends through
+// MMU_TEST_CONFIG. v4 sources: mmu_machine_parameters.py (Machine),
+// unit/mmu_unit_parameters.py and the selector parameter classes, which read
+// [mmu_unit_parameters] too (Unit), unit/mmu_toolhead_wrapper.py (Toolhead).
+constexpr ParamRow kParams[] = {
+    {"form_tip_macro", "form_tip_macro", ParamScope::Machine},
+    {"extruder_load_speed", "extruder_load_speed", ParamScope::Machine},
+    {"extruder_unload_speed", "extruder_unload_speed", ParamScope::Machine},
+    {"gear_from_spool_speed", "gear_load_speed", ParamScope::Unit},
+    {"gear_from_buffer_speed", "gear_from_filament_buffer_speed", ParamScope::Unit},
+    {"gear_unload_speed", "gear_unload_speed", ParamScope::Unit},
+    {"selector_move_speed", "selector_move_speed", ParamScope::Unit},
+    {"sync_to_extruder", "sync_to_extruder", ParamScope::Unit},
+    {"heater_max_temp", "heater_max_temp", ParamScope::Unit},
+    {"clog_detection", "", ParamScope::Unit},
+    {"toolhead_sensor_to_nozzle", "toolhead_sensor_to_nozzle", ParamScope::Toolhead},
+    {"toolhead_extruder_to_nozzle", "toolhead_extruder_to_nozzle", ParamScope::Toolhead},
+    {"toolhead_entry_to_extruder", "toolhead_entry_to_extruder", ParamScope::Toolhead},
+    {"toolhead_ooze_reduction", "toolhead_ooze_reduction", ParamScope::Toolhead},
+};
+
+const ParamRow* find_param_row(std::string_view key) {
+    for (const auto& row : kParams) {
+        if (row.v3 == key) {
+            return &row;
+        }
+    }
+    return nullptr;
+}
+
+const nlohmann::json* find_member(const nlohmann::json& obj, const std::string& key) {
+    if (!obj.is_object()) {
+        return nullptr;
+    }
+    const auto it = obj.find(key);
+    return it == obj.end() ? nullptr : &*it;
+}
+
+std::string read_string_member(const nlohmann::json& obj, const std::string& key) {
+    const auto* v = find_member(obj, key);
+    return v && v->is_string() ? v->get<std::string>() : std::string{};
+}
+
 } // namespace
+
+MachineLayout read_machine_layout(const nlohmann::json& settings,
+                                  const nlohmann::json& live_mmu_machine) {
+    MachineLayout layout;
+    static const nlohmann::json empty = nlohmann::json::object();
+    const auto* config_machine = find_member(settings, "mmu_machine");
+    const nlohmann::json& config_mm = config_machine ? *config_machine : empty;
+
+    layout.version = read_string_member(live_mmu_machine, "happy_hare_version");
+    if (layout.version.empty()) {
+        layout.version = read_string_member(config_mm, "happy_hare_version");
+    }
+    const auto major = tio::parse_leading<int>(layout.version);
+    layout.v4 = major && *major >= 4;
+    if (!layout.v4) {
+        return layout;
+    }
+
+    // Klipper lowercases section names in configfile.settings; unit and
+    // toolhead names keep the case they were configured with.
+    std::string unit;
+    if (const auto* unit0 = find_member(live_mmu_machine, "unit_0")) {
+        unit = read_string_member(*unit0, "name");
+    }
+    if (unit.empty()) {
+        if (const auto* units = find_member(config_mm, "units");
+            units && units->is_array() && !units->empty() && (*units)[0].is_string()) {
+            unit = (*units)[0].get<std::string>();
+        }
+    }
+    unit = tio::to_lower(unit);
+    if (!unit.empty()) {
+        layout.unit_params_section = "mmu_unit_parameters " + unit;
+        std::string toolhead;
+        if (const auto* unit_cfg = find_member(settings, "mmu_unit " + unit)) {
+            toolhead = read_string_member(*unit_cfg, "toolhead");
+        }
+        layout.toolhead_section =
+            "mmu_toolhead " + tio::to_lower(toolhead.empty() ? "default" : toolhead);
+    }
+    return layout;
+}
+
+std::string_view param_name(std::string_view key, bool v4) {
+    if (!v4) {
+        return key;
+    }
+    const ParamRow* row = find_param_row(key);
+    return row ? row->v4 : key;
+}
+
+const nlohmann::json* find_config_param(const nlohmann::json& settings, const MachineLayout& layout,
+                                        std::string_view key) {
+    if (!layout.v4) {
+        const auto* mmu = find_member(settings, "mmu");
+        return mmu ? find_member(*mmu, std::string(key)) : nullptr;
+    }
+    const ParamRow* row = find_param_row(key);
+    if (!row || row->v4.empty()) {
+        return nullptr;
+    }
+    std::string section;
+    switch (row->scope) {
+    case ParamScope::Machine:
+        section = "mmu_parameters";
+        break;
+    case ParamScope::Unit:
+        section = layout.unit_params_section;
+        break;
+    case ParamScope::Toolhead:
+        section = layout.toolhead_section;
+        break;
+    }
+    const auto* params = find_member(settings, section);
+    return params ? find_member(*params, std::string(row->v4)) : nullptr;
+}
+
+std::optional<float> read_config_number(const nlohmann::json* v) {
+    if (!v) {
+        return std::nullopt;
+    }
+    if (v->is_number()) {
+        return v->get<float>();
+    }
+    if (v->is_string()) {
+        return tio::parse_leading<float>(v->get<std::string>());
+    }
+    return std::nullopt;
+}
 
 MmuCoreDelta parse_core(const nlohmann::json& mmu) {
     MmuCoreDelta d;

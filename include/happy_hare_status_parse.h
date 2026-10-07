@@ -9,6 +9,7 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -140,6 +141,39 @@ struct MmuStatusDelta {
     /// spelling `endless_spool`.
     std::optional<bool> endless_spool_enabled;
 };
+
+/// What the connect-time `mmu_machine` / `configfile.settings` pair says about
+/// how an install is laid out.
+///
+/// Happy Hare 3 keeps every tunable on `[mmu]`. Happy Hare 4 has no `[mmu]`: it
+/// splits the tunables across `[mmu_parameters]` (machine-wide), one
+/// `[mmu_unit_parameters <unit>]` per unit and `[mmu_toolhead <name>]`, and
+/// publishes `happy_hare_version` on `mmu_machine`, which v3 never does.
+struct MachineLayout {
+    std::string version;             ///< happy_hare_version; empty when neither source names one
+    bool v4 = false;                 ///< version 4 or later: the split layout
+    std::string unit_params_section; ///< "mmu_unit_parameters <unit 0>", v4 only
+    std::string toolhead_section;    ///< "mmu_toolhead <name>" unit 0 uses, v4 only
+};
+
+/// @param settings         configfile.settings (may be empty)
+/// @param live_mmu_machine the live `mmu_machine` status object (may be empty)
+[[nodiscard]] MachineLayout read_machine_layout(const nlohmann::json& settings,
+                                                const nlohmann::json& live_mmu_machine);
+
+/// The name an install accepts for the tunable @p key, which callers spell the
+/// way Happy Hare 3 does. Empty when a v4 install has no such parameter.
+[[nodiscard]] std::string_view param_name(std::string_view key, bool v4);
+
+/// The configfile value of the tunable @p key (v3 spelling) from whichever
+/// section @p layout keeps it in, or nullptr.
+[[nodiscard]] const nlohmann::json* find_config_param(const nlohmann::json& settings,
+                                                      const MachineLayout& layout,
+                                                      std::string_view key);
+
+/// A configfile number: Klipper reports parsed settings as numbers, and
+/// hand-written settings carry numeric strings.
+[[nodiscard]] std::optional<float> read_config_number(const nlohmann::json* v);
 
 [[nodiscard]] MmuCoreDelta parse_core(const nlohmann::json& mmu);
 [[nodiscard]] MmuTopologyDelta parse_topology(const nlohmann::json& mmu);
