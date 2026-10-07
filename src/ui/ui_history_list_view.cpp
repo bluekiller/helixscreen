@@ -369,29 +369,14 @@ void HistoryListView::update_visible(const std::vector<PrintHistoryJob>& jobs) {
     sync_list_spacers(container_, leading_spacer_, trailing_spacer_, win, last_leading_height_,
                       last_trailing_height_);
 
-    // Assign pool rows to visible indices, skipping rows that already show correct data
-    size_t pool_idx = 0;
-    for (int job_idx = first_visible; job_idx < last_visible && pool_idx < pool_.size();
-         job_idx++, pool_idx++) {
-        lv_obj_t* row = pool_[pool_idx];
-
-        if (data_changed || pool_indices_[pool_idx] != job_idx) {
-            configure_row(row, static_cast<size_t>(job_idx), jobs[job_idx]);
-            pool_indices_[pool_idx] = job_idx;
-        }
-
-        // Ensure row is in correct position (guard to avoid redundant relayout)
-        int target_index = static_cast<int>(pool_idx) + 1;
-        if (lv_obj_get_index(row) != target_index) {
-            lv_obj_move_to_index(row, target_index);
-        }
-    }
-
-    // Hide unused pool rows
-    for (; pool_idx < pool_.size(); pool_idx++) {
-        lv_obj_add_flag(pool_[pool_idx], LV_OBJ_FLAG_HIDDEN);
-        pool_indices_[pool_idx] = -1;
-    }
+    show_window(
+        container_, pool_indices_, first_visible, last_visible, data_changed,
+        [this](size_t slot) { return pool_[slot]; },
+        [&](size_t slot, ssize_t job_idx) {
+            configure_row(pool_[slot], static_cast<size_t>(job_idx),
+                          jobs[static_cast<size_t>(job_idx)]);
+        },
+        [this](size_t slot) { lv_obj_add_flag(pool_[slot], LV_OBJ_FLAG_HIDDEN); });
 
     spdlog::debug("[HistoryListView] Spacers: leading={}px trailing={}px, visible rows={}, "
                   "container content_h={} child_count={}",

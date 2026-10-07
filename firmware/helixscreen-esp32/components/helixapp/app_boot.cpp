@@ -95,6 +95,7 @@
 #include "printer_switch_flow.h"
 #include "runtime_config.h"
 #include "safety_settings_manager.h"
+#include "scroll_blit.h"
 #include "sdkconfig.h"
 #include "setting_group.h"
 #include "src/xml/lv_xml.h"
@@ -889,6 +890,18 @@ static bool s_touch_available = true;
 
 extern "C" void app_boot_set_touch_available(bool available) {
     s_touch_available = available;
+}
+
+extern "C" void app_boot_set_retained_frame(uint8_t* buf, size_t stride, uint8_t* scratch,
+                                            size_t scratch_bytes,
+                                            bool (*claim_rows)(int32_t, int32_t)) {
+    if (!buf) {
+        helix::scroll_blit_uninstall();
+        return;
+    }
+    helix::scroll_blit_install(
+        lv_display_get_default(),
+        helix::RetainedFrame{buf, stride, scratch, scratch_bytes, claim_rows});
 }
 
 extern "C" void app_boot_print_notifications(void) {
