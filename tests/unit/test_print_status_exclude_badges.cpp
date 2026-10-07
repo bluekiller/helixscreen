@@ -9,6 +9,7 @@
 #include "ui_gcode_viewer.h"
 
 #include "../test_helpers/print_status_panel_fixture.h"
+#include "printer_discovery.h"
 #include "printer_excluded_objects_state.h"
 
 #include <string>
@@ -35,9 +36,22 @@ std::vector<helix::ui::ObjectBadge> badges_of(lv_obj_t* viewer) {
     return helix::test_access::gcode_viewer_object_badges(viewer);
 }
 
+/// A print status panel on a printer with [exclude_object] configured.
+class ExcludeObjectPanelFixture : public PrintStatusPanelFixture {
+  public:
+    ExcludeObjectPanelFixture() {
+        helix::PrinterDiscovery hw;
+        hw.parse_objects(nlohmann::json{"exclude_object", "extruder"});
+        state().set_hardware(hw);
+    }
+    ~ExcludeObjectPanelFixture() override {
+        state().set_hardware(helix::PrinterDiscovery{});
+    }
+};
+
 } // namespace
 
-TEST_CASE_METHOD(PrintStatusPanelFixture,
+TEST_CASE_METHOD(ExcludeObjectPanelFixture,
                  "Render badges follow the exclude side list open, update and close",
                  "[exclude_badges][print_status]") {
     auto& objects = state().excluded_objects_state();
@@ -100,7 +114,7 @@ TEST_CASE_METHOD(PrintStatusPanelFixture,
     CHECK(badges_of(viewer).empty());
 }
 
-TEST_CASE_METHOD(PrintStatusPanelFixture,
+TEST_CASE_METHOD(ExcludeObjectPanelFixture,
                  "The objects button follows a multi-object print and never shows a pick count",
                  "[exclude_button][print_status][pre_start_exclude]") {
     lv_obj_t* btn = lv_obj_find_by_name(root_, "btn_objects");

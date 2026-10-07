@@ -331,6 +331,8 @@ void PrintSelectPanel::init_subjects() {
              get_global_print_select_panel().forward_sliced_colors_toggle(
                  helix::ui::event_checked(e));
          }},
+        {"on_print_select_detail_objects",
+         [](lv_event_t*) { get_global_print_select_panel().toggle_detail_exclude_mode(); }},
         {"on_color_card_remap_help",
          [](lv_event_t*) { get_global_print_select_panel().show_remap_help(); }},
     });
@@ -2175,6 +2177,12 @@ void PrintSelectPanel::show_detail_view() {
 void PrintSelectPanel::forward_sliced_colors_toggle(bool checked) {
     if (detail_view_) {
         detail_view_->set_prefer_sliced_colors(checked);
+    }
+}
+
+void PrintSelectPanel::toggle_detail_exclude_mode() {
+    if (detail_view_) {
+        detail_view_->toggle_exclude_mode();
     }
 }
 

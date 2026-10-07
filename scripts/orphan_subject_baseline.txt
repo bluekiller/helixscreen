@@ -14,9 +14,6 @@
 abort_state  # src/abort/abort_manager.cpp:63
 about_version_description  # src/ui/ui_settings_about.cpp:103
 ams_env_overlay_preset_text  # src/ui/ui_ams_environment_overlay.cpp:124
-detail_exclude_available  # src/ui/ui_print_select_detail_view.cpp:246
-detail_exclude_pick_count  # src/ui/ui_print_select_detail_view.cpp:247
-detail_exclude_pick_count_text  # src/ui/ui_print_select_detail_view.cpp:248
 detail_view_visible  # src/ui/ui_panel_print_select.cpp:335
 dryer_current_temp_text  # src/printer/ams_state.cpp:416; src/printer/ams_state.cpp:816
 dryer_progress_pct  # src/printer/ams_state.cpp:415; src/printer/ams_state.cpp:815
@@ -25,7 +22,6 @@ dryer_supported  # src/printer/ams_state_subjects.cpp:194; src/printer/ams_state
 dryer_target_temp  # src/printer/ams_state.cpp:413; src/printer/ams_state.cpp:813
 dryer_target_temp_text  # src/printer/ams_state.cpp:417; src/printer/ams_state.cpp:818
 dryer_time_text  # src/printer/ams_state.cpp:418; src/printer/ams_state.cpp:820
-exclude_map_active  # src/ui/ui_panel_print_status.cpp:653
 filament_extrusion_allowed  # src/ui/ui_panel_filament.cpp:287
 filament_material_bed_temp  # src/ui/ui_panel_filament.cpp:301
 filament_material_nozzle_temp  # src/ui/ui_panel_filament.cpp:299

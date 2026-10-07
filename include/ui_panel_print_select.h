@@ -439,6 +439,9 @@ class PrintSelectPanel : public PanelBase {
     /// Forward the "Show sliced colors" toggle to the detail view.
     void forward_sliced_colors_toggle(bool checked);
 
+    /// Open or close exclude mode in the detail view.
+    void toggle_detail_exclude_mode();
+
     /**
      * @brief Programmatically select a file by name and show detail view
      *

@@ -20,6 +20,7 @@
 #include "ams_remap.h"
 #include "ams_state.h"
 #include "app_globals.h"
+#include "bed_dimensions.h"
 #include "color_utils.h"
 #include "config.h"
 #include "display_settings_manager.h"
@@ -1924,9 +1925,31 @@ bool PrintSelectDetailView::all_objects_picked() const {
                                           exclude_objects_.get_excluded_objects());
 }
 
+void PrintSelectDetailView::toggle_exclude_mode() {
+    if (exclude_mode_.is_open()) {
+        exclude_mode_.hide();
+        return;
+    }
+    if (!overlay_root_) {
+        return;
+    }
+    helix::ui::ExcludeModeTargets targets;
+    targets.card = detail_card_;
+    targets.columns = lv_obj_find_by_name(overlay_root_, "content_container");
+    targets.controls_name = "options_section";
+    targets.gcode_viewer = gcode_viewer_;
+    targets.thumbnail_mode = lv_subject_get_int(&detail_viewer_hidden_) == 1;
+    const auto bed = helix::bed_dimensions(api_, printer_state_);
+    targets.bed_w_mm = bed.w_mm;
+    targets.bed_h_mm = bed.h_mm;
+    exclude_mode_.show(targets, &exclude_objects_, helix::ui::ExcludeTapMode::Toggle,
+                       [this](const std::string& name) { toggle_exclude_pick(name); });
+}
+
 void PrintSelectDetailView::publish_exclude_picks() {
     const auto& picks = exclude_objects_.get_excluded_objects();
-    const int count = static_cast<int>(picks.size());
+    // Counts what Print will send, so the badge and the list never disagree.
+    const int count = static_cast<int>(exclude_picks().size());
     lv_subject_set_int(&detail_exclude_pick_count_, count);
     std::snprintf(detail_exclude_pick_count_text_buf_, sizeof(detail_exclude_pick_count_text_buf_),
                   "%d", count);
@@ -2491,14 +2514,15 @@ void PrintSelectDetailView::begin_viewer_load(const std::string& path) {
             // fire_on_loaded() so any deferred print-attempt sees fresh checks.
             self->try_extract_gcode_colors(viewer);
 
+            // The whole file is parsed: definitions past the scan window now
+            // appear, before a deferred Print reads the picks.
+            self->refresh_exclude_objects();
             // Parse + pre-flight are now complete: release any deferred
             // run_when_loaded() callback (e.g. a print tapped pre-parse).
             self->fire_on_loaded();
             // The viewer parse also satisfies pre-flight readiness on full
             // platforms — release any run_when_preflight_ready() attempt.
             self->fire_on_preflight_ready();
-            // The whole file is parsed: definitions past the scan window now appear.
-            self->refresh_exclude_objects();
 
             // A parse that found no layers has nothing to draw, and revealing
             // it would hide the thumbnail behind an empty viewer.

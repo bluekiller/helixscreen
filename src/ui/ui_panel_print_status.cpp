@@ -366,11 +366,11 @@ PrintStatusPanel::PrintStatusPanel(PrinterState& printer_state, IMoonrakerAPI* a
     exclude_objects_observer_ = observe<int>(
         printer_state_.excluded_objects_state().get_defined_objects_version_subject(), this,
         [](PrintStatusPanel* self, int) {
-            // Klipper reports defined objects only through [exclude_object], and
-            // only from the G-code file it is printing.
+            // Klipper reports defined objects only from the G-code file it is
+            // printing, so a print is never a 3MF.
             const int available =
                 helix::ui::pre_start_exclude_available(
-                    true, false,
+                    self->printer_state_.get_discovery().has_exclude_object(), false,
                     self->printer_state_.excluded_objects_state().get_defined_objects().size())
                     ? 1
                     : 0;

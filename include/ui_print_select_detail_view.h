@@ -384,6 +384,13 @@ class PrintSelectDetailView : public OverlayBase {
         return picks_held_for_start_;
     }
 
+    /// Open or close exclude mode over the preview: map + list in thumbnail
+    /// mode, render badges + list in 2D/3D. Taps toggle picks.
+    void toggle_exclude_mode();
+    [[nodiscard]] bool is_exclude_mode_open() const {
+        return exclude_mode_.is_open();
+    }
+
     // Note: is_visible() inherited from OverlayBase
 
     // === Delete Confirmation ===
