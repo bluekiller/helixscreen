@@ -95,6 +95,15 @@ std::string PrinterDiscovery::summary() const {
     return ss.str();
 }
 
+std::vector<std::string> temperature_sensor_objects(const PrinterDiscovery& hardware) {
+    std::vector<std::string> objects = hardware.sensors();
+    for (const auto& heater : hardware.heaters()) {
+        if (heater.rfind("heater_generic ", 0) == 0)
+            objects.push_back(heater);
+    }
+    return objects;
+}
+
 void init_subsystems_from_hardware(const PrinterDiscovery& hardware, IMoonrakerAPI* api,
                                    IMoonrakerClient* client) {
     spdlog::debug("[PrinterDiscovery] Initializing subsystems from hardware discovery");
@@ -111,16 +120,8 @@ void init_subsystems_from_hardware(const PrinterDiscovery& hardware, IMoonrakerA
                       hardware.filament_sensor_names().size());
     }
 
-    // Initialize temperature sensor manager: temperature_sensor / temperature_fan
-    // objects from hardware.sensors(), plus every heater_generic (filament dryers,
-    // auxiliary heaters). Extruders and the bed belong to PrinterTemperatureState.
     auto& tsm = helix::sensors::TemperatureSensorManager::instance();
-    std::vector<std::string> temperature_objects = hardware.sensors();
-    for (const auto& heater : hardware.heaters()) {
-        if (heater.rfind("heater_generic ", 0) == 0)
-            temperature_objects.push_back(heater);
-    }
-    tsm.discover(temperature_objects);
+    tsm.discover(temperature_sensor_objects(hardware));
 
     // Initialize load cell manager
     // hardware.load_cells() returns load_cell objects
