@@ -372,22 +372,18 @@ qc_dup_names() {
 # only ever looked up with the ROW as search parent.
 echo "🏷️  Checking for duplicate XML widget names..."
 
-if [ -f "scripts/check_duplicate_xml_names.py" ]; then
-  if [ "$STAGED_ONLY" = true ]; then
-    DUP_NAME_ARGS="--staged-only"
-  else
-    DUP_NAME_ARGS=""
-  fi
-  # shellcheck disable=SC2086
-  if python3 scripts/check_duplicate_xml_names.py $DUP_NAME_ARGS --summary >/tmp/duplicate_xml_names.out 2>&1; then
-    cat /tmp/duplicate_xml_names.out
-  else
-    cat /tmp/duplicate_xml_names.out
-    echo "   Run: python3 scripts/check_duplicate_xml_names.py --list"
-    EXIT_CODE=1
-  fi
+if [ "$STAGED_ONLY" = true ]; then
+  DUP_NAME_ARGS="--staged-only"
 else
-  echo "⚠️  check_duplicate_xml_names.py not found — skipping"
+  DUP_NAME_ARGS=""
+fi
+# shellcheck disable=SC2086
+if python3 scripts/check_duplicate_xml_names.py $DUP_NAME_ARGS --summary >/tmp/duplicate_xml_names.out 2>&1; then
+  cat /tmp/duplicate_xml_names.out
+else
+  cat /tmp/duplicate_xml_names.out
+  echo "   Run: python3 scripts/check_duplicate_xml_names.py --list"
+  EXIT_CODE=1
 fi
 
 echo ""
@@ -743,21 +739,17 @@ qc_overlay_width() {
 # the console_panel it was pushed from.
 echo "📐 Checking overlay width declarations..."
 
-if [ -f "scripts/check_overlay_width.py" ]; then
-  if [ "$STAGED_ONLY" = true ]; then
-    OVERLAY_WIDTH_ARGS="--staged-only"
-  else
-    OVERLAY_WIDTH_ARGS=""
-  fi
-  # shellcheck disable=SC2086
-  if python3 scripts/check_overlay_width.py $OVERLAY_WIDTH_ARGS >/tmp/overlay_width.out 2>&1; then
-    echo "✅ No hand-picked overlay widths"
-  else
-    cat /tmp/overlay_width.out
-    EXIT_CODE=1
-  fi
+if [ "$STAGED_ONLY" = true ]; then
+  OVERLAY_WIDTH_ARGS="--staged-only"
 else
-  echo "⚠️  check_overlay_width.py not found — skipping"
+  OVERLAY_WIDTH_ARGS=""
+fi
+# shellcheck disable=SC2086
+if python3 scripts/check_overlay_width.py $OVERLAY_WIDTH_ARGS >/tmp/overlay_width.out 2>&1; then
+  echo "✅ No hand-picked overlay widths"
+else
+  cat /tmp/overlay_width.out
+  EXIT_CODE=1
 fi
 
 echo ""
@@ -781,16 +773,12 @@ qc_icon_names() {
 # qc_trigger_re on purpose: deleting a codepoint from the header breaks XML that
 # is nowhere near the diff, so this cannot be gated on staged .xml files.
 echo "🖼️  Checking icon names resolve to codepoints..."
-if [ -f "scripts/check_icon_names.py" ]; then
-  if python3 scripts/check_icon_names.py --summary >/tmp/icon_names.out 2>&1; then
-    tail -1 /tmp/icon_names.out
-  else
-    cat /tmp/icon_names.out
-    echo "   Run: python3 scripts/check_icon_names.py --list"
-    EXIT_CODE=1
-  fi
+if python3 scripts/check_icon_names.py --summary >/tmp/icon_names.out 2>&1; then
+  tail -1 /tmp/icon_names.out
 else
-  echo "⚠️  check_icon_names.py not found — skipping"
+  cat /tmp/icon_names.out
+  echo "   Run: python3 scripts/check_icon_names.py --list"
+  EXIT_CODE=1
 fi
   return $EXIT_CODE
 }
@@ -813,27 +801,23 @@ qc_design_pixels() {
 # walks its swatch-grid content floor.
 echo "📏 Checking design-token usage (hardcoded pixels)..."
 
-if [ -f "scripts/check_hardcoded_pixels.py" ]; then
-  # Pre-commit: scan the post-commit tree (index + HEAD), not the dirty working
-  # tree — so another session's unstaged WIP cannot trip the ratchet on a clean
-  # commit. CI and manual runs use the whole-working-tree scan (no flag).
-  if [ "$STAGED_ONLY" = true ]; then
-    PIXELS_ARGS="--staged-only"
-  else
-    PIXELS_ARGS=""
-  fi
-  # shellcheck disable=SC2086
-  if python3 scripts/check_hardcoded_pixels.py --max-allowed 150 --summary $PIXELS_ARGS \
-      >/tmp/hardcoded_pixels.out 2>&1; then
-    tail -1 /tmp/hardcoded_pixels.out
-  else
-    cat /tmp/hardcoded_pixels.out
-    echo "   Run: python3 scripts/check_hardcoded_pixels.py --list"
-    echo "   Use a token; see .claude/rules/declarative-ui.md § Design Tokens."
-    EXIT_CODE=1
-  fi
+# Pre-commit: scan the post-commit tree (index + HEAD), not the dirty working
+# tree — so another session's unstaged WIP cannot trip the ratchet on a clean
+# commit. CI and manual runs use the whole-working-tree scan (no flag).
+if [ "$STAGED_ONLY" = true ]; then
+  PIXELS_ARGS="--staged-only"
 else
-  echo "⚠️  check_hardcoded_pixels.py not found — skipping"
+  PIXELS_ARGS=""
+fi
+# shellcheck disable=SC2086
+if python3 scripts/check_hardcoded_pixels.py --max-allowed 150 --summary $PIXELS_ARGS \
+    >/tmp/hardcoded_pixels.out 2>&1; then
+  tail -1 /tmp/hardcoded_pixels.out
+else
+  cat /tmp/hardcoded_pixels.out
+  echo "   Run: python3 scripts/check_hardcoded_pixels.py --list"
+  echo "   Use a token; see .claude/rules/declarative-ui.md § Design Tokens."
+  EXIT_CODE=1
 fi
 
 echo ""
@@ -844,15 +828,11 @@ echo "🪟 Checking layout-variant parity..."
 # when the base grows a binding the variant never gets. Those failures are
 # silent at runtime (prestonbrown/helixscreen#1203). Always whole-tree: parity
 # is a property of a file PAIR, so staging only one half still has to be checked.
-if [ -f "scripts/check_variant_parity.py" ]; then
-  if python3 scripts/check_variant_parity.py >/tmp/variant_parity.out 2>&1; then
-    echo "✅ Layout variants match their base wiring"
-  else
-    cat /tmp/variant_parity.out
-    EXIT_CODE=1
-  fi
+if python3 scripts/check_variant_parity.py >/tmp/variant_parity.out 2>&1; then
+  echo "✅ Layout variants match their base wiring"
 else
-  echo "⚠️  check_variant_parity.py not found — skipping"
+  cat /tmp/variant_parity.out
+  EXIT_CODE=1
 fi
 
 echo ""
@@ -867,13 +847,9 @@ echo "🎭 Checking layout-variant content drift (warning only)..."
 # legitimate, and this gate cannot tell that apart from rot -- only a human
 # glancing at the named file/attribute can. Staged-diff scoped by design: a
 # base+variant pair staged TOGETHER is the human already keeping them in sync.
-if [ -f "scripts/check_variant_content_drift.py" ]; then
-  python3 scripts/check_variant_content_drift.py
-  # NOTE: intentionally not gating -- see docstring in the script.
-  # EXIT_CODE=1
-else
-  echo "⚠️  check_variant_content_drift.py not found — skipping"
-fi
+python3 scripts/check_variant_content_drift.py
+# NOTE: intentionally not gating -- see docstring in the script.
+# EXIT_CODE=1
 
 echo ""
 
@@ -884,15 +860,11 @@ echo "📏 Checking responsive token placement..."
 # reading it resolves to nothing, silently (prestonbrown/helixscreen#1211).
 # Always whole-tree: the scan is a regex over ~330 small files, and the rule is
 # about where a file SITS, so a staged-only view buys nothing.
-if [ -f "scripts/check_responsive_token_scope.py" ]; then
-  if python3 scripts/check_responsive_token_scope.py >/tmp/responsive_token_scope.out 2>&1; then
-    echo "✅ Responsive tokens are all top-level"
-  else
-    cat /tmp/responsive_token_scope.out
-    EXIT_CODE=1
-  fi
+if python3 scripts/check_responsive_token_scope.py >/tmp/responsive_token_scope.out 2>&1; then
+  echo "✅ Responsive tokens are all top-level"
 else
-  echo "⚠️  check_responsive_token_scope.py not found — skipping"
+  cat /tmp/responsive_token_scope.out
+  EXIT_CODE=1
 fi
 
 echo ""
@@ -907,15 +879,11 @@ echo "📐 Checking modal chrome budget..."
 # layout: lv_flex.c has grow but no shrink. Whole-tree: the rule is about a
 # file's own element order, so a staged-only view would miss a modal whose
 # budget was broken by an edit to a component it embeds.
-if [ -f "scripts/check_modal_chrome_budget.py" ]; then
-  if python3 scripts/check_modal_chrome_budget.py >/tmp/modal_chrome_budget.out 2>&1; then
-    echo "✅ Modal chrome budget: every pinned block is accounted for"
-  else
-    cat /tmp/modal_chrome_budget.out
-    EXIT_CODE=1
-  fi
+if python3 scripts/check_modal_chrome_budget.py >/tmp/modal_chrome_budget.out 2>&1; then
+  echo "✅ Modal chrome budget: every pinned block is accounted for"
 else
-  echo "⚠️  check_modal_chrome_budget.py not found — skipping"
+  cat /tmp/modal_chrome_budget.out
+  EXIT_CODE=1
 fi
 
 echo ""
@@ -932,45 +900,25 @@ echo "📜 Checking panel-widget scroll declarations..."
 # just as well as "false"; only saying nothing fails. The remaining 21 sites are
 # not fixed in bulk on purpose: each needs its author's intent, and some really
 # should scroll. The number may go DOWN, never up.
-if [ -f "scripts/check_panel_widget_scrollable.py" ]; then
-  # Pre-commit: scan the post-commit tree (index + HEAD), not the dirty working
-  # tree - so another session's unstaged WIP cannot trip the ratchet on a clean
-  # commit. CI and manual runs use the whole-working-tree scan (no flag).
-  if [ "$STAGED_ONLY" = true ]; then
-    PW_SCROLLABLE_ARGS="--staged-only"
-  else
-    PW_SCROLLABLE_ARGS=""
-  fi
-  # shellcheck disable=SC2086
-  if python3 scripts/check_panel_widget_scrollable.py --max-allowed 21 --summary $PW_SCROLLABLE_ARGS \
-      >/tmp/panel_widget_scrollable.out 2>&1; then
-    tail -1 /tmp/panel_widget_scrollable.out
-  else
-    cat /tmp/panel_widget_scrollable.out
-    echo "   Run: python3 scripts/check_panel_widget_scrollable.py --list"
-    EXIT_CODE=1
-  fi
+# Pre-commit: scan the post-commit tree (index + HEAD), not the dirty working
+# tree - so another session's unstaged WIP cannot trip the ratchet on a clean
+# commit. CI and manual runs use the whole-working-tree scan (no flag).
+if [ "$STAGED_ONLY" = true ]; then
+  PW_SCROLLABLE_ARGS="--staged-only"
 else
-  echo "⚠️  check_panel_widget_scrollable.py not found - skipping"
+  PW_SCROLLABLE_ARGS=""
+fi
+# shellcheck disable=SC2086
+if python3 scripts/check_panel_widget_scrollable.py --max-allowed 21 --summary $PW_SCROLLABLE_ARGS \
+    >/tmp/panel_widget_scrollable.out 2>&1; then
+  tail -1 /tmp/panel_widget_scrollable.out
+else
+  cat /tmp/panel_widget_scrollable.out
+  echo "   Run: python3 scripts/check_panel_widget_scrollable.py --list"
+  EXIT_CODE=1
 fi
 
 echo ""
-
-# ESP32 firmware app_srcs manifest drift. The manifest is a hand-maintained
-# subset of src/ (v1 Core+AMS cut); a new src/ file that misses it breaks the
-# firmware link ~25 min into esp32-build CI. This makes the drift loud here.
-# Skips cleanly when the firmware tree is absent (e.g. a shallow checkout).
-if [ -f "firmware/helixscreen-esp32/components/helixapp/app_srcs.txt" ] && \
-   [ -f "scripts/check_esp32_app_srcs.py" ]; then
-  if python3 scripts/check_esp32_app_srcs.py >/tmp/esp32_app_srcs.out 2>&1; then
-    echo "✅ ESP32 app_srcs manifest covers src/ (no drift)"
-  else
-    cat /tmp/esp32_app_srcs.out
-    EXIT_CODE=1
-  fi
-else
-  echo "⚠️  esp32 app_srcs manifest or gate not found — skipping"
-fi
 
 # android/app/src/main/assets/ is a Gradle build output (the copyAssets task
 # wipes and re-copies it from ui_xml/, assets/ and config/). It is ignored
@@ -978,31 +926,40 @@ fi
 # source: one went 4 months stale and cost four separate lint gates a
 # hand-written exclusion apiece. This fails on a tracked file under that tree, or
 # on a build rule writing into it behind Gradle's back (mk/filaments.mk did).
-if [ -f "scripts/check_android_asset_staging.py" ]; then
-  if python3 scripts/check_android_asset_staging.py >/tmp/android_staging.out 2>&1; then
-    cat /tmp/android_staging.out
-  else
-    cat /tmp/android_staging.out
-    echo "   Run: python3 scripts/check_android_asset_staging.py --list"
-    EXIT_CODE=1
-  fi
+if python3 scripts/check_android_asset_staging.py >/tmp/android_staging.out 2>&1; then
+  cat /tmp/android_staging.out
 else
-  echo "⚠️  check_android_asset_staging.py not found — skipping"
+  cat /tmp/android_staging.out
+  echo "   Run: python3 scripts/check_android_asset_staging.py --list"
+  EXIT_CODE=1
 fi
 
 # A printer_database.json entry naming an image that does not exist is silent at
 # runtime: the lookup falls through to generic-corexy and logs nothing above debug,
 # so a bed-slinger just quietly shows a CoreXY frame. Twenty entries had drifted
 # that way before anyone noticed.
-if [ -f "assets/config/printer_database.json" ] && [ -f "scripts/check_printer_images.py" ]; then
-  if python3 scripts/check_printer_images.py >/tmp/printer_images.out 2>&1; then
-    cat /tmp/printer_images.out
-  else
-    cat /tmp/printer_images.out
+if python3 scripts/check_printer_images.py >/tmp/printer_images.out 2>&1; then
+  cat /tmp/printer_images.out
+else
+  cat /tmp/printer_images.out
+  EXIT_CODE=1
+fi
+
+# Transparent margin on printer art is width the home widget's contain-fit spends
+# on nothing, which can push its callout chips off their leader lines. A commit
+# runs it only when it stages printer art or the script.
+if [ "$STAGED_ONLY" = true ] &&
+  ! printf '%s\n' "$QC_STAGED_ALL" | grep -qE '^assets/images/printers/|^scripts/trim_printer_images\.py$'; then
+  :
+elif python3 -c "import PIL" 2>/dev/null; then
+  TRIM_OUT="$(mktemp)"
+  if ! python3 scripts/trim_printer_images.py --check >"$TRIM_OUT" 2>&1; then
+    cat "$TRIM_OUT"
     EXIT_CODE=1
   fi
+  rm -f "$TRIM_OUT"
 else
-  echo "⚠️  printer database or image gate not found — skipping"
+  echo "⚠️  Pillow not installed — skipping printer image trim check"
 fi
 
 # An async pytest case whose plugin is not in requirements.txt does not read as a
@@ -1020,24 +977,18 @@ fi
 # release matrix cross-builds k2, so it would surface long after the commit.
 echo ""
 echo "${BOLD}🔠 Checking font tier coverage...${RESET}"
-if [ -f "scripts/check_font_tier_coverage.py" ]; then
-  if python3 scripts/check_font_tier_coverage.py >/tmp/font_tier_coverage.out 2>&1; then
-    cat /tmp/font_tier_coverage.out
-  else
-    cat /tmp/font_tier_coverage.out
-    EXIT_CODE=1
-  fi
+if python3 scripts/check_font_tier_coverage.py >/tmp/font_tier_coverage.out 2>&1; then
+  cat /tmp/font_tier_coverage.out
+else
+  cat /tmp/font_tier_coverage.out
+  EXIT_CODE=1
 fi
 
-if [ -f "scripts/check_pytest_asyncio_deps.py" ]; then
-  if python3 scripts/check_pytest_asyncio_deps.py >/tmp/pytest_asyncio_deps.out 2>&1; then
-    cat /tmp/pytest_asyncio_deps.out
-  else
-    cat /tmp/pytest_asyncio_deps.out
-    EXIT_CODE=1
-  fi
+if python3 scripts/check_pytest_asyncio_deps.py >/tmp/pytest_asyncio_deps.out 2>&1; then
+  cat /tmp/pytest_asyncio_deps.out
 else
-  echo "⚠️  pytest asyncio deps gate not found — skipping"
+  cat /tmp/pytest_asyncio_deps.out
+  EXIT_CODE=1
 fi
 
 echo ""
@@ -1047,6 +998,42 @@ echo ""
 #  its first line to the next '# ====' banner. Wrapping the sections in
 #  functions moved the banners above them, so without this the extraction
 #  ran on past the body and swallowed the return/closing brace.)
+  return $EXIT_CODE
+}
+
+# ====================================================================
+# ESP32 firmware app_srcs manifest and link boundary
+# ====================================================================
+qc_esp32_app_srcs() {
+  local EXIT_CODE=0
+# ESP32 firmware app_srcs manifest drift. The manifest is a hand-maintained
+# subset of src/ (v1 Core+AMS cut); a new src/ file that misses it breaks the
+# firmware link ~25 min into esp32-build CI. This makes the drift loud here.
+if python3 scripts/check_esp32_app_srcs.py >/tmp/esp32_app_srcs.out 2>&1; then
+  echo "✅ ESP32 app_srcs manifest covers src/ (no drift)"
+else
+  cat /tmp/esp32_app_srcs.out
+  EXIT_CODE=1
+fi
+
+# The same boundary at link level: a listed file calling a symbol that only an
+# excluded file defines compiles everywhere and fails the firmware link. It reads
+# the native build's objects, which this hook may not have built yet or may hold
+# from an older build, so it is advisory.
+python3 scripts/check_esp32_app_srcs.py --link >/tmp/esp32_app_srcs_link.out 2>&1
+case $? in
+  0) echo "✅ ESP32 link boundary: no listed file needs an excluded file's symbols" ;;
+  2) echo "ℹ️  ESP32 link boundary: no build/obj objects to read (advisory, skipped)" ;;
+  *) echo "⚠️  ESP32 link boundary findings (advisory):"
+     cat /tmp/esp32_app_srcs_link.out ;;
+esac
+
+echo ""
+
+# ====================================================================
+# (terminator: tests/shell/*.bats extract a section's body by awk-ing from
+#  its first line to the next '# ====' banner, which must stop before the
+#  return and closing brace.)
   return $EXIT_CODE
 }
 
@@ -1469,26 +1456,20 @@ echo -n "🔤 Validating icon font codepoints..."
 
 # Check if all icons in ui_icon_codepoints.h are present in compiled fonts
 # This prevents the bug where icons are added to code but fonts aren't regenerated
-if [ -f "scripts/validate_icon_fonts.sh" ]; then
-  if ./scripts/validate_icon_fonts.sh 2>/dev/null; then
-    section_time $SECTION_START
-    echo ""
-    echo "✅ All icon codepoints present in fonts"
-  else
-    section_time $SECTION_START
-    echo ""
-    echo "❌ Missing icon codepoints in fonts!"
-    echo ""
-    echo "   Some icons in include/ui_icon_codepoints.h are not in the compiled fonts."
-    echo "   Run './scripts/regen_mdi_fonts.sh' to regenerate fonts, then rebuild."
-    echo ""
-    echo "   Or run './scripts/validate_icon_fonts.sh --fix' to auto-regenerate."
-    EXIT_CODE=1
-  fi
+if ./scripts/validate_icon_fonts.sh 2>/dev/null; then
+  section_time $SECTION_START
+  echo ""
+  echo "✅ All icon codepoints present in fonts"
 else
   section_time $SECTION_START
   echo ""
-  echo "⚠️  validate_icon_fonts.sh not found - skipping icon validation"
+  echo "❌ Missing icon codepoints in fonts!"
+  echo ""
+  echo "   Some icons in include/ui_icon_codepoints.h are not in the compiled fonts."
+  echo "   Run './scripts/regen_mdi_fonts.sh' to regenerate fonts, then rebuild."
+  echo ""
+  echo "   Or run './scripts/validate_icon_fonts.sh --fix' to auto-regenerate."
+  EXIT_CODE=1
 fi
 
 echo ""
@@ -1509,26 +1490,20 @@ qc_mdi_codepoints() {
 SECTION_START=$(date +%s)
 echo -n "🔤 Verifying MDI codepoint labels..."
 
-if [ -f "scripts/verify_mdi_codepoints.py" ]; then
-  python3 scripts/verify_mdi_codepoints.py 2>/dev/null
-  RESULT=$?
-  section_time $SECTION_START
-  echo ""
-  if [ $RESULT -eq 0 ]; then
-    echo "✅ All MDI codepoint labels verified"
-  elif [ $RESULT -eq 1 ]; then
-    echo "❌ MDI codepoint verification failed!"
-    echo "   Some icon codepoints don't match their labels."
-    echo "   Run: python3 scripts/verify_mdi_codepoints.py"
-    EXIT_CODE=1
-  elif [ $RESULT -eq 2 ]; then
-    echo "⚠️  MDI metadata cache missing"
-    echo "   Run: make update-mdi-cache"
-  fi
-else
-  section_time $SECTION_START
-  echo ""
-  echo "⚠️  verify_mdi_codepoints.py not found - skipping"
+python3 scripts/verify_mdi_codepoints.py 2>/dev/null
+RESULT=$?
+section_time $SECTION_START
+echo ""
+if [ $RESULT -eq 0 ]; then
+  echo "✅ All MDI codepoint labels verified"
+elif [ $RESULT -eq 1 ]; then
+  echo "❌ MDI codepoint verification failed!"
+  echo "   Some icon codepoints don't match their labels."
+  echo "   Run: python3 scripts/verify_mdi_codepoints.py"
+  EXIT_CODE=1
+elif [ $RESULT -eq 2 ]; then
+  echo "⚠️  MDI metadata cache missing"
+  echo "   Run: make update-mdi-cache"
 fi
 
 echo ""
@@ -1548,27 +1523,22 @@ qc_todo_markers() {
   local EXIT_CODE=0
 echo -n "🔍 Checking work markers in comments..."
 
-if [ -f "scripts/check_todo_markers.py" ]; then
-  # Ratcheting baseline. Printed as informational output (and truncated at 20
-  # lines) the list was never read whole, and several entries were user-facing
-  # controls that did nothing (prestonbrown/helixscreen#1373). What remains is
-  # accounted for: each cites the issue that owns it as `(#NNNN)` with the
-  # constraint on the same line, or sits in a file another change is rewriting.
-  # The number may go DOWN (fix one, then lower this baseline) but must never
-  # go up. Always whole-tree: a marker is a marker whichever commit adds it.
-  if python3 scripts/check_todo_markers.py --max-allowed 8 --summary >/tmp/todo_markers.out 2>&1; then
-    echo ""
-    tail -1 /tmp/todo_markers.out
-  else
-    echo ""
-    cat /tmp/todo_markers.out
-    echo "   Run: python3 scripts/check_todo_markers.py --list"
-    echo "   Fix it, or file the issue and cite it: // MARKER(#NNNN): <the constraint>"
-    EXIT_CODE=1
-  fi
+# Ratcheting baseline. Printed as informational output (and truncated at 20
+# lines) the list was never read whole, and several entries were user-facing
+# controls that did nothing (prestonbrown/helixscreen#1373). What remains is
+# accounted for: each cites the issue that owns it as `(#NNNN)` with the
+# constraint on the same line, or sits in a file another change is rewriting.
+# The number may go DOWN (fix one, then lower this baseline) but must never
+# go up. Always whole-tree: a marker is a marker whichever commit adds it.
+if python3 scripts/check_todo_markers.py --max-allowed 8 --summary >/tmp/todo_markers.out 2>&1; then
+  echo ""
+  tail -1 /tmp/todo_markers.out
 else
   echo ""
-  echo "⚠️  check_todo_markers.py not found — skipping"
+  cat /tmp/todo_markers.out
+  echo "   Run: python3 scripts/check_todo_markers.py --list"
+  echo "   Fix it, or file the issue and cite it: // MARKER(#NNNN): <the constraint>"
+  EXIT_CODE=1
 fi
 
 echo ""
@@ -1606,17 +1576,13 @@ if [ "$STAGED_ONLY" = true ]; then
   if [ ${#AUDIT_FILES[@]} -gt 0 ]; then
     echo "🛡️  Running memory safety audit on staged files..."
 
-    if [ -f "scripts/audit_codebase.sh" ]; then
-      # Run audit in file mode - only check critical patterns (errors fail, warnings pass)
-      if ./scripts/audit_codebase.sh --files "${AUDIT_FILES[@]}" 2>/dev/null; then
-        echo "✅ Memory safety audit passed"
-      else
-        echo "❌ Memory safety audit found critical issues!"
-        echo "   Run './scripts/audit_codebase.sh --files <files>' to see details"
-        EXIT_CODE=1
-      fi
+    # Run audit in file mode - only check critical patterns (errors fail, warnings pass)
+    if ./scripts/audit_codebase.sh --files "${AUDIT_FILES[@]}" 2>/dev/null; then
+      echo "✅ Memory safety audit passed"
     else
-      echo "⚠️  audit_codebase.sh not found - skipping memory safety audit"
+      echo "❌ Memory safety audit found critical issues!"
+      echo "   Run './scripts/audit_codebase.sh --files <files>' to see details"
+      EXIT_CODE=1
     fi
     echo ""
   fi
@@ -1645,37 +1611,31 @@ qc_null_safety() {
 SECTION_START=$(date +%s)
 echo -n "🔒 Checking subscription null-safety..."
 
-if [ -f "scripts/check_subscription_null_safety.py" ]; then
-  # Baseline: 0 — every subscription-handler `.get<T>()` must have an
-  # `.is_<type>()` guard within 15 lines, every `.value("k", default)` must
-  # have an explicit `// JSON_NULL_SAFE` opt-out. Don't regress.
-  #
-  # Pre-commit: scan the staged blob for each changed source, not the dirty
-  # working tree. Rule 1's baseline is 0, so a partial (staged-file) scan is
-  # still a sound check of what the commit will contain; CI and manual runs
-  # use the whole-working-tree scan (no flag), which is what the rule-2
-  # per-key baseline needs to detect a now-fixed entry.
-  if [ "$STAGED_ONLY" = true ]; then
-    NULL_SAFETY_ARGS="--staged-only"
-  else
-    NULL_SAFETY_ARGS=""
-  fi
-  # shellcheck disable=SC2086
-  if python3 scripts/check_subscription_null_safety.py $NULL_SAFETY_ARGS --max-allowed 0 --summary >/tmp/null_safety.out 2>&1; then
-    section_time $SECTION_START
-    echo ""
-    cat /tmp/null_safety.out
-  else
-    section_time $SECTION_START
-    echo ""
-    cat /tmp/null_safety.out
-    echo "   Run: python3 scripts/check_subscription_null_safety.py"
-    EXIT_CODE=1
-  fi
+# Baseline: 0 — every subscription-handler `.get<T>()` must have an
+# `.is_<type>()` guard within 15 lines, every `.value("k", default)` must
+# have an explicit `// JSON_NULL_SAFE` opt-out. Don't regress.
+#
+# Pre-commit: scan the staged blob for each changed source, not the dirty
+# working tree. Rule 1's baseline is 0, so a partial (staged-file) scan is
+# still a sound check of what the commit will contain; CI and manual runs
+# use the whole-working-tree scan (no flag), which is what the rule-2
+# per-key baseline needs to detect a now-fixed entry.
+if [ "$STAGED_ONLY" = true ]; then
+  NULL_SAFETY_ARGS="--staged-only"
+else
+  NULL_SAFETY_ARGS=""
+fi
+# shellcheck disable=SC2086
+if python3 scripts/check_subscription_null_safety.py $NULL_SAFETY_ARGS --max-allowed 0 --summary >/tmp/null_safety.out 2>&1; then
+  section_time $SECTION_START
+  echo ""
+  cat /tmp/null_safety.out
 else
   section_time $SECTION_START
   echo ""
-  echo "⚠️  check_subscription_null_safety.py not found — skipping"
+  cat /tmp/null_safety.out
+  echo "   Run: python3 scripts/check_subscription_null_safety.py"
+  EXIT_CODE=1
 fi
 
 echo ""
@@ -1705,28 +1665,22 @@ qc_l081() {
 SECTION_START=$(date +%s)
 echo -n "🧵 Checking L081 bg-thread anti-pattern..."
 
-if [ -f "scripts/check_l081_anti_pattern.py" ]; then
-  if [ "$STAGED_ONLY" = true ]; then
-    L081_ARGS="--staged-only"
-  else
-    L081_ARGS=""
-  fi
-  if python3 scripts/check_l081_anti_pattern.py $L081_ARGS >/tmp/l081_check.out 2>&1; then
-    section_time $SECTION_START
-    echo ""
-    echo "✅ No L081 anti-pattern sites found"
-  else
-    section_time $SECTION_START
-    echo ""
-    cat /tmp/l081_check.out
-    echo "   Run: python3 scripts/check_l081_anti_pattern.py"
-    echo "   See include/async_lifetime_guard.h for the canonical fix."
-    EXIT_CODE=1
-  fi
+if [ "$STAGED_ONLY" = true ]; then
+  L081_ARGS="--staged-only"
+else
+  L081_ARGS=""
+fi
+if python3 scripts/check_l081_anti_pattern.py $L081_ARGS >/tmp/l081_check.out 2>&1; then
+  section_time $SECTION_START
+  echo ""
+  echo "✅ No L081 anti-pattern sites found"
 else
   section_time $SECTION_START
   echo ""
-  echo "⚠️  check_l081_anti_pattern.py not found — skipping"
+  cat /tmp/l081_check.out
+  echo "   Run: python3 scripts/check_l081_anti_pattern.py"
+  echo "   See include/async_lifetime_guard.h for the canonical fix."
+  EXIT_CODE=1
 fi
 
 echo ""
@@ -1753,28 +1707,22 @@ qc_net_pii() {
 SECTION_START=$(date +%s)
 echo -n "🔒 Checking network PII in log calls..."
 
-if [ -f "scripts/check_wifi_pii_logging.py" ]; then
-  if [ "$STAGED_ONLY" = true ]; then
-    PII_ARGS="--staged-only"
-  else
-    PII_ARGS=""
-  fi
-  if python3 scripts/check_wifi_pii_logging.py $PII_ARGS >/tmp/wifi_pii_check.out 2>&1; then
-    section_time $SECTION_START
-    echo ""
-    echo "✅ No network identifiers logged above trace"
-  else
-    section_time $SECTION_START
-    echo ""
-    cat /tmp/wifi_pii_check.out
-    echo "   Run: python3 scripts/check_wifi_pii_logging.py"
-    echo "   See include/log_redact.h for the redaction helpers."
-    EXIT_CODE=1
-  fi
+if [ "$STAGED_ONLY" = true ]; then
+  PII_ARGS="--staged-only"
+else
+  PII_ARGS=""
+fi
+if python3 scripts/check_wifi_pii_logging.py $PII_ARGS >/tmp/wifi_pii_check.out 2>&1; then
+  section_time $SECTION_START
+  echo ""
+  echo "✅ No network identifiers logged above trace"
 else
   section_time $SECTION_START
   echo ""
-  echo "⚠️  check_wifi_pii_logging.py not found — skipping"
+  cat /tmp/wifi_pii_check.out
+  echo "   Run: python3 scripts/check_wifi_pii_logging.py"
+  echo "   See include/log_redact.h for the redaction helpers."
+  EXIT_CODE=1
 fi
 
 echo ""
@@ -1795,93 +1743,87 @@ qc_namespace() {
 SECTION_START=$(date +%s)
 echo -n "📛 Checking namespace compliance (declarations outside helix::)..."
 
-if [ -f "scripts/check_namespace_compliance.py" ]; then
-  # Ratcheting baseline. docs/devel/DEVELOPMENT.md § Namespace organization says all
-  # HelixScreen code lives under helix::. The rule was written, never gated, and a
-  # third of the tree drifted out from under it (#1370). The drift runs along
-  # subsystem lines rather than by age — every ams_backend_*, every ui_panel_*,
-  # every display/wifi/usb/sound backend is global — so those areas keep taking new
-  # global-scope declarations by local precedent unless something says no.
-  # The number may go DOWN (move a declaration under helix::, then lower this
-  # baseline) but must never go up. extern "C", file-local statics in .cpp, and
-  # forward declarations of third-party types are structural and never counted.
-  # The one exception is a sync merge from main, which has neither this gate nor
-  # its script and so imports code written without it: 2296 -> 2304 covers the
-  # eight such sites the 2026-08-28 sync brought over, each following its file's
-  # dominant convention (the inline predicates beside the global AmsAction enum,
-  # two more ui_gcode_viewer_* C-style entry points, and a custom XML widget
-  # module registered by C-string name). 2304 -> 2305 is the next sync's single
-  # site: RecoverySuppression::RESTART_FLAG_TIMEOUT joins an existing global
-  # namespace whose other constants are already counted here. 2305 -> 2325 is
-  # the 2026-08-31 sync's twenty: main's netd backends (EthernetBackendNetd,
-  # WifiBackendNetd, and ethernet_backend.h's foreign-ns sysfs helpers beside
-  # the ones already counted), the Spoolman searchable-text/filter free
-  # functions, backend_owns_runout_during_job, ModalCloseReason and
-  # for_each_in_tree from the modal teardown rework, ui_button_owns_user_data
-  # and ContainerDeleteNet from the widget-pool fix,
-  # wifi_signal_percent_from_dbm, and an AmsBackend forward declaration - each
-  # beside global-scope siblings in its own file. +2 for the main-side sync:
-  # ui_gcode_viewer_set_thumbnail_parity (declaration + definition), another
-  # member of the global ui_gcode_viewer_* C-API family. 2328 -> 2334 is the
-  # 2026-09-02 sync's six: display_backend.h's display_is_rotated and
-  # display_rotation_degrees, beside the global inline rotation helpers already
-  # counted there, and ui_gcode_viewer_clear_tool_colors and
-  # ui_gcode_viewer_get_tool_colors (declaration + definition each), two more of
-  # the same global ui_gcode_viewer_* C-API family. 2334 -> 2336 is
-  # theme_manager_get_readable_on (declaration + definition), a new member of
-  # the global theme_manager_* family it sits in - every accessor in that header
-  # is global scope, so putting this one alone in helix:: would make its call
-  # sites the odd ones out. 2336 -> 2337 was filament_op_execute.h forward-
-  # declaring the then-global AmsBackend and AmsError; that entry retires with
-  # the AMS layer's move under helix:: (#1370). 2337 -> 2298 is the AMS backend
-  # class layer: AmsBackend, AmsSubscriptionBackend, the concrete
-  # backends and the mock with their per-backend value structs and test-access
-  # forward declarations, AmsState, and the headers that forward-declared
-  # AmsBackend at global scope (filament_sensor_manager.h's test-access
-  # forward declarations went with the RunoutScopeTestAccess it shares with
-  # the Snapmaker backend). 2298 -> 2290 is ams_error.h (AmsResult, AmsError,
-  # AmsErrorHelper and the result-to-string helper) and ams_step_operation.h
-  # following the backends into helix::. 2290 -> 2242 is ams_types.h: every
-  # AMS value type, enum, constant and inline helper it declared at global
-  # scope, plus the SlotInfo and DryingPreset forward declarations that
-  # followed them. 2242 -> 2239 is main's own slack, picked up by the merge:
-  # main dropped the Plugins overlay and retired three globals without
-  # ratcheting, so the merge collects that slack too. 2239 -> 2238 is
-  # ResolvedMacroScript and resolve_macro_script moving into helix::.
-  # 2215 -> 2233 is FOREIGN_PREFIXES anchored to real foreign spellings
-  # (#1586). Every entry there is matched with startswith, so a prefix this
-  # tree also spells - bare 'G', 'Display', 'Window', 'z_' - exempts our own
-  # declarations from the gate rather than a library's. The list carries only
-  # spellings a third-party API actually uses, and the 18 symbols that covers
-  # are counted here, as are the three spellings of ui_gcode_viewer_pump_offscreen_2d:
-  # its declaration, its definition, and the stub for builds without the renderer.
-  # It joins the ui_gcode_viewer_* C API, which is global by design because it
-  # is the widget's LVGL-facing surface; scoping this one call into helix::
-  # would make it the only member of that family that is. 2215 -> 2214 is
-  # plugin_api.h's file-scope `class IMoonrakerAPI;` forward declaration.
-  # 2193 -> 2194 nets three sites: ui_panel_controls.cpp's redundant
-  # redeclaration of get_global_motion_panel() leaves (its header defines it
-  # inline), and the bed mesh and spoolman accessors are counted as .cpp
-  # definitions, kept out of line because the ESP32 build supplies its own.
-  #
-  # tests/shell/test_namespace_gate.bats carries this same number and fails if
-  # the two disagree or if the tree drifts under it.
-  if python3 scripts/check_namespace_compliance.py --max-allowed 2106 --summary >/tmp/namespace_check.out 2>&1; then
-    section_time $SECTION_START
-    echo ""
-    tail -1 /tmp/namespace_check.out
-  else
-    section_time $SECTION_START
-    echo ""
-    cat /tmp/namespace_check.out
-    echo "   Declare new types under helix:: (or a helix:: sub-namespace)."
-    echo "   Genuinely-global sites take \`// NAMESPACE_OK: <reason>\`."
-    EXIT_CODE=1
-  fi
+# Ratcheting baseline. docs/devel/DEVELOPMENT.md § Namespace organization says all
+# HelixScreen code lives under helix::. The rule was written, never gated, and a
+# third of the tree drifted out from under it (#1370). The drift runs along
+# subsystem lines rather than by age — every ams_backend_*, every ui_panel_*,
+# every display/wifi/usb/sound backend is global — so those areas keep taking new
+# global-scope declarations by local precedent unless something says no.
+# The number may go DOWN (move a declaration under helix::, then lower this
+# baseline) but must never go up. extern "C", file-local statics in .cpp, and
+# forward declarations of third-party types are structural and never counted.
+# The one exception is a sync merge from main, which has neither this gate nor
+# its script and so imports code written without it: 2296 -> 2304 covers the
+# eight such sites the 2026-08-28 sync brought over, each following its file's
+# dominant convention (the inline predicates beside the global AmsAction enum,
+# two more ui_gcode_viewer_* C-style entry points, and a custom XML widget
+# module registered by C-string name). 2304 -> 2305 is the next sync's single
+# site: RecoverySuppression::RESTART_FLAG_TIMEOUT joins an existing global
+# namespace whose other constants are already counted here. 2305 -> 2325 is
+# the 2026-08-31 sync's twenty: main's netd backends (EthernetBackendNetd,
+# WifiBackendNetd, and ethernet_backend.h's foreign-ns sysfs helpers beside
+# the ones already counted), the Spoolman searchable-text/filter free
+# functions, backend_owns_runout_during_job, ModalCloseReason and
+# for_each_in_tree from the modal teardown rework, ui_button_owns_user_data
+# and ContainerDeleteNet from the widget-pool fix,
+# wifi_signal_percent_from_dbm, and an AmsBackend forward declaration - each
+# beside global-scope siblings in its own file. +2 for the main-side sync:
+# ui_gcode_viewer_set_thumbnail_parity (declaration + definition), another
+# member of the global ui_gcode_viewer_* C-API family. 2328 -> 2334 is the
+# 2026-09-02 sync's six: display_backend.h's display_is_rotated and
+# display_rotation_degrees, beside the global inline rotation helpers already
+# counted there, and ui_gcode_viewer_clear_tool_colors and
+# ui_gcode_viewer_get_tool_colors (declaration + definition each), two more of
+# the same global ui_gcode_viewer_* C-API family. 2334 -> 2336 is
+# theme_manager_get_readable_on (declaration + definition), a new member of
+# the global theme_manager_* family it sits in - every accessor in that header
+# is global scope, so putting this one alone in helix:: would make its call
+# sites the odd ones out. 2336 -> 2337 was filament_op_execute.h forward-
+# declaring the then-global AmsBackend and AmsError; that entry retires with
+# the AMS layer's move under helix:: (#1370). 2337 -> 2298 is the AMS backend
+# class layer: AmsBackend, AmsSubscriptionBackend, the concrete
+# backends and the mock with their per-backend value structs and test-access
+# forward declarations, AmsState, and the headers that forward-declared
+# AmsBackend at global scope (filament_sensor_manager.h's test-access
+# forward declarations went with the RunoutScopeTestAccess it shares with
+# the Snapmaker backend). 2298 -> 2290 is ams_error.h (AmsResult, AmsError,
+# AmsErrorHelper and the result-to-string helper) and ams_step_operation.h
+# following the backends into helix::. 2290 -> 2242 is ams_types.h: every
+# AMS value type, enum, constant and inline helper it declared at global
+# scope, plus the SlotInfo and DryingPreset forward declarations that
+# followed them. 2242 -> 2239 is main's own slack, picked up by the merge:
+# main dropped the Plugins overlay and retired three globals without
+# ratcheting, so the merge collects that slack too. 2239 -> 2238 is
+# ResolvedMacroScript and resolve_macro_script moving into helix::.
+# 2215 -> 2233 is FOREIGN_PREFIXES anchored to real foreign spellings
+# (#1586). Every entry there is matched with startswith, so a prefix this
+# tree also spells - bare 'G', 'Display', 'Window', 'z_' - exempts our own
+# declarations from the gate rather than a library's. The list carries only
+# spellings a third-party API actually uses, and the 18 symbols that covers
+# are counted here, as are the three spellings of ui_gcode_viewer_pump_offscreen_2d:
+# its declaration, its definition, and the stub for builds without the renderer.
+# It joins the ui_gcode_viewer_* C API, which is global by design because it
+# is the widget's LVGL-facing surface; scoping this one call into helix::
+# would make it the only member of that family that is. 2215 -> 2214 is
+# plugin_api.h's file-scope `class IMoonrakerAPI;` forward declaration.
+# 2193 -> 2194 nets three sites: ui_panel_controls.cpp's redundant
+# redeclaration of get_global_motion_panel() leaves (its header defines it
+# inline), and the bed mesh and spoolman accessors are counted as .cpp
+# definitions, kept out of line because the ESP32 build supplies its own.
+#
+# tests/shell/test_namespace_gate.bats carries this same number and fails if
+# the two disagree or if the tree drifts under it.
+if python3 scripts/check_namespace_compliance.py --max-allowed 2106 --summary >/tmp/namespace_check.out 2>&1; then
+  section_time $SECTION_START
+  echo ""
+  tail -1 /tmp/namespace_check.out
 else
   section_time $SECTION_START
   echo ""
-  echo "⚠️  check_namespace_compliance.py not found — skipping"
+  cat /tmp/namespace_check.out
+  echo "   Declare new types under helix:: (or a helix:: sub-namespace)."
+  echo "   Genuinely-global sites take \`// NAMESPACE_OK: <reason>\`."
+  EXIT_CODE=1
 fi
 
 echo ""
@@ -1908,28 +1850,22 @@ qc_decl_ui() {
 SECTION_START=$(date +%s)
 echo -n "🎨 Checking declarative UI (imperative XML-widget mutation)..."
 
-if [ -f "scripts/check_imperative_ui.py" ]; then
-  # Ratcheting baseline. These are XML widgets fetched with lv_obj_find_by_name()
-  # and then mutated from C++ instead of bound to a subject. Some predate the gate
-  # as deliberate pragmatism (the XML engine couldn't express it at the time), some
-  # are plain mistakes — both are debt. The number may go DOWN (port a site, then
-  # lower this baseline) but must never go up.
-  if python3 scripts/check_imperative_ui.py --max-allowed 364 --summary >/tmp/imperative_ui.out 2>&1; then
-    section_time $SECTION_START
-    echo ""
-    tail -1 /tmp/imperative_ui.out
-  else
-    section_time $SECTION_START
-    echo ""
-    cat /tmp/imperative_ui.out
-    echo "   Run: python3 scripts/check_imperative_ui.py --list"
-    echo "   Bind subjects in XML; see .claude/rules/declarative-ui.md."
-    EXIT_CODE=1
-  fi
+# Ratcheting baseline. These are XML widgets fetched with lv_obj_find_by_name()
+# and then mutated from C++ instead of bound to a subject. Some predate the gate
+# as deliberate pragmatism (the XML engine couldn't express it at the time), some
+# are plain mistakes — both are debt. The number may go DOWN (port a site, then
+# lower this baseline) but must never go up.
+if python3 scripts/check_imperative_ui.py --max-allowed 364 --summary >/tmp/imperative_ui.out 2>&1; then
+  section_time $SECTION_START
+  echo ""
+  tail -1 /tmp/imperative_ui.out
 else
   section_time $SECTION_START
   echo ""
-  echo "⚠️  check_imperative_ui.py not found — skipping"
+  cat /tmp/imperative_ui.out
+  echo "   Run: python3 scripts/check_imperative_ui.py --list"
+  echo "   Bind subjects in XML; see .claude/rules/declarative-ui.md."
+  EXIT_CODE=1
 fi
 
 echo ""
@@ -1937,36 +1873,30 @@ echo ""
 SECTION_START=$(date +%s)
 echo -n "🔌 Checking orphan subjects (registered, never read)..."
 
-if [ -f "scripts/check_orphan_subjects.py" ]; then
-  # A ratcheting baseline over the whole registered population. The XML linter
-  # already rejects a bind_* naming a subject nobody registers; this is the other
-  # direction — a subject registered and kept current but read by neither an XML
-  # binding nor a C++ consumer. It renders nothing and costs every update that
-  # writes it. Usually what a binding leaves behind when its widget is deleted or
-  # renamed. Genuinely-unreadable-by-static-analysis cases (a subject handed to a
-  # helper by pointer, or observed only from a test accessor) take
-  # `// SUBJECT_OK: <reason>` on the registration.
-  #
-  # scripts/orphan_subject_baseline.txt names the orphans that are accepted debt;
-  # the gate fails on any subject not on that list, and says so when one leaves
-  # it so the list can be shrunk.
-  if python3 scripts/check_orphan_subjects.py --baseline scripts/orphan_subject_baseline.txt        --summary >/tmp/orphan_subjects.out 2>&1; then
-    section_time $SECTION_START
-    echo ""
-    tail -1 /tmp/orphan_subjects.out
-  else
-    section_time $SECTION_START
-    echo ""
-    cat /tmp/orphan_subjects.out
-    echo "   Run: python3 scripts/check_orphan_subjects.py --list"
-    echo "   Bind it in XML, read it from C++, or delete it."
-    echo "   scripts/orphan_subject_baseline.txt is the accepted-debt list, not a parking spot."
-    EXIT_CODE=1
-  fi
+# A ratcheting baseline over the whole registered population. The XML linter
+# already rejects a bind_* naming a subject nobody registers; this is the other
+# direction — a subject registered and kept current but read by neither an XML
+# binding nor a C++ consumer. It renders nothing and costs every update that
+# writes it. Usually what a binding leaves behind when its widget is deleted or
+# renamed. Genuinely-unreadable-by-static-analysis cases (a subject handed to a
+# helper by pointer, or observed only from a test accessor) take
+# `// SUBJECT_OK: <reason>` on the registration.
+#
+# scripts/orphan_subject_baseline.txt names the orphans that are accepted debt;
+# the gate fails on any subject not on that list, and says so when one leaves
+# it so the list can be shrunk.
+if python3 scripts/check_orphan_subjects.py --baseline scripts/orphan_subject_baseline.txt        --summary >/tmp/orphan_subjects.out 2>&1; then
+  section_time $SECTION_START
+  echo ""
+  tail -1 /tmp/orphan_subjects.out
 else
   section_time $SECTION_START
   echo ""
-  echo "⚠️  check_orphan_subjects.py not found — skipping"
+  cat /tmp/orphan_subjects.out
+  echo "   Run: python3 scripts/check_orphan_subjects.py --list"
+  echo "   Bind it in XML, read it from C++, or delete it."
+  echo "   scripts/orphan_subject_baseline.txt is the accepted-debt list, not a parking spot."
+  EXIT_CODE=1
 fi
 
 echo ""
@@ -2027,42 +1957,36 @@ fi
 
 echo ""
 
-if [ -f "scripts/check_raw_this_queue_update.py" ]; then
-  # The ratchet has reached zero (#1165) — every queue_update() in src/ now routes
-  # through an AsyncLifetimeGuard, so this is a hard gate, not a baseline.
-  # queue_update([this, ...]) runs at the next drain whether or not the owner is
-  # still alive; if the body touches a member lv_subject_t, lv_subject_notify walks
-  # a freed observer list (#1146, #1165). Keep it at 0: guard new sites with
-  # lifetime_.bg_cb() / tok.defer(), or annotate a genuine exception with
-  # // QUEUE_RAW_THIS_OK: <reason>.
-  #
-  # Pre-commit: scan the staged blob for each changed source, not the dirty
-  # working tree - a violation staged and then reverted on disk must still
-  # fail. A hard gate at 0 stays sound under a partial (staged-file) scan:
-  # any hit is real regardless of scope. CI and manual runs use the
-  # whole-working-tree scan (no flag).
-  if [ "$STAGED_ONLY" = true ]; then
-    RAW_THIS_ARGS="--staged-only"
-  else
-    RAW_THIS_ARGS=""
-  fi
-  # shellcheck disable=SC2086
-  if python3 scripts/check_raw_this_queue_update.py $RAW_THIS_ARGS --max-allowed 0 --summary >/tmp/raw_this_qu.out 2>&1; then
-    section_time $SECTION_START
-    echo ""
-    tail -1 /tmp/raw_this_qu.out
-  else
-    section_time $SECTION_START
-    echo ""
-    cat /tmp/raw_this_qu.out
-    echo "   Run: python3 scripts/check_raw_this_queue_update.py --list"
-    echo "   Guard with lifetime_.bg_cb() / tok.defer(); see docs/devel/THREADING.md §2."
-    EXIT_CODE=1
-  fi
+# The ratchet has reached zero (#1165) — every queue_update() in src/ now routes
+# through an AsyncLifetimeGuard, so this is a hard gate, not a baseline.
+# queue_update([this, ...]) runs at the next drain whether or not the owner is
+# still alive; if the body touches a member lv_subject_t, lv_subject_notify walks
+# a freed observer list (#1146, #1165). Keep it at 0: guard new sites with
+# lifetime_.bg_cb() / tok.defer(), or annotate a genuine exception with
+# // QUEUE_RAW_THIS_OK: <reason>.
+#
+# Pre-commit: scan the staged blob for each changed source, not the dirty
+# working tree - a violation staged and then reverted on disk must still
+# fail. A hard gate at 0 stays sound under a partial (staged-file) scan:
+# any hit is real regardless of scope. CI and manual runs use the
+# whole-working-tree scan (no flag).
+if [ "$STAGED_ONLY" = true ]; then
+  RAW_THIS_ARGS="--staged-only"
+else
+  RAW_THIS_ARGS=""
+fi
+# shellcheck disable=SC2086
+if python3 scripts/check_raw_this_queue_update.py $RAW_THIS_ARGS --max-allowed 0 --summary >/tmp/raw_this_qu.out 2>&1; then
+  section_time $SECTION_START
+  echo ""
+  tail -1 /tmp/raw_this_qu.out
 else
   section_time $SECTION_START
   echo ""
-  echo "⚠️  check_raw_this_queue_update.py not found — skipping"
+  cat /tmp/raw_this_qu.out
+  echo "   Run: python3 scripts/check_raw_this_queue_update.py --list"
+  echo "   Guard with lifetime_.bg_cb() / tok.defer(); see docs/devel/THREADING.md §2."
+  EXIT_CODE=1
 fi
 
 echo ""
@@ -2070,32 +1994,26 @@ echo ""
 SECTION_START=$(date +%s)
 echo -n "⏱️  Checking gcode error ownership..."
 
-if [ -f "scripts/check_gcode_error_ownership.py" ]; then
-  # Hard gate at zero. execute_gcode's caller_surfaces_errors means "my on_error
-  # actually SHOWS a human something". Claiming it falsely makes the request
-  # tracker record the rejection for cross-channel dedup, and GcodeErrorRouter
-  # then suppresses its own report of Klipper's `!!` broadcast — so a failed
-  # macro is reported by NOBODY. It is invisible in review because the call site
-  # looks handled: there IS an error callback, it just writes to a log. Pass
-  # caller_surfaces_errors=false on a log-only callback, or annotate a genuine
-  # exception with // ERROR_OWNERSHIP_OK: <reason>. See include/rpc_error_policy.h.
-  if python3 scripts/check_gcode_error_ownership.py --max-allowed 0 --summary \
-      >/tmp/gcode_err_own.out 2>&1; then
-    section_time $SECTION_START
-    echo ""
-    tail -1 /tmp/gcode_err_own.out
-  else
-    section_time $SECTION_START
-    echo ""
-    cat /tmp/gcode_err_own.out
-    echo "   Run: python3 scripts/check_gcode_error_ownership.py --list"
-    echo "   A log-only error callback must pass caller_surfaces_errors=false."
-    EXIT_CODE=1
-  fi
+# Hard gate at zero. execute_gcode's caller_surfaces_errors means "my on_error
+# actually SHOWS a human something". Claiming it falsely makes the request
+# tracker record the rejection for cross-channel dedup, and GcodeErrorRouter
+# then suppresses its own report of Klipper's `!!` broadcast — so a failed
+# macro is reported by NOBODY. It is invisible in review because the call site
+# looks handled: there IS an error callback, it just writes to a log. Pass
+# caller_surfaces_errors=false on a log-only callback, or annotate a genuine
+# exception with // ERROR_OWNERSHIP_OK: <reason>. See include/rpc_error_policy.h.
+if python3 scripts/check_gcode_error_ownership.py --max-allowed 0 --summary \
+    >/tmp/gcode_err_own.out 2>&1; then
+  section_time $SECTION_START
+  echo ""
+  tail -1 /tmp/gcode_err_own.out
 else
   section_time $SECTION_START
   echo ""
-  echo "⚠️  check_gcode_error_ownership.py not found — skipping"
+  cat /tmp/gcode_err_own.out
+  echo "   Run: python3 scripts/check_gcode_error_ownership.py --list"
+  echo "   A log-only error callback must pass caller_surfaces_errors=false."
+  EXIT_CODE=1
 fi
 
 echo ""
@@ -2120,31 +2038,25 @@ echo ""
 SECTION_START=$(date +%s)
 echo -n "⏱️  Checking timer destructor cancels..."
 
-if [ -f "scripts/check_timer_destructor_cancel.py" ]; then
-  # Ratcheting baseline. A raw lv_timer_t* cancelled only in cleanup()/stop_*()
-  # stays armed on any teardown that destroys the owner without that call, and
-  # StaticPanelRegistry::destroy_all() runs BEFORE lv_deinit() — so the callback
-  # fires into a freed `this` (#1173, twice: the wizard auto-probe timer and the
-  # PID ETA tick). The check is transitive, so a destructor that reaches the
-  # cancel through cleanup()/detach()/deinit_subjects() passes. Timers whose
-  # callback is LifetimeToken-guarded or routed through a singleton accessor are
-  # safe by another mechanism — annotate those `// TIMER_DTOR_OK: <reason>`.
-  if python3 scripts/check_timer_destructor_cancel.py --max-allowed 0 >/tmp/timer_dtor.out 2>&1; then
-    section_time $SECTION_START
-    echo ""
-    tail -1 /tmp/timer_dtor.out
-  else
-    section_time $SECTION_START
-    echo ""
-    cat /tmp/timer_dtor.out
-    echo "   Run: python3 scripts/check_timer_destructor_cancel.py --list"
-    echo "   Cancel from the destructor via lv_timer_cancel_safe(); see .claude/rules/threading.md (rule 5)."
-    EXIT_CODE=1
-  fi
+# Ratcheting baseline. A raw lv_timer_t* cancelled only in cleanup()/stop_*()
+# stays armed on any teardown that destroys the owner without that call, and
+# StaticPanelRegistry::destroy_all() runs BEFORE lv_deinit() — so the callback
+# fires into a freed `this` (#1173, twice: the wizard auto-probe timer and the
+# PID ETA tick). The check is transitive, so a destructor that reaches the
+# cancel through cleanup()/detach()/deinit_subjects() passes. Timers whose
+# callback is LifetimeToken-guarded or routed through a singleton accessor are
+# safe by another mechanism — annotate those `// TIMER_DTOR_OK: <reason>`.
+if python3 scripts/check_timer_destructor_cancel.py --max-allowed 0 >/tmp/timer_dtor.out 2>&1; then
+  section_time $SECTION_START
+  echo ""
+  tail -1 /tmp/timer_dtor.out
 else
   section_time $SECTION_START
   echo ""
-  echo "⚠️  check_timer_destructor_cancel.py not found — skipping"
+  cat /tmp/timer_dtor.out
+  echo "   Run: python3 scripts/check_timer_destructor_cancel.py --list"
+  echo "   Cancel from the destructor via lv_timer_cancel_safe(); see .claude/rules/threading.md (rule 5)."
+  EXIT_CODE=1
 fi
 
 echo ""
@@ -2152,30 +2064,24 @@ echo ""
 SECTION_START=$(date +%s)
 echo -n "🪟 Checking X11 macro collisions..."
 
-if [ -f "scripts/check_x11_macro_collisions.py" ]; then
-  # X11's <X.h> defines None, Success, Above and friends as bare macros. SDL's
-  # Linux headers reach X.h through GL, so an identifier sharing one of those
-  # names preprocesses into a numeric constant in any TU that reaches SDL - and
-  # only there. Our own SDL is built without X11, so no local build reproduces
-  # it; it surfaces only on the x86_64 Debian and Raspberry Pi CI jobs, whose
-  # SDL does reach X11 (e.g. a symbol like InvalidationScope::None colliding
-  # with X11's None).
-  # Annotate a deliberate one `// X11_MACRO_OK: <reason>`.
-  if python3 scripts/check_x11_macro_collisions.py --max-allowed 0 >/tmp/x11_macros.out 2>&1; then
-    section_time $SECTION_START
-    echo ""
-    tail -1 /tmp/x11_macros.out
-  else
-    section_time $SECTION_START
-    echo ""
-    cat /tmp/x11_macros.out
-    echo "   Rename the identifier; X11's macro always wins."
-    EXIT_CODE=1
-  fi
+# X11's <X.h> defines None, Success, Above and friends as bare macros. SDL's
+# Linux headers reach X.h through GL, so an identifier sharing one of those
+# names preprocesses into a numeric constant in any TU that reaches SDL - and
+# only there. Our own SDL is built without X11, so no local build reproduces
+# it; it surfaces only on the x86_64 Debian and Raspberry Pi CI jobs, whose
+# SDL does reach X11 (e.g. a symbol like InvalidationScope::None colliding
+# with X11's None).
+# Annotate a deliberate one `// X11_MACRO_OK: <reason>`.
+if python3 scripts/check_x11_macro_collisions.py --max-allowed 0 >/tmp/x11_macros.out 2>&1; then
+  section_time $SECTION_START
+  echo ""
+  tail -1 /tmp/x11_macros.out
 else
   section_time $SECTION_START
   echo ""
-  echo "⚠️  check_x11_macro_collisions.py not found — skipping"
+  cat /tmp/x11_macros.out
+  echo "   Rename the identifier; X11's macro always wins."
+  EXIT_CODE=1
 fi
 
 echo ""
@@ -2198,7 +2104,7 @@ if qc_clang_divergence_deferred; then
   section_time $SECTION_START
   echo ""
   echo "⏭️  clang divergence: deferred to the tree that owns the compile database"
-elif [ "$STAGED_ONLY" = false ] && [ -f "scripts/check_clang_diagnostics.py" ]; then
+elif [ "$STAGED_ONLY" = false ]; then
   if python3 scripts/check_clang_diagnostics.py >/tmp/clang_diag.out 2>&1; then
     section_time $SECTION_START
     echo ""
@@ -2210,14 +2116,10 @@ elif [ "$STAGED_ONLY" = false ] && [ -f "scripts/check_clang_diagnostics.py" ]; 
     echo "   These are errors on CI's Ubuntu job even though g++ accepts them."
     EXIT_CODE=1
   fi
-elif [ "$STAGED_ONLY" = true ]; then
-  section_time $SECTION_START
-  echo ""
-  echo "⏭️  clang divergence: skipped in pre-commit (runs on push and in CI)"
 else
   section_time $SECTION_START
   echo ""
-  echo "⚠️  check_clang_diagnostics.py not found — skipping"
+  echo "⏭️  clang divergence: skipped in pre-commit (runs on push and in CI)"
 fi
 
 echo ""
@@ -2225,107 +2127,83 @@ echo ""
 SECTION_START=$(date +%s)
 echo -n "🔢 Checking print-state enum casts..."
 
-if [ -f "scripts/check_print_state_cast.py" ]; then
-  # lv_subject_get_int() returns int, so static_cast<PrintState>(...) compiles
-  # against whichever subject was named — and PrintJobState and PrintState do NOT
-  # share numbering past index 0 (COMPLETE=3 vs Paused=3). Pairing a cast with
-  # the wrong subject is silent: it compiles, runs, and answers a different
-  # question. Made twice while migrating guards onto the lifecycle. Use the typed
-  # accessors get_print_lifecycle() / get_print_job_state(), which own the
-  # pairing; annotate a genuine need `// PRINT_STATE_CAST_OK: <reason>`.
-  if python3 scripts/check_print_state_cast.py >/tmp/print_state_cast.out 2>&1; then
-    section_time $SECTION_START
-    echo ""
-    tail -1 /tmp/print_state_cast.out
-  else
-    section_time $SECTION_START
-    echo ""
-    cat /tmp/print_state_cast.out
-    EXIT_CODE=1
-  fi
+# lv_subject_get_int() returns int, so static_cast<PrintState>(...) compiles
+# against whichever subject was named — and PrintJobState and PrintState do NOT
+# share numbering past index 0 (COMPLETE=3 vs Paused=3). Pairing a cast with
+# the wrong subject is silent: it compiles, runs, and answers a different
+# question. Made twice while migrating guards onto the lifecycle. Use the typed
+# accessors get_print_lifecycle() / get_print_job_state(), which own the
+# pairing; annotate a genuine need `// PRINT_STATE_CAST_OK: <reason>`.
+if python3 scripts/check_print_state_cast.py >/tmp/print_state_cast.out 2>&1; then
+  section_time $SECTION_START
+  echo ""
+  tail -1 /tmp/print_state_cast.out
 else
   section_time $SECTION_START
   echo ""
-  echo "⚠️  check_print_state_cast.py not found — skipping"
+  cat /tmp/print_state_cast.out
+  EXIT_CODE=1
 fi
 
 SECTION_START=$(date +%s)
 echo -n "🔤 Checking JSON save paths for bare dumps..."
 
-if [ -f "scripts/check_json_dump_utf8.py" ]; then
-  # nlohmann dumps with error_handler_t::strict, so a string holding bytes UTF-8
-  # cannot decode throws json::type_error.316. The text on a save path is the
-  # text nothing validates — SSIDs, printer and tool names, file names, macro
-  # text, gcode responses — so strict costs the whole document: the throw either
-  # unwinds through LVGL's C frames or, behind a catch, drops the user's change
-  # silently. Use helix::json_util::safe_dump(), which replaces the offending
-  # bytes; annotate a genuine need `// JSON_DUMP_OK: <reason>`.
-  if python3 scripts/check_json_dump_utf8.py >/tmp/json_dump_utf8.out 2>&1; then
-    section_time $SECTION_START
-    echo ""
-    tail -1 /tmp/json_dump_utf8.out
-  else
-    section_time $SECTION_START
-    echo ""
-    cat /tmp/json_dump_utf8.out
-    EXIT_CODE=1
-  fi
+# nlohmann dumps with error_handler_t::strict, so a string holding bytes UTF-8
+# cannot decode throws json::type_error.316. The text on a save path is the
+# text nothing validates — SSIDs, printer and tool names, file names, macro
+# text, gcode responses — so strict costs the whole document: the throw either
+# unwinds through LVGL's C frames or, behind a catch, drops the user's change
+# silently. Use helix::json_util::safe_dump(), which replaces the offending
+# bytes; annotate a genuine need `// JSON_DUMP_OK: <reason>`.
+if python3 scripts/check_json_dump_utf8.py >/tmp/json_dump_utf8.out 2>&1; then
+  section_time $SECTION_START
+  echo ""
+  tail -1 /tmp/json_dump_utf8.out
 else
   section_time $SECTION_START
   echo ""
-  echo "⚠️  check_json_dump_utf8.py not found — skipping"
+  cat /tmp/json_dump_utf8.out
+  EXIT_CODE=1
 fi
 
 SECTION_START=$(date +%s)
 echo -n "🧵 Checking AMS backends reconcile lane bindings..."
 
-if [ -f "scripts/check_lane_binding_reconcile.py" ]; then
-  # A backend whose firmware states a spool id must call reconcile_lane_binding()
-  # where it parses it, or a lane re-bound behind the app's back keeps painting
-  # the old spool forever (prestonbrown/helixscreen#1645).
-  if python3 scripts/check_lane_binding_reconcile.py >/tmp/lane_binding_reconcile.out 2>&1; then
-    section_time $SECTION_START
-    echo ""
-    tail -1 /tmp/lane_binding_reconcile.out
-  else
-    section_time $SECTION_START
-    echo ""
-    cat /tmp/lane_binding_reconcile.out
-    EXIT_CODE=1
-  fi
+# A backend whose firmware states a spool id must call reconcile_lane_binding()
+# where it parses it, or a lane re-bound behind the app's back keeps painting
+# the old spool forever (prestonbrown/helixscreen#1645).
+if python3 scripts/check_lane_binding_reconcile.py >/tmp/lane_binding_reconcile.out 2>&1; then
+  section_time $SECTION_START
+  echo ""
+  tail -1 /tmp/lane_binding_reconcile.out
 else
   section_time $SECTION_START
   echo ""
-  echo "⚠️  check_lane_binding_reconcile.py not found — skipping"
+  cat /tmp/lane_binding_reconcile.out
+  EXIT_CODE=1
 fi
 
 SECTION_START=$(date +%s)
 echo -n "🧭 Checking raw print-state reads..."
 
-if [ -f "scripts/check_raw_print_job_state.py" ]; then
-  # helix::PrintJobState is the WIRE — what print_stats.state said. It cannot
-  # express a job the app has committed to but the printer has not reported yet,
-  # so a semantic question asked of it is blind for the whole of a pre-print
-  # window. That blindness shipped: 21 motion controls live while the toolhead
-  # homed, the home print card reading idle, a queue tap deleting the job it then
-  # failed to start. Plenty of sites DO want the wire — the parse, terminal
-  # formatting, telemetry's phase tracker, the PRINT_START collector — so this
-  # does not forbid it. It forbids reading it SILENTLY, because a deliberate wire
-  # read and a stale one look identical. Annotate: `// RAW_PRINT_STATE_OK: <why>`.
-  if python3 scripts/check_raw_print_job_state.py >/tmp/raw_print_state.out 2>&1; then
-    section_time $SECTION_START
-    echo ""
-    tail -1 /tmp/raw_print_state.out
-  else
-    section_time $SECTION_START
-    echo ""
-    cat /tmp/raw_print_state.out
-    EXIT_CODE=1
-  fi
+# helix::PrintJobState is the WIRE — what print_stats.state said. It cannot
+# express a job the app has committed to but the printer has not reported yet,
+# so a semantic question asked of it is blind for the whole of a pre-print
+# window. That blindness shipped: 21 motion controls live while the toolhead
+# homed, the home print card reading idle, a queue tap deleting the job it then
+# failed to start. Plenty of sites DO want the wire — the parse, terminal
+# formatting, telemetry's phase tracker, the PRINT_START collector — so this
+# does not forbid it. It forbids reading it SILENTLY, because a deliberate wire
+# read and a stale one look identical. Annotate: `// RAW_PRINT_STATE_OK: <why>`.
+if python3 scripts/check_raw_print_job_state.py >/tmp/raw_print_state.out 2>&1; then
+  section_time $SECTION_START
+  echo ""
+  tail -1 /tmp/raw_print_state.out
 else
   section_time $SECTION_START
   echo ""
-  echo "⚠️  check_raw_print_job_state.py not found — skipping"
+  cat /tmp/raw_print_state.out
+  EXIT_CODE=1
 fi
 
 echo ""
@@ -2333,26 +2211,20 @@ echo ""
 SECTION_START=$(date +%s)
 echo -n "🧷 Checking raw cached widget pointers..."
 
-if [ -f "scripts/check_cached_widget_pointers.py" ]; then
-  # Ratcheting baseline: the count of raw lv_obj_t* data members may fall, never
-  # rise. A cached widget outlives its widget whenever something other than its
-  # owner deletes the tree, and owner-keyed guards still read valid then. Hold
-  # new ones as helix::ui::WidgetRef, or annotate `// WIDGET_PTR_OK: <why>`.
-  if python3 scripts/check_cached_widget_pointers.py --max-allowed=531 \
-      >/tmp/cached_widget_ptrs.out 2>&1; then
-    section_time $SECTION_START
-    echo ""
-    tail -1 /tmp/cached_widget_ptrs.out
-  else
-    section_time $SECTION_START
-    echo ""
-    cat /tmp/cached_widget_ptrs.out
-    EXIT_CODE=1
-  fi
+# Ratcheting baseline: the count of raw lv_obj_t* data members may fall, never
+# rise. A cached widget outlives its widget whenever something other than its
+# owner deletes the tree, and owner-keyed guards still read valid then. Hold
+# new ones as helix::ui::WidgetRef, or annotate `// WIDGET_PTR_OK: <why>`.
+if python3 scripts/check_cached_widget_pointers.py --max-allowed=531 \
+    >/tmp/cached_widget_ptrs.out 2>&1; then
+  section_time $SECTION_START
+  echo ""
+  tail -1 /tmp/cached_widget_ptrs.out
 else
   section_time $SECTION_START
   echo ""
-  echo "⚠️  check_cached_widget_pointers.py not found — skipping"
+  cat /tmp/cached_widget_ptrs.out
+  EXIT_CODE=1
 fi
 
 echo ""
@@ -2363,22 +2235,16 @@ echo -n "🖥️  Checking DRM dumb-buffer mmap offset width..."
 # DRM allocates dumb-buffer mmap offsets from 4 GiB upward, so a 32-bit off_t
 # truncates them and the mapping fails. HelixScreen then falls back to fbdev and
 # the KMS path is silently dead on every 32-bit device (pi32).
-if [ -f "scripts/check_drm_mmap_lfs.py" ]; then
-  if python3 scripts/check_drm_mmap_lfs.py >/tmp/drm_mmap_lfs.out 2>&1; then
-    section_time $SECTION_START
-    echo ""
-    echo "✅ DRM mmap uses a 64-bit file offset"
-  else
-    section_time $SECTION_START
-    echo ""
-    cat /tmp/drm_mmap_lfs.out
-    echo "   Run: python3 scripts/check_drm_mmap_lfs.py"
-    EXIT_CODE=1
-  fi
+if python3 scripts/check_drm_mmap_lfs.py >/tmp/drm_mmap_lfs.out 2>&1; then
+  section_time $SECTION_START
+  echo ""
+  echo "✅ DRM mmap uses a 64-bit file offset"
 else
   section_time $SECTION_START
   echo ""
-  echo "⚠️  check_drm_mmap_lfs.py not found — skipping"
+  cat /tmp/drm_mmap_lfs.out
+  echo "   Run: python3 scripts/check_drm_mmap_lfs.py"
+  EXIT_CODE=1
 fi
 
 echo ""
@@ -2389,22 +2255,16 @@ echo -n "📄 Checking gcode reader large-file support..."
 # The static_assert in gcode_data_source.cpp only fires on a 32-bit build, and
 # pi32/ad5m/cc1/k1 are in release.yml's matrix rather than build.yml's - so a
 # dropped mk/rules.mk override stays green here and detonates at release.
-if [ -f "scripts/check_gcode_lfs.py" ]; then
-  if python3 scripts/check_gcode_lfs.py >/tmp/gcode_lfs.out 2>&1; then
-    section_time $SECTION_START
-    echo ""
-    echo "✅ gcode reader builds with a 64-bit off_t"
-  else
-    section_time $SECTION_START
-    echo ""
-    cat /tmp/gcode_lfs.out
-    echo "   Run: python3 scripts/check_gcode_lfs.py"
-    EXIT_CODE=1
-  fi
+if python3 scripts/check_gcode_lfs.py >/tmp/gcode_lfs.out 2>&1; then
+  section_time $SECTION_START
+  echo ""
+  echo "✅ gcode reader builds with a 64-bit off_t"
 else
   section_time $SECTION_START
   echo ""
-  echo "⚠️  check_gcode_lfs.py not found — skipping"
+  cat /tmp/gcode_lfs.out
+  echo "   Run: python3 scripts/check_gcode_lfs.py"
+  EXIT_CODE=1
 fi
 
 echo ""
@@ -2416,22 +2276,16 @@ echo -n "🔧 Checking target-specific flag rules use override..."
 # command-line variable discards makefile assignments to it unless they say
 # override. A rule missing the keyword builds its object without the flag, with
 # no diagnostic and with the rule still visibly present in the makefile.
-if [ -f "scripts/check_target_specific_override.py" ]; then
-  if python3 scripts/check_target_specific_override.py >/tmp/tgt_override.out 2>&1; then
-    section_time $SECTION_START
-    echo ""
-    echo "✅ every target-specific flag rule uses override"
-  else
-    section_time $SECTION_START
-    echo ""
-    cat /tmp/tgt_override.out
-    echo "   Run: python3 scripts/check_target_specific_override.py"
-    EXIT_CODE=1
-  fi
+if python3 scripts/check_target_specific_override.py >/tmp/tgt_override.out 2>&1; then
+  section_time $SECTION_START
+  echo ""
+  echo "✅ every target-specific flag rule uses override"
 else
   section_time $SECTION_START
   echo ""
-  echo "⚠️  check_target_specific_override.py not found — skipping"
+  cat /tmp/tgt_override.out
+  echo "   Run: python3 scripts/check_target_specific_override.py"
+  EXIT_CODE=1
 fi
 
 echo ""
@@ -2443,22 +2297,16 @@ echo -n "🔄 Checking touch-range rotation source..."
 # and cannot run headless - mutation testing confirmed no test kills a revert to
 # the config key. A backend reading /display/rotate instead of the applied
 # rotation leaves #1394 live on any unit rotated via CLI/env.
-if [ -f "scripts/check_touch_rotation_source.py" ]; then
-  if python3 scripts/check_touch_rotation_source.py >/tmp/touch_rotation.out 2>&1; then
-    section_time $SECTION_START
-    echo ""
-    echo "✅ display backends gate the stored touch range on the applied rotation"
-  else
-    section_time $SECTION_START
-    echo ""
-    cat /tmp/touch_rotation.out
-    echo "   Run: python3 scripts/check_touch_rotation_source.py"
-    EXIT_CODE=1
-  fi
+if python3 scripts/check_touch_rotation_source.py >/tmp/touch_rotation.out 2>&1; then
+  section_time $SECTION_START
+  echo ""
+  echo "✅ display backends gate the stored touch range on the applied rotation"
 else
   section_time $SECTION_START
   echo ""
-  echo "⚠️  check_touch_rotation_source.py not found — skipping"
+  cat /tmp/touch_rotation.out
+  echo "   Run: python3 scripts/check_touch_rotation_source.py"
+  EXIT_CODE=1
 fi
 
 echo ""
@@ -2471,22 +2319,16 @@ echo -n "🔄 Checking display rotation cache order..."
 # call records a value the display no longer has (#1587). apply_rotation's
 # body is #ifdef'd out of the test binary (HELIX_DISPLAY_SDL), so a lint is
 # the only thing that makes a wrong-order revert fail.
-if [ -f "scripts/check_rotation_cache_order.py" ]; then
-  if python3 scripts/check_rotation_cache_order.py >/tmp/rotation_cache.out 2>&1; then
-    section_time $SECTION_START
-    echo ""
-    echo "✅ display resolution is cached only after rotation settles"
-  else
-    section_time $SECTION_START
-    echo ""
-    cat /tmp/rotation_cache.out
-    echo "   Run: python3 scripts/check_rotation_cache_order.py"
-    EXIT_CODE=1
-  fi
+if python3 scripts/check_rotation_cache_order.py >/tmp/rotation_cache.out 2>&1; then
+  section_time $SECTION_START
+  echo ""
+  echo "✅ display resolution is cached only after rotation settles"
 else
   section_time $SECTION_START
   echo ""
-  echo "⚠️  check_rotation_cache_order.py not found — skipping"
+  cat /tmp/rotation_cache.out
+  echo "   Run: python3 scripts/check_rotation_cache_order.py"
+  EXIT_CODE=1
 fi
 
 echo ""
@@ -2498,20 +2340,24 @@ echo -n "🗺️  Checking the platform manifest against its consumers..."
 # It reports drift between the manifest and the build files, install-root lists
 # and renders that derive from it; --strict makes the same findings fail once
 # every consumer reads the manifest.
-if [ -f "scripts/check_platform_manifest.py" ]; then
-  python3 scripts/check_platform_manifest.py --quiet >/tmp/platform_manifest.out 2>&1 || true
+# Without --strict it exits 0 on findings, so a non-zero exit is the script
+# itself failing to run.
+python3 scripts/check_platform_manifest.py --quiet >/tmp/platform_manifest.out 2>&1
+PLATFORM_MANIFEST_RC=$?
+if [ "$PLATFORM_MANIFEST_RC" -ne 0 ]; then
   section_time $SECTION_START
   echo ""
-  if [ -s /tmp/platform_manifest.out ]; then
-    echo "ℹ️  platform manifest findings (advisory):"
-    cat /tmp/platform_manifest.out
-  else
-    echo "✅ platform manifest agrees with its consumers"
-  fi
+  cat /tmp/platform_manifest.out
+  EXIT_CODE=1
+elif [ -s /tmp/platform_manifest.out ]; then
+  section_time $SECTION_START
+  echo ""
+  echo "ℹ️  platform manifest findings (advisory):"
+  cat /tmp/platform_manifest.out
 else
   section_time $SECTION_START
   echo ""
-  echo "⚠️  check_platform_manifest.py not found — skipping"
+  echo "✅ platform manifest agrees with its consumers"
 fi
 
 echo ""
@@ -2521,21 +2367,15 @@ echo -n "🕰️  Checking comments for commit-SHA citations..."
 
 # Ratchet. Comments explain the code as it is; how it got here belongs in the
 # commit message, where git blame will surface it on demand.
-if [ -f "scripts/check_comment_archaeology.py" ]; then
-  if python3 scripts/check_comment_archaeology.py >/tmp/comment_arch.out 2>&1; then
-    section_time $SECTION_START
-    echo ""
-    echo "✅ no new commit-SHA citations in comments"
-  else
-    section_time $SECTION_START
-    echo ""
-    cat /tmp/comment_arch.out
-    EXIT_CODE=1
-  fi
+if python3 scripts/check_comment_archaeology.py >/tmp/comment_arch.out 2>&1; then
+  section_time $SECTION_START
+  echo ""
+  echo "✅ no new commit-SHA citations in comments"
 else
   section_time $SECTION_START
   echo ""
-  echo "⚠️  check_comment_archaeology.py not found — skipping"
+  cat /tmp/comment_arch.out
+  EXIT_CODE=1
 fi
 
 echo ""
@@ -2543,43 +2383,37 @@ echo ""
 SECTION_START=$(date +%s)
 echo -n "🖼️  Checking guarded ThumbnailCache access..."
 
-if [ -f "scripts/check_thumbnail_cache_guard.py" ]; then
-  # Hard gate, never a baseline: src/ has no legacy call sites left. The two
-  # unguarded overloads — fetch(api, path, ...) and get_if_cached(path, mtime) —
-  # stay public only because tests exercise them deliberately, so the compiler
-  # cannot enforce this. They take no ThumbnailLoadContext, which is what lets
-  # fetch() drop a superseded on_success; without it an in-flight download that
-  # has already been outdated still lands and overwrites a NEWER thumbnail.
-  # Build a ThumbnailRequest + ThumbnailLoadContext, or annotate a genuine
-  # exception with // THUMB_LEGACY_OK: <reason>.
-  #
-  # Pre-commit: scan the staged blob for each changed source, not the dirty
-  # working tree - a violation staged and then reverted on disk must still
-  # fail. A hard gate stays sound under a partial (staged-file) scan: any hit
-  # is real regardless of scope. CI and manual runs use the whole-working-tree
-  # scan (no flag).
-  if [ "$STAGED_ONLY" = true ]; then
-    THUMB_GUARD_ARGS="--staged-only"
-  else
-    THUMB_GUARD_ARGS=""
-  fi
-  # shellcheck disable=SC2086
-  if python3 scripts/check_thumbnail_cache_guard.py $THUMB_GUARD_ARGS >/tmp/thumb_guard.out 2>&1; then
-    section_time $SECTION_START
-    echo ""
-    echo "✅ ThumbnailCache: every src/ consumer passes a ThumbnailLoadContext"
-  else
-    section_time $SECTION_START
-    echo ""
-    cat /tmp/thumb_guard.out
-    echo "   Run: python3 scripts/check_thumbnail_cache_guard.py"
-    echo "   Use fetch(req, ctx, ...) / get_if_cached(req); see include/thumbnail_cache.h."
-    EXIT_CODE=1
-  fi
+# Hard gate, never a baseline: src/ has no legacy call sites left. The two
+# unguarded overloads — fetch(api, path, ...) and get_if_cached(path, mtime) —
+# stay public only because tests exercise them deliberately, so the compiler
+# cannot enforce this. They take no ThumbnailLoadContext, which is what lets
+# fetch() drop a superseded on_success; without it an in-flight download that
+# has already been outdated still lands and overwrites a NEWER thumbnail.
+# Build a ThumbnailRequest + ThumbnailLoadContext, or annotate a genuine
+# exception with // THUMB_LEGACY_OK: <reason>.
+#
+# Pre-commit: scan the staged blob for each changed source, not the dirty
+# working tree - a violation staged and then reverted on disk must still
+# fail. A hard gate stays sound under a partial (staged-file) scan: any hit
+# is real regardless of scope. CI and manual runs use the whole-working-tree
+# scan (no flag).
+if [ "$STAGED_ONLY" = true ]; then
+  THUMB_GUARD_ARGS="--staged-only"
+else
+  THUMB_GUARD_ARGS=""
+fi
+# shellcheck disable=SC2086
+if python3 scripts/check_thumbnail_cache_guard.py $THUMB_GUARD_ARGS >/tmp/thumb_guard.out 2>&1; then
+  section_time $SECTION_START
+  echo ""
+  echo "✅ ThumbnailCache: every src/ consumer passes a ThumbnailLoadContext"
 else
   section_time $SECTION_START
   echo ""
-  echo "⚠️  check_thumbnail_cache_guard.py not found — skipping"
+  cat /tmp/thumb_guard.out
+  echo "   Run: python3 scripts/check_thumbnail_cache_guard.py"
+  echo "   Use fetch(req, ctx, ...) / get_if_cached(req); see include/thumbnail_cache.h."
+  EXIT_CODE=1
 fi
 
 echo ""
@@ -2587,28 +2421,22 @@ echo ""
 SECTION_START=$(date +%s)
 echo -n "⏱️  Checking grid cell-metrics single source..."
 
-if [ -f "scripts/check_grid_metrics_single_source.py" ]; then
-  # Every drag/resize/preview/lattice path needs the same cols/rows/cell size,
-  # and each independent computation is free to drift from the others on
-  # gutter handling or int-vs-float rounding. GridEditMode::current_metrics()
-  # is the one place allowed to ask GridLayout for the grid's dimensions; this
-  # caps GridLayout::get_cols/get_rows/get_dimensions call sites at 2 (the pair
-  # inside current_metrics() itself) so a new call site cannot grow a second copy.
-  if python3 scripts/check_grid_metrics_single_source.py >/tmp/grid_metrics.out 2>&1; then
-    section_time $SECTION_START
-    echo ""
-    tail -1 /tmp/grid_metrics.out
-  else
-    section_time $SECTION_START
-    echo ""
-    cat /tmp/grid_metrics.out
-    echo "   Take a helix::CellMetrics from GridEditMode::current_metrics() instead."
-    EXIT_CODE=1
-  fi
+# Every drag/resize/preview/lattice path needs the same cols/rows/cell size,
+# and each independent computation is free to drift from the others on
+# gutter handling or int-vs-float rounding. GridEditMode::current_metrics()
+# is the one place allowed to ask GridLayout for the grid's dimensions; this
+# caps GridLayout::get_cols/get_rows/get_dimensions call sites at 2 (the pair
+# inside current_metrics() itself) so a new call site cannot grow a second copy.
+if python3 scripts/check_grid_metrics_single_source.py >/tmp/grid_metrics.out 2>&1; then
+  section_time $SECTION_START
+  echo ""
+  tail -1 /tmp/grid_metrics.out
 else
   section_time $SECTION_START
   echo ""
-  echo "⚠️  check_grid_metrics_single_source.py not found — skipping"
+  cat /tmp/grid_metrics.out
+  echo "   Take a helix::CellMetrics from GridEditMode::current_metrics() instead."
+  EXIT_CODE=1
 fi
 
 echo ""
@@ -2616,30 +2444,24 @@ echo ""
 SECTION_START=$(date +%s)
 echo -n "⏱️  Checking series_meta slot-vs-handle indexing..."
 
-if [ -f "scripts/check_series_meta_indexing.py" ]; then
-  # series_meta is SLOT-indexed; TempGraphHit::series_id is a monotonic handle
-  # that is never reused. remove_series frees a slot without lowering
-  # next_series_id, so after one remove-then-add the same number means two
-  # different things: indexing with the handle renders the wrong series, and
-  # past 16 cycles reads off the end of the array. Resolve with
-  # find_meta_by_id() instead. This shipped once in temp_graph_tooltip_draw_cb
-  # and was caught in review rather than by a test, because the only symptom is
-  # drawn pixels and there is no draw-pass readback here.
-  if python3 scripts/check_series_meta_indexing.py >/tmp/series_meta_indexing.out 2>&1; then
-    section_time $SECTION_START
-    echo ""
-    tail -1 /tmp/series_meta_indexing.out
-  else
-    section_time $SECTION_START
-    echo ""
-    cat /tmp/series_meta_indexing.out
-    echo "   Use helix::temp_graph_internal::find_meta_by_id(graph, id) instead."
-    EXIT_CODE=1
-  fi
+# series_meta is SLOT-indexed; TempGraphHit::series_id is a monotonic handle
+# that is never reused. remove_series frees a slot without lowering
+# next_series_id, so after one remove-then-add the same number means two
+# different things: indexing with the handle renders the wrong series, and
+# past 16 cycles reads off the end of the array. Resolve with
+# find_meta_by_id() instead. This shipped once in temp_graph_tooltip_draw_cb
+# and was caught in review rather than by a test, because the only symptom is
+# drawn pixels and there is no draw-pass readback here.
+if python3 scripts/check_series_meta_indexing.py >/tmp/series_meta_indexing.out 2>&1; then
+  section_time $SECTION_START
+  echo ""
+  tail -1 /tmp/series_meta_indexing.out
 else
   section_time $SECTION_START
   echo ""
-  echo "⚠️  check_series_meta_indexing.py not found — skipping"
+  cat /tmp/series_meta_indexing.out
+  echo "   Use helix::temp_graph_internal::find_meta_by_id(graph, id) instead."
+  EXIT_CODE=1
 fi
 
 echo ""
@@ -2762,26 +2584,20 @@ qc_test_tautology() {
 SECTION_START=$(date +%s)
 echo -n "🎯 Checking for assertions that cannot fail..."
 
-if [ -f "scripts/check_test_tautology.py" ]; then
-  # Ratchet, read from mk/tests.mk for the reason above. All findings are a
-  # set_X(literal) round-trip through an accessor pair that only stores and
-  # loads. May fall, never rise.
-  TAUTOLOGY_MAX=$(sed -n 's/^TAUTOLOGY_MAX ?= *\([0-9][0-9]*\).*/\1/p' mk/tests.mk | head -1)
-  if python3 scripts/check_test_tautology.py --summary --max-allowed "${TAUTOLOGY_MAX:-0}" >/tmp/test_tautology.out 2>&1; then
-    section_time $SECTION_START
-    echo ""
-    cat /tmp/test_tautology.out
-  else
-    section_time $SECTION_START
-    echo ""
-    cat /tmp/test_tautology.out
-    echo "   Run: python3 scripts/check_test_tautology.py --list"
-    EXIT_CODE=1
-  fi
+# Ratchet, read from mk/tests.mk for the reason above. All findings are a
+# set_X(literal) round-trip through an accessor pair that only stores and
+# loads. May fall, never rise.
+TAUTOLOGY_MAX=$(sed -n 's/^TAUTOLOGY_MAX ?= *\([0-9][0-9]*\).*/\1/p' mk/tests.mk | head -1)
+if python3 scripts/check_test_tautology.py --summary --max-allowed "${TAUTOLOGY_MAX:-0}" >/tmp/test_tautology.out 2>&1; then
+  section_time $SECTION_START
+  echo ""
+  cat /tmp/test_tautology.out
 else
   section_time $SECTION_START
   echo ""
-  echo "⚠️  check_test_tautology.py not found — skipping"
+  cat /tmp/test_tautology.out
+  echo "   Run: python3 scripts/check_test_tautology.py --list"
+  EXIT_CODE=1
 fi
 
 echo ""
@@ -2797,35 +2613,29 @@ qc_test_mirrors() {
 SECTION_START=$(date +%s)
 echo -n "🪞 Checking for mirror tests..."
 
-if [ -f "scripts/check_test_mirrors.py" ]; then
-  # Ratchet, not a clean-tree assertion. Signals 1 and 2 (shadow-include,
-  # mirror-comment) are at 0 and must stay there. Signals 3 (redefined-symbol)
-  # and 4 (stub-logic) carry pre-existing findings, each with its own ceiling;
-  # each may fall, never rise.
-  #
-  # Read from mk/tests.mk rather than repeated here. A second hand-written copy
-  # of the same threshold is how it goes stale: main rewrote
-  # test_update_checker.cpp, the real count fell 18 -> 17, and a duplicated
-  # constant would have kept passing at 18 with a regression's worth of slack.
-  MIRROR_MAX_REDEFINED=$(sed -n 's/^MIRROR_MAX_REDEFINED_SYMBOL ?= *\([0-9][0-9]*\).*/\1/p' mk/tests.mk | head -1)
-  MIRROR_MAX_STUB=$(sed -n 's/^MIRROR_MAX_STUB_LOGIC ?= *\([0-9][0-9]*\).*/\1/p' mk/tests.mk | head -1)
-  if python3 scripts/check_test_mirrors.py --summary \
-       --max "redefined-symbol=${MIRROR_MAX_REDEFINED:-0}" \
-       --max "stub-logic=${MIRROR_MAX_STUB:-0}" >/tmp/test_mirrors.out 2>&1; then
-    section_time $SECTION_START
-    echo ""
-    cat /tmp/test_mirrors.out
-  else
-    section_time $SECTION_START
-    echo ""
-    cat /tmp/test_mirrors.out
-    echo "   Run: python3 scripts/check_test_mirrors.py --list"
-    EXIT_CODE=1
-  fi
+# Ratchet, not a clean-tree assertion. Signals 1 and 2 (shadow-include,
+# mirror-comment) are at 0 and must stay there. Signals 3 (redefined-symbol)
+# and 4 (stub-logic) carry pre-existing findings, each with its own ceiling;
+# each may fall, never rise.
+#
+# Read from mk/tests.mk rather than repeated here. A second hand-written copy
+# of the same threshold is how it goes stale: main rewrote
+# test_update_checker.cpp, the real count fell 18 -> 17, and a duplicated
+# constant would have kept passing at 18 with a regression's worth of slack.
+MIRROR_MAX_REDEFINED=$(sed -n 's/^MIRROR_MAX_REDEFINED_SYMBOL ?= *\([0-9][0-9]*\).*/\1/p' mk/tests.mk | head -1)
+MIRROR_MAX_STUB=$(sed -n 's/^MIRROR_MAX_STUB_LOGIC ?= *\([0-9][0-9]*\).*/\1/p' mk/tests.mk | head -1)
+if python3 scripts/check_test_mirrors.py --summary \
+     --max "redefined-symbol=${MIRROR_MAX_REDEFINED:-0}" \
+     --max "stub-logic=${MIRROR_MAX_STUB:-0}" >/tmp/test_mirrors.out 2>&1; then
+  section_time $SECTION_START
+  echo ""
+  cat /tmp/test_mirrors.out
 else
   section_time $SECTION_START
   echo ""
-  echo "⚠️  check_test_mirrors.py not found — skipping"
+  cat /tmp/test_mirrors.out
+  echo "   Run: python3 scripts/check_test_mirrors.py --list"
+  EXIT_CODE=1
 fi
 
 echo ""
@@ -2846,22 +2656,16 @@ qc_test_widget_registry() {
 SECTION_START=$(date +%s)
 echo -n "🧩 Checking test widget registry..."
 
-if [ -f "scripts/check_test_widget_registry.py" ]; then
-  if python3 scripts/check_test_widget_registry.py >/tmp/test_widget_registry.out 2>&1; then
-    section_time $SECTION_START
-    echo ""
-    cat /tmp/test_widget_registry.out
-  else
-    section_time $SECTION_START
-    echo ""
-    cat /tmp/test_widget_registry.out
-    echo "   Run: python3 scripts/check_test_widget_registry.py"
-    EXIT_CODE=1
-  fi
+if python3 scripts/check_test_widget_registry.py >/tmp/test_widget_registry.out 2>&1; then
+  section_time $SECTION_START
+  echo ""
+  cat /tmp/test_widget_registry.out
 else
   section_time $SECTION_START
   echo ""
-  echo "⚠️  check_test_widget_registry.py not found — skipping"
+  cat /tmp/test_widget_registry.out
+  echo "   Run: python3 scripts/check_test_widget_registry.py"
+  EXIT_CODE=1
 fi
 
 echo ""
@@ -2912,22 +2716,16 @@ qc_doc_refs() {
 SECTION_START=$(date +%s)
 echo -n "📚 Checking doc references and index..."
 
-if [ -f "scripts/check_doc_refs.py" ]; then
-  if python3 scripts/check_doc_refs.py >/tmp/doc_refs.out 2>&1; then
-    section_time $SECTION_START
-    echo ""
-    cat /tmp/doc_refs.out
-  else
-    section_time $SECTION_START
-    echo ""
-    cat /tmp/doc_refs.out
-    echo "   Run: python3 scripts/check_doc_refs.py"
-    EXIT_CODE=1
-  fi
+if python3 scripts/check_doc_refs.py >/tmp/doc_refs.out 2>&1; then
+  section_time $SECTION_START
+  echo ""
+  cat /tmp/doc_refs.out
 else
   section_time $SECTION_START
   echo ""
-  echo "⚠️  check_doc_refs.py not found — skipping"
+  cat /tmp/doc_refs.out
+  echo "   Run: python3 scripts/check_doc_refs.py"
+  EXIT_CODE=1
 fi
 
 echo ""
@@ -2954,27 +2752,21 @@ qc_lvgl_event_codes() {
 SECTION_START=$(date +%s)
 echo -n "🩺 Checking crash-worker LVGL event codes..."
 
-if [ -f "scripts/gen_lvgl_event_codes.py" ]; then
-  if python3 scripts/gen_lvgl_event_codes.py --diff >/tmp/lvgl_event_codes.out 2>&1; then
-    :
-  else
-    EXIT_CODE=1
-    # --auto-fix repairs the working tree but still fails: the repair lands
-    # in the tree, not the index, and passing here would commit the stale
-    # table behind a green run.
-    if [ "$AUTO_FIX" = true ]; then
-      python3 scripts/gen_lvgl_event_codes.py >>/tmp/lvgl_event_codes.out 2>&1
-      echo "   Regenerated in place — 'git add' the worker and commit again." >>/tmp/lvgl_event_codes.out
-    fi
-  fi
-  section_time $SECTION_START
-  echo ""
-  cat /tmp/lvgl_event_codes.out
+if python3 scripts/gen_lvgl_event_codes.py --diff >/tmp/lvgl_event_codes.out 2>&1; then
+  :
 else
-  section_time $SECTION_START
-  echo ""
-  echo "⚠️  gen_lvgl_event_codes.py not found — skipping"
+  EXIT_CODE=1
+  # --auto-fix repairs the working tree but still fails: the repair lands
+  # in the tree, not the index, and passing here would commit the stale
+  # table behind a green run.
+  if [ "$AUTO_FIX" = true ]; then
+    python3 scripts/gen_lvgl_event_codes.py >>/tmp/lvgl_event_codes.out 2>&1
+    echo "   Regenerated in place — 'git add' the worker and commit again." >>/tmp/lvgl_event_codes.out
+  fi
 fi
+section_time $SECTION_START
+echo ""
+cat /tmp/lvgl_event_codes.out
 
 echo ""
 
@@ -2997,23 +2789,17 @@ echo -n "🌐 Checking translation format specifiers..."
 
 TRANS_FMT_PY="${VENV_PYTHON:-python3}"
 [ -x "$TRANS_FMT_PY" ] || TRANS_FMT_PY=python3
-if [ -f "scripts/check_translation_format_specifiers.py" ]; then
-  if "$TRANS_FMT_PY" scripts/check_translation_format_specifiers.py >/tmp/trans_fmt.out 2>&1; then
-    section_time $SECTION_START
-    echo ""
-    echo "✅ All translated format strings preserve their source placeholders"
-  else
-    section_time $SECTION_START
-    echo ""
-    cat /tmp/trans_fmt.out
-    echo "   Run: $TRANS_FMT_PY scripts/check_translation_format_specifiers.py"
-    echo "   Fix the offending translation in translations/<locale>.yml, then run: make translations"
-    EXIT_CODE=1
-  fi
+if "$TRANS_FMT_PY" scripts/check_translation_format_specifiers.py >/tmp/trans_fmt.out 2>&1; then
+  section_time $SECTION_START
+  echo ""
+  echo "✅ All translated format strings preserve their source placeholders"
 else
   section_time $SECTION_START
   echo ""
-  echo "⚠️  check_translation_format_specifiers.py not found — skipping"
+  cat /tmp/trans_fmt.out
+  echo "   Run: $TRANS_FMT_PY scripts/check_translation_format_specifiers.py"
+  echo "   Fix the offending translation in translations/<locale>.yml, then run: make translations"
+  EXIT_CODE=1
 fi
 
 echo ""
@@ -3040,23 +2826,17 @@ qc_base_locale() {
 SECTION_START=$(date +%s)
 echo -n "🌐 Checking base-locale key identity..."
 
-if [ -f "scripts/check_translation_identity.py" ]; then
-  if "$TRANS_FMT_PY" scripts/check_translation_identity.py >/tmp/trans_ident.out 2>&1; then
-    section_time $SECTION_START
-    echo ""
-    echo "✅ All English translation keys are their own text"
-  else
-    section_time $SECTION_START
-    echo ""
-    cat /tmp/trans_ident.out
-    echo "   Fix: rename the key to its English text in ALL translations/*.yml"
-    echo "   and at the C++/XML/JSON reference site, then: make translations"
-    EXIT_CODE=1
-  fi
+if "$TRANS_FMT_PY" scripts/check_translation_identity.py >/tmp/trans_ident.out 2>&1; then
+  section_time $SECTION_START
+  echo ""
+  echo "✅ All English translation keys are their own text"
 else
   section_time $SECTION_START
   echo ""
-  echo "⚠️  check_translation_identity.py not found — skipping"
+  cat /tmp/trans_ident.out
+  echo "   Fix: rename the key to its English text in ALL translations/*.yml"
+  echo "   and at the C++/XML/JSON reference site, then: make translations"
+  EXIT_CODE=1
 fi
 
 echo ""
@@ -3096,7 +2876,7 @@ qc_translation_coverage() {
 SECTION_START=$(date +%s)
 echo -n "🌐 Checking translation catalog coverage..."
 
-if [ -x "$VENV_PYTHON" ] && [ -f "scripts/translation_sync.py" ]; then
+if [ -x "$VENV_PYTHON" ]; then
   if "$VENV_PYTHON" scripts/translation_sync.py sync --dry-run >/tmp/trans_cov.out 2>&1 \
      && grep -q "All XML strings already in YAML files" /tmp/trans_cov.out; then
     if "$VENV_PYTHON" -m pytest -q tests/python/test_cpp_translation_coverage.py \
@@ -3169,23 +2949,17 @@ qc_cjk_fonts() {
 SECTION_START=$(date +%s)
 echo -n "🌐 Checking CJK font bake..."
 
-if [ -f "scripts/check_cjk_font_staleness.sh" ]; then
-  if bash scripts/check_cjk_font_staleness.sh >/tmp/cjk_stale.out 2>&1 \
-     && python3 scripts/check_cjk_font_coverage.py >/tmp/cjk_cov.out 2>&1; then
-    section_time $SECTION_START
-    echo ""
-    echo "✅ Every needed CJK codepoint is baked into the runtime fonts"
-  else
-    section_time $SECTION_START
-    echo ""
-    cat /tmp/cjk_stale.out /tmp/cjk_cov.out
-    echo "   Fix: make regen-text-fonts, rebuild, commit assets/fonts/cjk/."
-    EXIT_CODE=1
-  fi
+if bash scripts/check_cjk_font_staleness.sh >/tmp/cjk_stale.out 2>&1 \
+   && python3 scripts/check_cjk_font_coverage.py >/tmp/cjk_cov.out 2>&1; then
+  section_time $SECTION_START
+  echo ""
+  echo "✅ Every needed CJK codepoint is baked into the runtime fonts"
 else
   section_time $SECTION_START
   echo ""
-  echo "⚠️  check_cjk_font_staleness.sh not found — skipping"
+  cat /tmp/cjk_stale.out /tmp/cjk_cov.out
+  echo "   Fix: make regen-text-fonts, rebuild, commit assets/fonts/cjk/."
+  EXIT_CODE=1
 fi
 
 echo ""
@@ -3348,21 +3122,15 @@ qc_installer_reachability() {
 SECTION_START=$(date +%s)
 echo -n "🔌 Checking installer step reachability..."
 
-if [ -f "scripts/check_installer_step_reachability.py" ]; then
-  if python3 scripts/check_installer_step_reachability.py >/tmp/installer_reachability.out 2>&1; then
-    section_time $SECTION_START
-    echo ""
-    cat /tmp/installer_reachability.out
-  else
-    section_time $SECTION_START
-    echo ""
-    cat /tmp/installer_reachability.out
-    EXIT_CODE=1
-  fi
+if python3 scripts/check_installer_step_reachability.py >/tmp/installer_reachability.out 2>&1; then
+  section_time $SECTION_START
+  echo ""
+  cat /tmp/installer_reachability.out
 else
   section_time $SECTION_START
   echo ""
-  echo "⚠️  check_installer_step_reachability.py not found — skipping"
+  cat /tmp/installer_reachability.out
+  EXIT_CODE=1
 fi
 
 echo ""
@@ -3392,30 +3160,24 @@ qc_bats_inert() {
 SECTION_START=$(date +%s)
 echo -n "🫥 Checking bats assertions bash 3.2 swallows..."
 
-if [ -f "scripts/check_bats_inert_assertions.py" ]; then
-  # Pre-commit: scan the staged blob for each .bats file, not the dirty
-  # working tree - a violation staged and then reverted on disk must still
-  # fail. CI and manual runs use the whole-working-tree scan (no flag).
-  if [ "$STAGED_ONLY" = true ]; then
-    BATS_INERT_ARGS="--staged-only"
-  else
-    BATS_INERT_ARGS=""
-  fi
-  # shellcheck disable=SC2086
-  if python3 scripts/check_bats_inert_assertions.py $BATS_INERT_ARGS >/tmp/bats_inert.out 2>&1; then
-    section_time $SECTION_START
-    echo ""
-    cat /tmp/bats_inert.out
-  else
-    section_time $SECTION_START
-    echo ""
-    cat /tmp/bats_inert.out
-    EXIT_CODE=1
-  fi
+# Pre-commit: scan the staged blob for each .bats file, not the dirty
+# working tree - a violation staged and then reverted on disk must still
+# fail. CI and manual runs use the whole-working-tree scan (no flag).
+if [ "$STAGED_ONLY" = true ]; then
+  BATS_INERT_ARGS="--staged-only"
+else
+  BATS_INERT_ARGS=""
+fi
+# shellcheck disable=SC2086
+if python3 scripts/check_bats_inert_assertions.py $BATS_INERT_ARGS >/tmp/bats_inert.out 2>&1; then
+  section_time $SECTION_START
+  echo ""
+  cat /tmp/bats_inert.out
 else
   section_time $SECTION_START
   echo ""
-  echo "⚠️  check_bats_inert_assertions.py not found - skipping"
+  cat /tmp/bats_inert.out
+  EXIT_CODE=1
 fi
 
 echo ""
@@ -3436,7 +3198,7 @@ if [ -n "${HELIX_QC_SKIP_PATCH_DRIFT:-}" ]; then
   section_time $SECTION_START
   echo ""
   echo "⏭️  patch drift: deferred to the tree that owns lib/"
-elif [ -f "scripts/check_patch_drift.py" ]; then
+else
   if python3 scripts/check_patch_drift.py >/tmp/patch_drift.out 2>&1; then
     section_time $SECTION_START
     echo ""
@@ -3447,10 +3209,6 @@ elif [ -f "scripts/check_patch_drift.py" ]; then
     cat /tmp/patch_drift.out
     EXIT_CODE=1
   fi
-else
-  section_time $SECTION_START
-  echo ""
-  echo "⚠️  check_patch_drift.py not found - skipping"
 fi
 
 echo ""
@@ -3562,21 +3320,15 @@ qc_workflow_submodules() {
 SECTION_START=$(date +%s)
 echo -n "🧱 Checking workflow submodule gates..."
 
-if [ -f "scripts/check_workflow_submodules.py" ]; then
-  if python3 scripts/check_workflow_submodules.py >/tmp/workflow_submodules.out 2>&1; then
-    section_time $SECTION_START
-    echo ""
-    cat /tmp/workflow_submodules.out
-  else
-    section_time $SECTION_START
-    echo ""
-    cat /tmp/workflow_submodules.out
-    EXIT_CODE=1
-  fi
+if python3 scripts/check_workflow_submodules.py >/tmp/workflow_submodules.out 2>&1; then
+  section_time $SECTION_START
+  echo ""
+  cat /tmp/workflow_submodules.out
 else
   section_time $SECTION_START
   echo ""
-  echo "⚠️  check_workflow_submodules.py not found - skipping"
+  cat /tmp/workflow_submodules.out
+  EXIT_CODE=1
 fi
 
 echo ""
@@ -3592,22 +3344,16 @@ qc_ams_xml_mirror() {
 SECTION_START=$(date +%s)
 echo -n "🪞 Checking the AmsState XML-name mirror..."
 
-if [ -f "scripts/check_ams_xml_mirror.py" ]; then
-  if python3 scripts/check_ams_xml_mirror.py >/tmp/ams_xml_mirror.out 2>&1; then
-    section_time $SECTION_START
-    echo ""
-    cat /tmp/ams_xml_mirror.out
-  else
-    section_time $SECTION_START
-    echo ""
-    cat /tmp/ams_xml_mirror.out
-    echo "   Run: python3 scripts/check_ams_xml_mirror.py"
-    EXIT_CODE=1
-  fi
+if python3 scripts/check_ams_xml_mirror.py >/tmp/ams_xml_mirror.out 2>&1; then
+  section_time $SECTION_START
+  echo ""
+  cat /tmp/ams_xml_mirror.out
 else
   section_time $SECTION_START
   echo ""
-  echo "⚠️  check_ams_xml_mirror.py not found - skipping"
+  cat /tmp/ams_xml_mirror.out
+  echo "   Run: python3 scripts/check_ams_xml_mirror.py"
+  EXIT_CODE=1
 fi
 
 echo ""
@@ -3656,7 +3402,7 @@ echo ""
   return $EXIT_CODE
 }
 
-QC_ALL="qc_phase1 qc_xml_tools qc_xml_const qc_xml_attr qc_dup_names qc_xml_linter qc_xml_subtests qc_hidden_tests qc_overlay_width qc_icon_names qc_design_pixels qc_phase2 qc_icon_font qc_mdi_codepoints qc_todo_markers qc_mem_safety qc_null_safety qc_l081 qc_net_pii qc_decl_ui qc_namespace qc_spdlog_only qc_design_tokens qc_test_mirrors qc_test_tautology qc_test_widget_registry qc_xml_create_registered qc_doc_refs qc_lvgl_event_codes qc_translation_fmt qc_base_locale qc_translation_coverage qc_cjk_fonts qc_shellcheck qc_installer_reachability qc_patch_drift qc_workflow_submodules qc_ams_xml_mirror qc_bats_inert qc_python_tests"
+QC_ALL="qc_phase1 qc_xml_tools qc_xml_const qc_xml_attr qc_dup_names qc_xml_linter qc_xml_subtests qc_hidden_tests qc_overlay_width qc_icon_names qc_design_pixels qc_esp32_app_srcs qc_phase2 qc_icon_font qc_mdi_codepoints qc_todo_markers qc_mem_safety qc_null_safety qc_l081 qc_net_pii qc_decl_ui qc_namespace qc_spdlog_only qc_design_tokens qc_test_mirrors qc_test_tautology qc_test_widget_registry qc_xml_create_registered qc_doc_refs qc_lvgl_event_codes qc_translation_fmt qc_base_locale qc_translation_coverage qc_cjk_fonts qc_shellcheck qc_installer_reachability qc_patch_drift qc_workflow_submodules qc_ams_xml_mirror qc_bats_inert qc_python_tests"
 
 QC_PARALLEL=""
 for fn in $QC_ALL; do
@@ -3680,6 +3426,7 @@ qc_trigger_re() {
     qc_xml_tools)        echo '\.xml$|^src/ui/|^tools/validate_xml|^tools/xml-linter/' ;;
     qc_overlay_width)   echo '\.xml$|\.(cpp|h)$' ;;
     qc_design_pixels)   echo '\.xml$' ;;
+    qc_esp32_app_srcs)  echo '^src/|^firmware/helixscreen-esp32/components/helixapp/|^scripts/check_esp32_app_srcs\.py$|^scripts/esp32_link_baseline\.txt$' ;;
     qc_phase2)          echo '\.(cpp|c|h|mm|xml)$' ;;
     qc_icon_font|qc_mdi_codepoints)
                         echo '\.xml$|icon|font' ;;

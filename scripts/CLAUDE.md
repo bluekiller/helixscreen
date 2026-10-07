@@ -41,7 +41,7 @@ what each script is for; the script's own header carries the reasoning behind it
 | `regen_images.sh` | Pre-render splash screen images to LVGL binary format |
 | `regen_placeholder_images.sh` | Generate placeholder/fallback images |
 | `regen_printer_images.sh` | Process printer model images for the printer database |
-| `trim_printer_images.sh` | Crop/trim whitespace from printer images |
+| `trim_printer_images.py` | Crop printer images to their visible content, no aspect padding, and remap `regions.json` to match. `--check` (run by `quality-checks.sh`) fails on any transparent margin; `--dry-run` |
 | `gen_splash_3d.py` | Composite 3D logo onto full-screen splash canvases |
 | `generate_gradient_bg.py` | Pre-render gradient backgrounds for print file cards (perf optimization) |
 | `LVGLImage.py` | Python library for LVGL binary image format conversion |

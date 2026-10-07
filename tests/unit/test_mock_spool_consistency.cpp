@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
 // Guards against drift between the AMS mock backends' slot filaments and the
-// mock Spoolman inventory (MoonrakerSpoolmanAPIMock::init_mock_spools). A slot
+// mock Spoolman inventory (MockSpoolmanServer::init_mock_spools). A slot
 // that claims spoolman_id=N must describe the same filament as spool N, or the
 // slot editor looks broken in mock mode (spec §9).
 

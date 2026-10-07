@@ -248,6 +248,66 @@ TEST_CASE("one pixel short of both sides falls to one side", "[printer_image][ca
     }
 }
 
+TEST_CASE("one side keeps the image at its full fitted size when it fits",
+          "[printer_image][callout_layout]") {
+    auto in = wide();
+    in.area_w = 186 + (70 + in.gap + in.min_line); // exactly one column beside it
+    const auto l = compute_callout_layout(in);
+    REQUIRE(l.mode == CalloutMode::OneSide);
+    CHECK(l.image.w == 186);
+    CHECK(l.image.h == 140);
+}
+
+TEST_CASE("a small image shrink unlocks one side instead of pinned",
+          "[printer_image][callout_layout]") {
+    auto in = wide();
+    const int col = 70 + in.gap + in.min_line;
+    in.area_w = 186 + col - 14; // the column fits once the image gives up 14px: 7.5%
+    const auto l = compute_callout_layout(in);
+    REQUIRE(l.mode == CalloutMode::OneSide);
+    CHECK(l.image.x == 0);
+    CHECK(l.image.w == 186 - 14);
+    CHECK(l.image.h == 140 * (186 - 14) / 186); // aspect kept
+    CHECK(l.image.y == (in.area_h - l.image.h) / 2);
+    for (const auto& c : l.chips) {
+        CHECK(c.has_line);
+        CHECK(c.rect.x >= l.image.x + l.image.w);
+        CHECK(c.rect.x + c.rect.w <= in.area_w);
+    }
+    // Fit is decided by the budget: a chip going away does not grow the image back.
+    in.active = {{CalloutKind::Bed, 70, NormPoint{0.46f, 0.57f}}};
+    const auto one = compute_callout_layout(in);
+    CHECK(one.mode == CalloutMode::OneSide);
+    CHECK(one.image.w == l.image.w);
+    CHECK(one.image.x == l.image.x);
+}
+
+TEST_CASE("a column needing more than the shrink limit stays pinned",
+          "[printer_image][callout_layout]") {
+    auto in = wide();
+    in.area_w = 186 + (70 + in.gap + in.min_line) - 15; // 15px is over 8% of 186
+    const auto l = compute_callout_layout(in);
+    CHECK(l.mode == CalloutMode::Pinned);
+    CHECK(l.image.w == 186);
+}
+
+TEST_CASE("a small image shrink unlocks both sides when one side cannot stack",
+          "[printer_image][callout_layout]") {
+    auto in = wide();
+    in.area_h = 80; // three chips stack, four do not; fitted image 106x80
+    const int col = 70 + in.gap + in.min_line;
+    in.area_w = 106 + 2 * col - 7;
+    const auto l = compute_callout_layout(in);
+    REQUIRE(l.mode == CalloutMode::BothSides);
+    CHECK(l.image.w == 106 - 7);
+    CHECK(l.image.x == (in.area_w - l.image.w) / 2);
+    for (const auto& c : l.chips) {
+        const bool left = c.rect.x + c.rect.w <= l.image.x;
+        const bool right = c.rect.x >= l.image.x + l.image.w;
+        CHECK((left || right));
+    }
+}
+
 TEST_CASE("column that cannot stack its chips falls through to pinned",
           "[printer_image][callout_layout]") {
     auto in = wide();

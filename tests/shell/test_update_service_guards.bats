@@ -25,9 +25,10 @@ setup() {
     UPTIME=1000
 }
 
-# Uptime is read through `cut`, so the stub answers with $UPTIME.
-_run_unit() {
-    mock_command_script "cut" "echo $UPTIME"
+# The ExecStart script as the shell will run it. An absolute systemctl path
+# names the host binary and passes every PATH mock, so it is reduced to the
+# bare name the mock answers.
+_unit_script() {
     local script
     script=$(awk '
         /^ExecStart=/ { on = 1; sub(/^ExecStart=/, "") }
@@ -40,8 +41,31 @@ _run_unit() {
     script=${script#"/bin/sh -c '"}
     script=${script%"'"}
     script=$(printf '%s' "$script" | sed -e 's/\$\$/$/g' \
-        -e "s|@@INSTALL_PARENT@@|$PARENT|g" -e "s|@@INSTALL_DIR@@|$IDIR|g")
+        -e "s|@@INSTALL_PARENT@@|$PARENT|g" -e "s|@@INSTALL_DIR@@|$IDIR|g" \
+        -e 's#^/\(usr/\)\{0,1\}s\{0,1\}bin/systemctl#systemctl#' \
+        -e 's#\([[:space:];&|(]\)/\(usr/\)\{0,1\}s\{0,1\}bin/systemctl#\1systemctl#g')
+    printf '%s\n' "$script"
+}
+
+# Uptime is read through `cut`, so the stub answers with $UPTIME.
+_run_unit() {
+    mock_command_script "cut" "echo $UPTIME"
+    local script
+    script=$(_unit_script)
     run sh -c "$script"
+}
+
+@test "the harness never runs systemctl by an absolute path" {
+    UNIT="$BATS_TEST_TMPDIR/abs.service"
+    printf '[Service]\nExecStart=/bin/systemctl restart helixscreen\n' > "$UNIT"
+    [ "$(_unit_script)" = "systemctl restart helixscreen" ]
+    printf '[Service]\nExecStart=/usr/sbin/systemctl restart helixscreen\n' > "$UNIT"
+    [ "$(_unit_script)" = "systemctl restart helixscreen" ]
+    printf '[Service]\nExecStart=true; /bin/systemctl stop x\n' > "$UNIT"
+    [ "$(_unit_script)" = "true; systemctl stop x" ]
+    # Only a stock system directory is rewritten; any other path is kept whole.
+    printf '[Service]\nExecStart=/opt/x/bin/systemctl restart helixscreen\n' > "$UNIT"
+    [ "$(_unit_script)" = "/opt/x/bin/systemctl restart helixscreen" ]
 }
 
 @test "the update unit keeps no ExecStartPre or ExecCondition guards" {

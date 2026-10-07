@@ -177,6 +177,14 @@ uint64_t parse_meminfo_kb(const std::string& content, const std::string& key);
 CpuInfo parse_cpuinfo(const std::string& content);
 
 /**
+ * @brief Whether pressed widgets may scale down for touch feedback on this tier
+ *
+ * A scaled widget renders through a TRANSFORM layer, which the limited tiers
+ * cannot afford on every press. The one rule for every pressed-scale style.
+ */
+bool pressed_scale_allowed(PlatformTier tier);
+
+/**
  * @brief Convert PlatformTier to string representation
  *
  * @param tier Platform tier

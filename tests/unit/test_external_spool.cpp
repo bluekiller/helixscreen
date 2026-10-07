@@ -345,7 +345,7 @@ TEST_CASE("commit_external_spool_edit set arm syncs active spool and persists",
     CHECK(persisted->spoolman_id == 169);
     CHECK(persisted->material == "PLA");
     // S1 — server told which spool is active
-    REQUIRE(fixture.api.spoolman_mock().get_mock_active_spool_id() == 169);
+    REQUIRE(fixture.client.spoolman_mock().get_mock_active_spool_id() == 169);
 }
 
 TEST_CASE("commit_external_spool_edit empty arm erases settings record",
@@ -357,15 +357,15 @@ TEST_CASE("commit_external_spool_edit empty arm erases settings record",
     seeded.spoolman_id = 169;
     seeded.material = "PLA";
     AmsState::instance().set_external_spool_info(seeded);
-    fixture.api.spoolman_mock().set_active_spool(169, nullptr, nullptr);
-    REQUIRE(fixture.api.spoolman_mock().get_mock_active_spool_id() == 169);
+    fixture.client.spoolman_mock().set_active_spool_id(169);
+    REQUIRE(fixture.client.spoolman_mock().get_mock_active_spool_id() == 169);
 
     AmsState::instance().commit_external_spool_edit(SlotInfo{});
 
     // S5 — the settings subtree is ABSENT, not an empty assigned=true record
     REQUIRE_FALSE(SettingsManager::instance().get_external_spool_info().has_value());
     // S1 — the server-side link was cleared too
-    REQUIRE(fixture.api.spoolman_mock().get_mock_active_spool_id() == 0);
+    REQUIRE(fixture.client.spoolman_mock().get_mock_active_spool_id() == 0);
 }
 
 TEST_CASE("commit_external_spool_edit keeps manual entry without spoolman id",
@@ -374,7 +374,7 @@ TEST_CASE("commit_external_spool_edit keeps manual entry without spoolman id",
 
     // Sentinel: any set_active_spool call from the commit lands here and fails
     // the final check (7 stays 7 only if NO call fired).
-    fixture.api.spoolman_mock().set_active_spool(7, nullptr, nullptr);
+    fixture.client.spoolman_mock().set_active_spool_id(7);
 
     SlotInfo info;
     info.spoolman_id = 0;
@@ -389,7 +389,7 @@ TEST_CASE("commit_external_spool_edit keeps manual entry without spoolman id",
     CHECK(persisted->spoolman_id == 0);
     CHECK(persisted->material == "PLA");
     // No API call — a manual entry is not a server-side spool assignment
-    CHECK(fixture.api.spoolman_mock().get_mock_active_spool_id() == 7);
+    CHECK(fixture.client.spoolman_mock().get_mock_active_spool_id() == 7);
 }
 
 // ============================================================================

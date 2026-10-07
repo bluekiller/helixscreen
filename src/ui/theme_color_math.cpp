@@ -191,6 +191,17 @@ static lv_color_t contrast_adjusted_text_for_ratio(lv_color_t text, lv_color_t f
     return blended;
 }
 
+lv_color_t helix::field_outline_color(lv_color_t text_subtle, lv_color_t screen_bg,
+                                      lv_color_t overlay_bg, lv_color_t card_bg,
+                                      lv_color_t elevated_bg) {
+    // A palette's surfaces share one side of the luminance range, so each shift
+    // moves away from all of them and never undoes an earlier surface's margin.
+    lv_color_t c = text_subtle;
+    for (lv_color_t surface : {screen_bg, overlay_bg, card_bg, elevated_bg})
+        c = contrast_adjusted_text_for_ratio(c, surface, kFieldOutlineContrastThreshold);
+    return c;
+}
+
 // NAMESPACE_OK: joins this header's global theme_manager_* free-function API
 lv_color_t theme_manager_get_contrast_adjusted_text(lv_color_t text, lv_color_t fill) {
     return contrast_adjusted_text_for_ratio(text, fill, kThemeTextContrastThreshold);

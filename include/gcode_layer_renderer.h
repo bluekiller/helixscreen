@@ -445,6 +445,14 @@ class GCodeLayerRenderer {
      */
     std::optional<std::string> pick_object_at(int screen_x, int screen_y) const;
 
+    /// World point -> widget-local pixel, through the transform render() draws with.
+    glm::ivec2 project_to_screen(float x, float y, float z) const {
+        return world_to_screen_raw(capture_transform_params(), x, y, z);
+    }
+
+    /// Z height of the topmost layer drawn (current_layer), 0 with no data.
+    float current_layer_z() const;
+
     // =========================================================================
     // Viewport Control
     // =========================================================================

@@ -37,14 +37,14 @@ TEST_CASE_METHOD(HelixTestFixture, "Loading a namespace populates each lane's so
                  "[lane][migration]") {
     MockPrinter mock_printer;
     auto& api = mock_printer.api;
-    api.mock_set_db_value(
+    mock_printer.client.mock_db_set(
         "lane_data", "lane1",
         nlohmann::json{
             {"lane", 0}, {"spool_id", 7}, {"color", "#FFFFFF"}, {"helix_locked_color", true}});
-    api.mock_set_db_value(
+    mock_printer.client.mock_db_set(
         "lane_data", "lane2",
         nlohmann::json{{"lane", 1}, {"color", "#ED2C2C"}, {"helix_material", "PLA"}});
-    api.mock_set_db_value("lane_data", "seated", nlohmann::json(0));
+    mock_printer.client.mock_db_set("lane_data", "seated", nlohmann::json(0));
 
     FilamentSlotOverrideStore store(&api, "ad5x_ifs");
     const auto loaded = store.load_blocking();
@@ -83,7 +83,7 @@ TEST_CASE_METHOD(HelixTestFixture,
     // store at all.
     MockPrinter mock_printer;
     auto& api = mock_printer.api;
-    api.mock_set_db_value(
+    mock_printer.client.mock_db_set(
         "lane_data", "lane1",
         nlohmann::json{{"lane", 0}, {"color", "#3355FF"}, {"helix_locked_color", true}});
 
@@ -104,11 +104,11 @@ TEST_CASE_METHOD(HelixTestFixture, "Ingesting the same namespace twice changes n
                  "[lane][migration]") {
     MockPrinter mock_printer;
     auto& api = mock_printer.api;
-    api.mock_set_db_value("lane_data", "lane1",
-                          nlohmann::json{{"lane", 0},
-                                         {"color", "#BCBCBC"},
-                                         {"helix_material", "PLA"},
-                                         {"helix_locked_color", true}});
+    mock_printer.client.mock_db_set("lane_data", "lane1",
+                                    nlohmann::json{{"lane", 0},
+                                                   {"color", "#BCBCBC"},
+                                                   {"helix_material", "PLA"},
+                                                   {"helix_locked_color", true}});
 
     FilamentSlotOverrideStore store(&api, "ad5x_ifs");
     store.load_blocking();
@@ -133,7 +133,8 @@ TEST_CASE_METHOD(HelixTestFixture, "Classification reads the document the store 
     // is another tool (#1632), and its colour is that tool's statement.
     MockPrinter mock_printer;
     auto& api = mock_printer.api;
-    api.mock_set_db_value("lane_data", "lane1", nlohmann::json{{"lane", 0}, {"color", "#ED2C2C"}});
+    mock_printer.client.mock_db_set("lane_data", "lane1",
+                                    nlohmann::json{{"lane", 0}, {"color", "#ED2C2C"}});
 
     FilamentSlotOverrideStore store(&api, "ad5x_ifs");
     const auto loaded = store.load_blocking();
@@ -155,7 +156,7 @@ TEST_CASE_METHOD(HelixTestFixture, "A load that falls back to the on-disk cache 
     // record against, so ingesting it would be a guess rather than a reading.
     MockPrinter mock_printer;
     auto& api = mock_printer.api;
-    api.mock_reject_next_db_get();
+    mock_printer.client.fail_next("server.database.get_item");
 
     FilamentSlotOverrideStore store(&api, "ad5x_ifs");
     store.load_blocking();
@@ -218,12 +219,12 @@ TEST_CASE_METHOD(HelixTestFixture, "A brand nobody declared yields to the next f
     // stating the field corrects it.
     MockPrinter mock_printer;
     auto& api = mock_printer.api;
-    api.mock_set_db_value("lane_data", "lane1",
-                          nlohmann::json{{"lane", 0},
-                                         {"vendor_name", "Firmware Brand"},
-                                         {"helix_locked_color", false},
-                                         {"helix_locked_material", false},
-                                         {"helix_declared", nlohmann::json::array()}});
+    mock_printer.client.mock_db_set("lane_data", "lane1",
+                                    nlohmann::json{{"lane", 0},
+                                                   {"vendor_name", "Firmware Brand"},
+                                                   {"helix_locked_color", false},
+                                                   {"helix_locked_material", false},
+                                                   {"helix_declared", nlohmann::json::array()}});
 
     FilamentSlotOverrideStore store(&api, "ad5x_ifs");
     REQUIRE(store.load_blocking().size() == 1);
@@ -261,7 +262,7 @@ TEST_CASE_METHOD(HelixTestFixture,
     if (locked) {
         record["helix_locked_color"] = true;
     }
-    api.mock_set_db_value("lane_data", "lane1", record);
+    mock_printer.client.mock_db_set("lane_data", "lane1", record);
 
     FilamentSlotOverrideStore store(&api, "ad5x_ifs");
     REQUIRE(store.load_blocking().size() == 1);

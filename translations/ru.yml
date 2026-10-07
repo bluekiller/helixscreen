@@ -1,5 +1,7 @@
 locale: ru
 translations:
+  '%d-%d': '%d-%d'
+  '%d-%d°C': '%d-%d°C'
   ' (timed out)': ' (время ожидания истекло)'
   ' frames': ' кадров'
   ' left': ' осталось'
@@ -862,16 +864,16 @@ translations:
   Danger: Опасность
   Danger Zone: Опасная зона
   Dark Mode: Тёмный режим
-  Database: База данных
   Date (newest): Дата (новые)
   Date (oldest): Дата (старые)
   Day: День
   Debug: Отладка
+  Deep Black: Глубокий чёрный
   Default: 'По умолчанию'
   Default Parameters: 'Параметры по умолчанию'
   Default border thickness: Толщина границы по умолчанию
-  'Default: %d-%d°C nozzle, %d°C bed': 'По умолчанию: сопло %d-%d°C, стол %d°C'
-  'Default: %d-%d°C nozzle, %d°C bed, %d°C chamber': 'По умолчанию: сопло %d-%d°C, стол %d°C, камера %d°C'
+  'Default: %s nozzle, %d°C bed': 'По умолчанию: сопло %s, стол %d°C'
+  'Default: %s nozzle, %d°C bed, %d°C chamber': 'По умолчанию: сопло %s, стол %d°C, камера %d°C'
   Defaults restored: Настройки по умолчанию восстановлены
   Define macros in your printer.cfg: Определите макросы в вашем printer.cfg
   Delete: Удалить

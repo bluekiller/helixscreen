@@ -555,6 +555,8 @@ class PrintStatusPanel : public OverlayBase {
     void animate_print_error();     ///< Error animation when print fails
     void show_exclude_map_view();   ///< Show overhead map view of print objects
     void hide_exclude_map_view();   ///< Destroy map view and restore thumbnail/gradient
+    void
+    refresh_render_badges(); ///< Push numbered object badges to the viewer while exclude is open
 
     //
     // === Instance Handlers ===

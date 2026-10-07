@@ -22,6 +22,7 @@
 #include "../helix_test_fixture.h"
 #include "../test_helpers/live_thread_count.h"
 #include "../test_helpers/scoped_env.h"
+#include "../test_helpers/scoped_runtime_config.h"
 #include "../test_helpers/scoped_update_urls.h"
 #include "../test_helpers/update_checker_test_access.h"
 #include "../test_helpers/update_queue_test_access.h"
@@ -29,12 +30,14 @@
 #include "config.h"
 #include "lvgl.h"
 #include "platform_table.h"
+#include "runtime_config.h"
 #include "version.h"
 
 #include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
+#include <csignal>
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>
@@ -48,6 +51,7 @@
 #include <string>
 #include <sys/socket.h>
 #include <sys/stat.h>
+#include <sys/wait.h>
 #include <thread>
 #include <unistd.h>
 #include <vector>
@@ -1407,6 +1411,50 @@ std::string get_update_fixture_dir() {
 }
 
 } // namespace
+
+TEST_CASE("do_install never runs the installer in test mode",
+          "[update_checker][installer][do_install][test_mode]") {
+    auto tmp = make_temp_dir("helix_install_testmode");
+    REQUIRE(!tmp.empty());
+
+    // An installer that only leaves a marker, so a missing gate shows up as the
+    // marker existing rather than as anything done to the host.
+    const std::string marker = tmp + "/installer_ran";
+    std::string inner = tmp + "/helixscreen";
+    mkdir(inner.c_str(), 0755);
+    create_file(inner + "/install.sh", "#!/bin/sh\ntouch '" + marker + "'\n", true);
+    const std::string tarball = tmp + "/release.tar.gz";
+    std::string cmd =
+        "cd " + tmp + " && COPYFILE_DISABLE=1 tar czf release.tar.gz helixscreen/install.sh";
+    REQUIRE(std::system(cmd.c_str()) == 0);
+
+    // A child process makes the install: past the installer, do_install()
+    // ends the process to restart it, which would take the assertions with it.
+    const pid_t pid = fork();
+    REQUIRE(pid >= 0);
+    if (pid == 0) {
+        ScopedRuntimeConfig scoped_config;
+        get_runtime_config()->test_mode = true;
+        auto& checker = UpdateChecker::instance();
+        UpdateCheckerTestAccess::set_restart_action(checker, [] {});
+        UpdateCheckerTestAccess::set_status_hold_ms(checker, 0, 0);
+        UpdateCheckerTestAccess::do_install(checker, tarball);
+        _exit(0);
+    }
+    int wstatus = 0;
+    for (int i = 0; i < 3000 && waitpid(pid, &wstatus, WNOHANG) == 0; ++i)
+        usleep(10 * 1000);
+    if (waitpid(pid, &wstatus, WNOHANG) == 0) {
+        kill(pid, SIGKILL);
+        waitpid(pid, &wstatus, 0);
+        FAIL("do_install did not return within 30s");
+    }
+
+    CHECK(access(marker.c_str(), F_OK) != 0);
+    CHECK(access(tarball.c_str(), F_OK) != 0);
+
+    remove_dir(tmp);
+}
 
 TEST_CASE("extract_installer_from_tarball: tarball with install.sh",
           "[update_checker][installer][do_install]") {

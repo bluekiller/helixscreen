@@ -1,6 +1,7 @@
 #pragma once
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+#include "ui_exclude_object_badges.h"
 #include "ui_observer_guard.h"
 
 #include "async_lifetime_guard.h"
@@ -68,8 +69,10 @@ class ExcludeObjectSideList {
     void rebuild_rows();
     /// Publish each row's state; rows restyle in place and keep the scroll position.
     void update_row_states();
-    void create_row(lv_obj_t* parent, int index, const std::string& name);
-    static lv_color_t color_for_index(int index);
+    /// Rebuild the rows in place when the theme or size class moved since they
+    /// were built: chip colours are baked into each row.
+    void restyle_rows_if_stale();
+    void create_row(lv_obj_t* parent, const ObjectBadge& badge);
     static void on_row_clicked(lv_event_t* e);
     static void on_close_clicked(lv_event_t* e);
 
@@ -87,8 +90,13 @@ class ExcludeObjectSideList {
     helix::xml::IndexedSubjectPool row_states_{"exclude_row_state",
                                                helix::xml::IndexedSubjectPool::Type::Int};
 
+    /// The theme and size class the rows' chip colours were resolved under.
+    BadgeLook rows_look_;
+
     ObserverGuard excluded_version_obs_;
     ObserverGuard defined_version_obs_;
+    ObserverGuard theme_obs_;
+    ObserverGuard breakpoint_obs_;
 
     std::function<void()> close_cb_;
 

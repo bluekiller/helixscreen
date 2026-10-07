@@ -23,7 +23,6 @@
 #include <vector>
 
 using namespace helix;
-using helix::theme_detail::is_on_elevated_surface;
 using helix::theme_detail::runtime;
 
 // Color-swap map for container theming (replaces name-based heuristics)
@@ -295,38 +294,6 @@ static bool is_muted_text_font(const lv_font_t* font) {
     return font == font_small || font == font_xs || font == font_heading;
 }
 
-/**
- * @brief Check if an object is on an elevated background surface
- *
- * Detects two cases where inputs need overlay_bg for contrast:
- * 1. Inside a dialog (marked with LV_OBJ_FLAG_USER_1 in ui_dialog_xml_create())
- * 2. Inside any container whose opaque background matches elevated_bg
- *
- * This allows text_input, dropdowns, etc. to auto-contrast on raised cards
- * without manual style_bg_color overrides in XML.
- */
-namespace helix::theme_detail {
-
-bool is_on_elevated_surface(lv_obj_t* obj) {
-    auto& tm = ThemeManager::instance();
-    lv_color_t elevated = tm.current_palette().elevated_bg;
-    lv_obj_t* parent = lv_obj_get_parent(obj);
-    while (parent) {
-        if (lv_obj_has_flag(parent, LV_OBJ_FLAG_USER_1))
-            return true;
-        lv_opa_t opa = lv_obj_get_style_bg_opa(parent, LV_PART_MAIN);
-        if (opa > LV_OPA_50) {
-            lv_color_t bg = lv_obj_get_style_bg_color(parent, LV_PART_MAIN);
-            if (color_eq(bg, elevated))
-                return true;
-        }
-        parent = lv_obj_get_parent(parent);
-    }
-    return false;
-}
-
-} // namespace helix::theme_detail
-
 void theme_apply_palette_to_widget(lv_obj_t* obj, const helix::ModePalette& palette) {
     if (!obj)
         return;
@@ -334,10 +301,12 @@ void theme_apply_palette_to_widget(lv_obj_t* obj, const helix::ModePalette& pale
     // Parse palette colors
     lv_color_t screen_bg = theme_manager_parse_hex_color(palette.screen_bg.c_str());
     lv_color_t overlay_bg = theme_manager_parse_hex_color(palette.overlay_bg.c_str());
+    lv_color_t card_bg = theme_manager_parse_hex_color(palette.card_bg.c_str());
     lv_color_t elevated_bg = theme_manager_parse_hex_color(palette.elevated_bg.c_str());
     lv_color_t border = theme_manager_parse_hex_color(palette.border.c_str());
     lv_color_t text_primary = theme_manager_parse_hex_color(palette.text.c_str());
     lv_color_t text_muted = theme_manager_parse_hex_color(palette.text_muted.c_str());
+    lv_color_t text_subtle = theme_manager_parse_hex_color(palette.text_subtle.c_str());
     lv_color_t primary = theme_manager_parse_hex_color(palette.primary.c_str());
     lv_color_t secondary = theme_manager_parse_hex_color(palette.secondary.c_str());
     lv_color_t tertiary = theme_manager_parse_hex_color(palette.tertiary.c_str());
@@ -454,30 +423,12 @@ void theme_apply_palette_to_widget(lv_obj_t* obj, const helix::ModePalette& pale
         return;
     }
 
-    // Dropdowns - background, border, text
-    // On elevated surfaces (dialogs, raised cards), use overlay_bg for contrast
-    if (lv_obj_check_type(obj, &lv_dropdown_class)) {
-        lv_color_t bg = is_on_elevated_surface(obj) ? overlay_bg : elevated_bg;
-        set_palette_color(obj, LV_STYLE_BG_COLOR, bg, LV_PART_MAIN);
-        set_palette_color(obj, LV_STYLE_BORDER_COLOR, border, LV_PART_MAIN);
-        set_palette_color(obj, LV_STYLE_TEXT_COLOR, text_primary, LV_PART_MAIN);
-        return;
-    }
-
-    // Textareas - background, text
-    // On elevated surfaces (dialogs, raised cards), use overlay_bg for contrast
-    if (lv_obj_check_type(obj, &lv_textarea_class)) {
-        lv_color_t bg = is_on_elevated_surface(obj) ? overlay_bg : elevated_bg;
-        set_palette_color(obj, LV_STYLE_BG_COLOR, bg, LV_PART_MAIN);
-        set_palette_color(obj, LV_STYLE_TEXT_COLOR, text_primary, LV_PART_MAIN);
-        return;
-    }
-
-    // Spinboxes - background, text
-    // On elevated surfaces (dialogs, raised cards), use overlay_bg for contrast
-    if (lv_obj_check_type(obj, &lv_spinbox_class)) {
-        lv_color_t bg = is_on_elevated_surface(obj) ? overlay_bg : elevated_bg;
-        set_palette_color(obj, LV_STYLE_BG_COLOR, bg, LV_PART_MAIN);
+    // Outlined fields (dropdown, textarea, spinbox) - unfilled, outline, text
+    if (lv_obj_check_type(obj, &lv_dropdown_class) || lv_obj_check_type(obj, &lv_textarea_class) ||
+        lv_obj_check_type(obj, &lv_spinbox_class)) {
+        lv_color_t outline =
+            helix::field_outline_color(text_subtle, screen_bg, overlay_bg, card_bg, elevated_bg);
+        set_palette_color(obj, LV_STYLE_BORDER_COLOR, outline, LV_PART_MAIN);
         set_palette_color(obj, LV_STYLE_TEXT_COLOR, text_primary, LV_PART_MAIN);
         return;
     }

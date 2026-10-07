@@ -2597,7 +2597,7 @@ TEST_CASE("CFS migrates from helix-screen:cfs_slot_overrides on first startup",
              {"spool_name", "PolyLite Orange"},
          }},
     };
-    api.mock_set_db_value("helix-screen", "cfs_slot_overrides", legacy);
+    mock_printer.client.mock_db_set("helix-screen", "cfs_slot_overrides", legacy);
 
     helix::ams::FilamentSlotOverrideStore store(&api, "cfs");
     FilamentSlotOverrideStoreTestAccess::set_cache_directory(store, tmp.path);
@@ -2612,13 +2612,13 @@ TEST_CASE("CFS migrates from helix-screen:cfs_slot_overrides on first startup",
     CHECK(loaded[0].spool_name == "PolyLite Orange");
 
     // lane_data now holds the AFC-shaped record.
-    auto lane1 = api.mock_get_db_value("lane_data", "lane1");
+    auto lane1 = mock_printer.client.mock_db_get("lane_data", "lane1");
     REQUIRE(!lane1.is_null());
     CHECK(lane1["vendor"] == "Polymaker");
     CHECK(lane1["lane"] == "0");
 
     // Legacy namespace deleted post-migration.
-    CHECK(api.mock_get_db_value("helix-screen", "cfs_slot_overrides").is_null());
+    CHECK(mock_printer.client.mock_db_get("helix-screen", "cfs_slot_overrides").is_null());
 }
 
 TEST_CASE("CFS apply_user_edit writes to store", "[ams][cfs][filament_slot_override]") {
@@ -2656,7 +2656,7 @@ TEST_CASE("CFS apply_user_edit writes to store", "[ams][cfs][filament_slot_overr
     CHECK(staged->color_rgb == 0xFF5500u);
 
     // Moonraker DB received the AFC-shaped record via save_async.
-    auto stored = api.mock_get_db_value("lane_data", "lane1");
+    auto stored = mock_printer.client.mock_db_get("lane_data", "lane1");
     REQUIRE(!stored.is_null());
     CHECK(stored["vendor"] == "Polymaker");
     CHECK(stored["spool_id"] == 42);
@@ -2664,7 +2664,7 @@ TEST_CASE("CFS apply_user_edit writes to store", "[ams][cfs][filament_slot_overr
     CHECK(stored["color"] == "#FF5500");
 
     // Legacy namespace NOT touched — CFS no longer writes there.
-    CHECK(api.mock_get_db_value("helix-screen", "cfs_slot_overrides").is_null());
+    CHECK(mock_printer.client.mock_db_get("helix-screen", "cfs_slot_overrides").is_null());
 }
 
 TEST_CASE("CFS sync_external_identity does NOT write to store",
@@ -2705,7 +2705,7 @@ TEST_CASE("CFS sync_external_identity does NOT write to store",
         CHECK(stored->brand != "Draft");
         CHECK(stored->color_rgb != 0x123456u);
     }
-    auto db_record = api.mock_get_db_value("lane_data", "lane1");
+    auto db_record = mock_printer.client.mock_db_get("lane_data", "lane1");
     if (!db_record.is_null()) {
         // Auto-mirror's record does not contain the preview's brand/color.
         CHECK(db_record.value("vendor", "") != "Draft");
@@ -2733,7 +2733,7 @@ TEST_CASE("CFS RFID fingerprint change clears override (hardware swap detected)"
 
     // Seed override AND the corresponding DB entry so we can verify
     // clear_async deletes it on swap.
-    api.mock_set_db_value(
+    mock_printer.client.mock_db_set(
         "lane_data", "lane1",
         json{{"vendor", "Polymaker"}, {"spool_id", 42}, {"material", "PLA"}, {"color", "#FF5500"}});
 
@@ -2753,7 +2753,7 @@ TEST_CASE("CFS RFID fingerprint change clears override (hardware swap detected)"
 
     REQUIRE(CfsTestAccess::get_override(backend, 0).has_value());
     REQUIRE(CfsTestAccess::last_rfid_uid(backend, 0) == "101001|0FF5500");
-    REQUIRE(!api.mock_get_db_value("lane_data", "lane1").is_null());
+    REQUIRE(!mock_printer.client.mock_db_get("lane_data", "lane1").is_null());
 
     // Second parse: DIFFERENT fingerprint on slot 0 (material=102001, new
     // color) — physical swap detected.
@@ -2775,7 +2775,7 @@ TEST_CASE("CFS RFID fingerprint change clears override (hardware swap detected)"
 
     // The swap parse leaves nothing behind: override erased, record deleted.
     CHECK_FALSE(CfsTestAccess::get_override(backend, 0).has_value());
-    CHECK(api.mock_get_db_value("lane_data", "lane1").is_null());
+    CHECK(mock_printer.client.mock_db_get("lane_data", "lane1").is_null());
 
     // Next parse (same new spool, unchanged fingerprint) republishes firmware
     // truth for the NEW spool.
@@ -2794,7 +2794,7 @@ TEST_CASE("CFS RFID fingerprint change clears override (hardware swap detected)"
     CHECK_FALSE(helix::ams::declares_material(*post_swap));
 
     // Orca sees the new spool's color, not stale user data.
-    auto stored = api.mock_get_db_value("lane_data", "lane1");
+    auto stored = mock_printer.client.mock_db_get("lane_data", "lane1");
     REQUIRE(!stored.is_null());
     CHECK(stored["color"] == "#00FF00");
     CHECK_FALSE(stored.contains("spool_name"));
@@ -2866,7 +2866,8 @@ TEST_CASE("CFS first RFID observation does NOT clear override",
     FilamentSlotOverrideStoreTestAccess::set_cache_directory(*store, tmp.path);
     CfsTestAccess::inject_override_store(backend, std::move(store));
 
-    api.mock_set_db_value("lane_data", "lane1", json{{"vendor", "Polymaker"}, {"spool_id", 42}});
+    mock_printer.client.mock_db_set("lane_data", "lane1",
+                                    json{{"vendor", "Polymaker"}, {"spool_id", 42}});
 
     helix::ams::FilamentSlotOverride ovr;
     ovr.brand = "Polymaker";
@@ -2884,13 +2885,13 @@ TEST_CASE("CFS first RFID observation does NOT clear override",
     REQUIRE(staged.has_value());
     CHECK(staged->brand == "Polymaker");
     CHECK(staged->spoolman_id == 42);
-    CHECK(!api.mock_get_db_value("lane_data", "lane1").is_null());
+    CHECK(!mock_printer.client.mock_db_get("lane_data", "lane1").is_null());
 
     // Second parse of the SAME fingerprint stays the baseline — no clear.
     CfsTestAccess::handle_status(backend, make_cfs_notification(box));
 
     CHECK(CfsTestAccess::get_override(backend, 0).has_value());
-    CHECK(!api.mock_get_db_value("lane_data", "lane1").is_null());
+    CHECK(!mock_printer.client.mock_db_get("lane_data", "lane1").is_null());
 }
 
 TEST_CASE("CFS empty RFID fingerprint does not update baseline or clear",
@@ -2909,7 +2910,8 @@ TEST_CASE("CFS empty RFID fingerprint does not update baseline or clear",
     FilamentSlotOverrideStoreTestAccess::set_cache_directory(*store, tmp.path);
     CfsTestAccess::inject_override_store(backend, std::move(store));
 
-    api.mock_set_db_value("lane_data", "lane1", json{{"vendor", "Polymaker"}, {"spool_id", 42}});
+    mock_printer.client.mock_db_set("lane_data", "lane1",
+                                    json{{"vendor", "Polymaker"}, {"spool_id", 42}});
 
     helix::ams::FilamentSlotOverride ovr;
     ovr.brand = "Polymaker";
@@ -2929,13 +2931,13 @@ TEST_CASE("CFS empty RFID fingerprint does not update baseline or clear",
     CfsTestAccess::handle_status(backend, make_cfs_notification(box2));
     CHECK(CfsTestAccess::last_rfid_uid(backend, 0) == "101001|0FF5500"); // unchanged
     CHECK(CfsTestAccess::get_override(backend, 0).has_value());
-    CHECK(!api.mock_get_db_value("lane_data", "lane1").is_null());
+    CHECK(!mock_printer.client.mock_db_get("lane_data", "lane1").is_null());
 
     // Third parse: same original fingerprint — matches baseline, no clear.
     // Proves the sentinel-UID pass didn't corrupt state.
     CfsTestAccess::handle_status(backend, make_cfs_notification(box1));
     CHECK(CfsTestAccess::get_override(backend, 0).has_value());
-    CHECK(!api.mock_get_db_value("lane_data", "lane1").is_null());
+    CHECK(!mock_printer.client.mock_db_get("lane_data", "lane1").is_null());
 }
 
 TEST_CASE("CFS override preserved across unchanged parses", "[ams][cfs][filament_slot_override]") {
@@ -3340,7 +3342,7 @@ TEST_CASE("CFS user edit survives the firmware echo of our own color push",
         CHECK(CfsTestAccess::last_rfid_uid(*rig.backend, 0) == "101001|01A1A1A");
 
         // lane_data still carries the user's material + color for Orca.
-        auto stored = rig.api->mock_get_db_value("lane_data", "lane1");
+        auto stored = rig.client.mock_db_get("lane_data", "lane1");
         REQUIRE(!stored.is_null());
         CHECK(stored["material"] == "ASA-CF");
         CHECK(stored["color"] == "#1A1A1A");
@@ -3456,7 +3458,7 @@ TEST_CASE("CFS flat-schema fingerprint change clears override (hardware swap det
 
     // Seed override AND the corresponding DB record so the swap's clear deletes
     // something observable, matching the stock-schema test above.
-    rig.api->mock_set_db_value(
+    rig.client.mock_db_set(
         "lane_data", "lane1",
         json{{"vendor", "Polymaker"}, {"spool_id", 42}, {"material", "PLA"}, {"color", "#FF5500"}});
 
@@ -3476,7 +3478,7 @@ TEST_CASE("CFS flat-schema fingerprint change clears override (hardware swap det
     // colour, the fields the insert rule compares.
     REQUIRE(CfsTestAccess::last_rfid_uid(*rig.backend, 0) == "PLA|FF5500");
     REQUIRE(CfsTestAccess::get_override(*rig.backend, 0).has_value());
-    REQUIRE(!rig.api->mock_get_db_value("lane_data", "lane1").is_null());
+    REQUIRE(!rig.client.mock_db_get("lane_data", "lane1").is_null());
 
     // Same identity again: the same spool re-observed, the override stands.
     rig.poll(box1);
@@ -3488,15 +3490,14 @@ TEST_CASE("CFS flat-schema fingerprint change clears override (hardware swap det
 
     CHECK(CfsTestAccess::last_rfid_uid(*rig.backend, 0) == "PETG|00FF00");
     CHECK_FALSE(CfsTestAccess::get_override(*rig.backend, 0).has_value());
-    CHECK(rig.api->mock_get_db_value("lane_data", "lane1").is_null());
+    CHECK(rig.client.mock_db_get("lane_data", "lane1").is_null());
 }
 
 TEST_CASE("CFS flat-schema bay with no identity is not a fingerprint signal",
           "[ams][cfs][flat][filament_slot_override]") {
     CfsOverrideRig rig("cfs_flat_identity_less_noop");
 
-    rig.api->mock_set_db_value("lane_data", "lane1",
-                               json{{"vendor", "Polymaker"}, {"spool_id", 42}});
+    rig.client.mock_db_set("lane_data", "lane1", json{{"vendor", "Polymaker"}, {"spool_id", 42}});
 
     helix::ams::FilamentSlotOverride ovr;
     ovr.brand = "Polymaker";
@@ -3515,7 +3516,7 @@ TEST_CASE("CFS flat-schema bay with no identity is not a fingerprint signal",
     rig.poll(unreadable);
     CHECK(CfsTestAccess::last_rfid_uid(*rig.backend, 0) == "PLA|FF5500");
     CHECK(CfsTestAccess::get_override(*rig.backend, 0).has_value());
-    CHECK(!rig.api->mock_get_db_value("lane_data", "lane1").is_null());
+    CHECK(!rig.client.mock_db_get("lane_data", "lane1").is_null());
 
     // The next good read matches the baseline: no clear, no corrupted state.
     rig.poll(box1);
@@ -3704,14 +3705,15 @@ TEST_CASE("CFS restart compares against the fingerprint the record carried",
     saved.material = "PLA";
     saved.color_rgb = 0xFF5500;
     saved.color_set = true;
-    api.mock_set_db_value("lane_data", "lane1", helix::ams::to_lane_data_record(0, saved));
+    mock_printer.client.mock_db_set("lane_data", "lane1",
+                                    helix::ams::to_lane_data_record(0, saved));
     {
         helix::test::RegisteredBackend<AmsBackendCfs> session1(&api, nullptr);
         CfsTestAccess::call_on_started(*session1);
         // The record on the wire loaded as this session's override.
         REQUIRE(CfsTestAccess::get_override(*session1, 0).has_value());
         CfsTestAccess::handle_status(*session1, make_cfs_notification(box_f1));
-        auto stored = api.mock_get_db_value("lane_data", "lane1");
+        auto stored = mock_printer.client.mock_db_get("lane_data", "lane1");
         REQUIRE(!stored.is_null());
         REQUIRE(stored.contains("helix_fingerprint"));
         CHECK(stored.at("helix_fingerprint") == "PLA|FF5500");
@@ -3726,7 +3728,7 @@ TEST_CASE("CFS restart compares against the fingerprint the record carried",
         CfsTestAccess::handle_status(*session2, make_cfs_notification(box_f2));
         CHECK(CfsTestAccess::last_rfid_uid(*session2, 0) == "PETG|00FF00");
         CHECK_FALSE(CfsTestAccess::get_override(*session2, 0).has_value());
-        CHECK(api.mock_get_db_value("lane_data", "lane1").is_null());
+        CHECK(mock_printer.client.mock_db_get("lane_data", "lane1").is_null());
     }
 
     SECTION("the same spool across a restart keeps the override") {
@@ -3736,12 +3738,13 @@ TEST_CASE("CFS restart compares against the fingerprint the record carried",
         auto ovr = CfsTestAccess::get_override(*session2, 0);
         REQUIRE(ovr.has_value());
         CHECK(ovr->brand == "Polymaker");
-        CHECK(!api.mock_get_db_value("lane_data", "lane1").is_null());
+        CHECK(!mock_printer.client.mock_db_get("lane_data", "lane1").is_null());
     }
 
     SECTION("a record without a stored fingerprint stays a first-observation baseline") {
         // The shape every record written before the field existed has.
-        api.mock_set_db_value("lane_data", "lane1", helix::ams::to_lane_data_record(0, saved));
+        mock_printer.client.mock_db_set("lane_data", "lane1",
+                                        helix::ams::to_lane_data_record(0, saved));
         helix::test::RegisteredBackend<AmsBackendCfs> session2(&api, nullptr);
         CfsTestAccess::call_on_started(*session2);
         CfsTestAccess::handle_status(*session2, make_cfs_notification(box_f2));
@@ -3752,7 +3755,7 @@ TEST_CASE("CFS restart compares against the fingerprint the record carried",
         CHECK(ovr->brand == "Polymaker");
         // The baseline observation itself heals the fingerprint in, so the
         // NEXT restart compares against this spool.
-        auto stored = api.mock_get_db_value("lane_data", "lane1");
+        auto stored = mock_printer.client.mock_db_get("lane_data", "lane1");
         REQUIRE(!stored.is_null());
         REQUIRE(stored.contains("helix_fingerprint"));
         CHECK(stored.at("helix_fingerprint") == "PETG|00FF00");
@@ -3842,7 +3845,7 @@ TEST_CASE("CFS clears the stale lane_data record when a tagged spool is removed"
     rig.poll(box_seated);
 
     REQUIRE(rig.backend->get_slot_info(3).status == SlotStatus::AVAILABLE);
-    auto seated_record = rig.api->mock_get_db_value("lane_data", "lane4");
+    auto seated_record = rig.client.mock_db_get("lane_data", "lane4");
     REQUIRE(!seated_record.is_null());
 
     // Spool pulled. `vender` drops to the sentinel; everything else latches.
@@ -3860,15 +3863,15 @@ TEST_CASE("CFS clears the stale lane_data record when a tagged spool is removed"
         CHECK_FALSE(CfsTestAccess::get_override(*rig.backend, 3).has_value());
     }
     SECTION("the lane_data record is deleted, and stays deleted across polls") {
-        CHECK(rig.api->mock_get_db_value("lane_data", "lane4").is_null());
+        CHECK(rig.client.mock_db_get("lane_data", "lane4").is_null());
         for (int i = 0; i < 3; ++i) {
             rig.poll(box_removed);
-            CHECK(rig.api->mock_get_db_value("lane_data", "lane4").is_null());
+            CHECK(rig.client.mock_db_get("lane_data", "lane4").is_null());
             CHECK_FALSE(CfsTestAccess::get_override(*rig.backend, 3).has_value());
         }
     }
     SECTION("neighbouring seated slots keep their records") {
-        CHECK_FALSE(rig.api->mock_get_db_value("lane_data", "lane3").is_null());
+        CHECK_FALSE(rig.client.mock_db_get("lane_data", "lane3").is_null());
     }
 }
 
@@ -3910,7 +3913,7 @@ TEST_CASE("CFS removal keeps a user-locked assignment for an unloaded slot",
     CHECK(ovr->spool_name == "My ASA");
     CHECK(helix::ams::declares_material(*ovr));
 
-    auto stored = rig.api->mock_get_db_value("lane_data", "lane4");
+    auto stored = rig.client.mock_db_get("lane_data", "lane4");
     REQUIRE(!stored.is_null());
     CHECK(stored["material"] == "ASA-CF");
 }
@@ -3984,7 +3987,7 @@ TEST_CASE("CFS runout invalidates the exhausted lane's remembered Spoolman link"
     rig.poll(make_runout_seated_box(/*useup=*/0, /*active=*/"D"));
 
     link_lane_four_to_spool_137(*rig.backend);
-    REQUIRE(rig.api->mock_get_db_value("lane_data", "lane4").value("spool_id", 0) == 137);
+    REQUIRE(rig.client.mock_db_get("lane_data", "lane4").value("spool_id", 0) == 137);
 
     // The spool runs out mid-print: latch rises 0 -> 1 while bay D is still
     // the seated, active lane. This edge is what captures the lane.
@@ -4019,7 +4022,7 @@ TEST_CASE("CFS runout invalidates the exhausted lane's remembered Spoolman link"
         CHECK(info.status == SlotStatus::EMPTY);
     }
     SECTION("the persisted lane_data record keeps identity, loses the id") {
-        auto stored = rig.api->mock_get_db_value("lane_data", "lane4");
+        auto stored = rig.client.mock_db_get("lane_data", "lane4");
         REQUIRE(!stored.is_null());
         CHECK(stored.value("spool_id", 0) == 0);
         CHECK(stored.value("helix_spoolman_filament_id", 0) == 0);
@@ -4099,7 +4102,7 @@ TEST_CASE("CFS runout on one lane does not strip another lane's link",
     CHECK(ovr->spoolman_id == 137);
     CHECK(ovr->spoolman_vendor_id == 21);
     CHECK(rig.backend->get_slot_info(3).spoolman_id == 137);
-    CHECK(rig.api->mock_get_db_value("lane_data", "lane4").value("spool_id", 0) == 137);
+    CHECK(rig.client.mock_db_get("lane_data", "lane4").value("spool_id", 0) == 137);
 }
 
 TEST_CASE("CFS runout strip fires once per episode", "[ams][cfs][filament_slot_override][1390]") {
@@ -6988,7 +6991,7 @@ TEST_CASE("CFS flat fingerprint upgrade folds stored composites (#1710)", "[ams]
     ovr.color_rgb = 0x111111;
     ovr.color_set = true;
     ovr.fingerprint = "PLA|eSUN|Black PLA|111111";
-    api.mock_set_db_value("lane_data", "lane1", helix::ams::to_lane_data_record(0, ovr));
+    mock_printer.client.mock_db_set("lane_data", "lane1", helix::ams::to_lane_data_record(0, ovr));
 
     CfsTestAccess::call_on_started(backend);
     REQUIRE(CfsTestAccess::get_override(backend, 0).has_value());
