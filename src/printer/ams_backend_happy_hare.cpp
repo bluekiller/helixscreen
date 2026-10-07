@@ -2127,6 +2127,7 @@ void AmsBackendHappyHare::reapply_overrides() {
     // Build a single MMU_TEST_CONFIG command with all active overrides
     std::string cmd = "MMU_TEST_CONFIG";
     bool has_params = false;
+    bool names_unit_param = false;
     std::unique_lock<std::mutex> lock(mutex_);
 
     // A key the install has no parameter for is left out: one unknown name
@@ -2134,6 +2135,7 @@ void AmsBackendHappyHare::reapply_overrides() {
     auto append_float = [&](const char* key, const std::optional<float>& val, bool integer_fmt) {
         const std::string param = test_config_param_locked(key);
         if (val.has_value() && !param.empty()) {
+            names_unit_param = names_unit_param || happy_hare::param_is_per_unit(key);
             if (integer_fmt)
                 cmd += fmt::format(" {}={:.0f}", param, *val);
             else
@@ -2145,6 +2147,7 @@ void AmsBackendHappyHare::reapply_overrides() {
     auto append_int = [&](const char* key, const std::optional<int>& val) {
         const std::string param = test_config_param_locked(key);
         if (val.has_value() && !param.empty()) {
+            names_unit_param = names_unit_param || happy_hare::param_is_per_unit(key);
             cmd += fmt::format(" {}={}", param, *val);
             has_params = true;
         }
@@ -2167,6 +2170,9 @@ void AmsBackendHappyHare::reapply_overrides() {
     // Int toggles
     append_int("sync_to_extruder", user_overrides_.sync_to_extruder);
     append_int("clog_detection", user_overrides_.clog_detection);
+    if (names_unit_param) {
+        cmd += unit_suffix_locked(active_unit_locked());
+    }
     lock.unlock();
 
     if (has_params) {
@@ -2287,6 +2293,7 @@ AmsError AmsBackendHappyHare::recover() {
 }
 
 AmsError AmsBackendHappyHare::reset() {
+    std::string cmd = "MMU_HOME";
     {
         std::lock_guard<std::mutex> lock(mutex_);
 
@@ -2294,11 +2301,12 @@ AmsError AmsBackendHappyHare::reset() {
         if (!precondition) {
             return precondition;
         }
+        cmd += unit_suffix_locked(kAllUnits);
     }
 
     // Happy Hare uses MMU_HOME to reset to a known state
     spdlog::info("[AMS HappyHare] Resetting (homing selector)");
-    return execute_gcode("MMU_HOME");
+    return execute_gcode(cmd);
 }
 
 // MMU_RECOVER re-syncs Happy Hare's idea of gate state. It moves no filament, so
@@ -2971,8 +2979,10 @@ AmsError AmsBackendHappyHare::enable_bypass() {
 }
 
 AmsError AmsBackendHappyHare::disable_bypass() {
+    std::string cmd = "MMU_HOME";
     {
         std::lock_guard<std::mutex> lock(mutex_);
+        cmd += unit_suffix_locked(kAllUnits);
 
         if (!running_) {
             return AmsErrorHelper::not_connected("Happy Hare backend not started");
@@ -2987,7 +2997,7 @@ AmsError AmsBackendHappyHare::disable_bypass() {
     // To disable bypass, select a gate or unload
     // MMU_SELECT GATE=0 or MMU_HOME will deselect bypass
     spdlog::info("[AMS HappyHare] Disabling bypass mode (homing selector)");
-    return execute_gcode("MMU_HOME");
+    return execute_gcode(cmd);
 }
 
 bool AmsBackendHappyHare::is_bypass_active() const {
@@ -3246,12 +3256,24 @@ AmsBackendHappyHare::get_environment_zones(int unit) const {
     return zones;
 }
 
-std::string AmsBackendHappyHare::gates_suffix_for_unit(int unit) const {
+std::string AmsBackendHappyHare::unit_suffix_locked(int unit) const {
+    if (!machine_layout_.v4 || machine_layout_.num_units <= 1) {
+        return "";
+    }
+    return unit == kAllUnits ? std::string(" UNIT=ALL") : " UNIT=" + std::to_string(unit);
+}
+
+int AmsBackendHappyHare::active_unit_locked() const {
+    return active_unit_ >= 0 ? active_unit_ : 0;
+}
+
+std::string AmsBackendHappyHare::heater_suffix_for_unit(int unit) const {
     std::lock_guard<std::mutex> lock(mutex_);
+    const std::string unit_suffix = unit_suffix_locked(unit < 0 ? kAllUnits : unit);
     // Single-unit MMU (or unspecified unit): omit GATES so HH targets all
     // non-empty gates, matching the long-standing whole-MMU behavior.
     if (unit < 0 || system_info_.units.size() <= 1) {
-        return "";
+        return unit_suffix;
     }
     for (const auto& u : system_info_.units) {
         if (u.unit_index != unit) {
@@ -3266,9 +3288,9 @@ std::string AmsBackendHappyHare::gates_suffix_for_unit(int unit) const {
             }
             csv += std::to_string(u.first_slot_global_index + i);
         }
-        return csv.empty() ? "" : (" GATES=" + csv);
+        return csv.empty() ? unit_suffix : (unit_suffix + " GATES=" + csv);
     }
-    return "";
+    return unit_suffix;
 }
 
 AmsError AmsBackendHappyHare::start_drying(float temp_c, int duration_min, int fan_pct, int unit) {
@@ -3281,10 +3303,10 @@ AmsError AmsBackendHappyHare::start_drying(float temp_c, int duration_min, int f
     }
 
     // Happy Hare uses TIMER= (minutes) not DURATION=, and has no FAN parameter.
-    // GATES targets a specific unit's gates on multi-unit (EMU) rigs; gates_suffix
+    // GATES targets a specific unit's gates on multi-unit (EMU) rigs; heater_suffix_for_unit
     // locks internally, so it is called with no lock held.
     std::string cmd = fmt::format("MMU_HEATER DRY=1 TEMP={:.0f} TIMER={}", temp_c, duration_min) +
-                      gates_suffix_for_unit(unit);
+                      heater_suffix_for_unit(unit);
 
     {
         std::lock_guard<std::mutex> lock(mutex_);
@@ -3310,7 +3332,7 @@ AmsError AmsBackendHappyHare::stop_drying(int unit) {
     }
 
     spdlog::info("[AMS HappyHare] Stopping dryer (unit {})", unit);
-    return execute_gcode("MMU_HEATER STOP=1" + gates_suffix_for_unit(unit));
+    return execute_gcode("MMU_HEATER STOP=1" + heater_suffix_for_unit(unit));
 }
 
 AmsError AmsBackendHappyHare::update_drying(float temp_c, int duration_min, int fan_pct, int unit) {
@@ -3339,7 +3361,7 @@ AmsError AmsBackendHappyHare::update_drying(float temp_c, int duration_min, int 
 
     // Temperature alone re-sends the setpoint and leaves the cycle and its timer alone.
     return execute_gcode(fmt::format("MMU_HEATER TEMP={:.0f}", temp_c) +
-                         gates_suffix_for_unit(unit));
+                         heater_suffix_for_unit(unit));
 }
 
 // ============================================================================
@@ -3534,27 +3556,49 @@ AmsError AmsBackendHappyHare::execute_device_action(const std::string& action_id
     };
 
     // --- Simple button actions (no value required) ---
+    // `per_unit`: v4 resolves the unit from UNIT= (MMU_SERVO, MMU_CALIBRATE_GATE
+    // ALL=1) or infers it from a selected gate (MMU_TEST_GRIP), so these name
+    // the selected unit. The calibrations that act on the selected gate's unit
+    // read no UNIT.
+    struct ButtonAction {
+        const char* id;
+        const char* gcode;
+        bool per_unit;
+    };
     // clang-format off
-    static const std::pair<const char*, const char*> button_actions[] = {
-        {"calibrate_bowden",    "MMU_CALIBRATE_BOWDEN"},
-        {"calibrate_encoder",   "MMU_CALIBRATE_ENCODER"},
-        {"calibrate_gear",      "MMU_CALIBRATE_GEAR"},
-        {"calibrate_gates",     "MMU_CALIBRATE_GATES"},
-        {"test_grip",           "MMU_TEST_GRIP"},
-        {"test_load",           "MMU_TEST_LOAD"},
-        {"test_move",           "MMU_TEST_MOVE"},
-        {"servo_buzz",          "MMU_SERVO"},
-        {"servo_up",            "MMU_SERVO POS=up"},
-        {"servo_move",          "MMU_SERVO POS=move"},
-        {"servo_down",          "MMU_SERVO POS=down"},
-        {"reset_servo_counter", "MMU_STATS COUNTER=servo RESET=1"},
-        {"reset_blade_counter", "MMU_STATS COUNTER=cutter RESET=1"},
+    static const ButtonAction button_actions[] = {
+        {"calibrate_bowden",    "MMU_CALIBRATE_BOWDEN",            false},
+        {"calibrate_encoder",   "MMU_CALIBRATE_ENCODER",           false},
+        {"calibrate_gear",      "MMU_CALIBRATE_GEAR",              false},
+        {"calibrate_gates",     "MMU_CALIBRATE_GATES",             true},
+        {"test_grip",           "MMU_TEST_GRIP",                   true},
+        {"test_load",           "MMU_TEST_LOAD",                   false},
+        {"test_move",           "MMU_TEST_MOVE",                   false},
+        {"servo_buzz",          "MMU_SERVO",                       true},
+        {"servo_up",            "MMU_SERVO POS=up",                true},
+        {"servo_move",          "MMU_SERVO POS=move",              true},
+        {"servo_down",          "MMU_SERVO POS=down",              true},
+        {"reset_servo_counter", "MMU_STATS COUNTER=servo RESET=1", false},
+        {"reset_blade_counter", "MMU_STATS COUNTER=cutter RESET=1", false},
     };
     // clang-format on
-    for (const auto& [id, gcode] : button_actions) {
-        if (action_id == id) {
-            return execute_gcode(gcode);
+    for (const auto& action : button_actions) {
+        if (action_id != action.id) {
+            continue;
         }
+        std::string cmd = action.gcode;
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
+            // v4 registers only MMU_CALIBRATE_GATE; MMU_CALIBRATE_GATES is a
+            // config macro alias that sends no UNIT.
+            if (action_id == "calibrate_gates" && machine_layout_.v4) {
+                cmd = "MMU_CALIBRATE_GATE ALL=1";
+            }
+            if (action.per_unit) {
+                cmd += unit_suffix_locked(active_unit_locked());
+            }
+        }
+        return execute_gcode(cmd);
     }
 
     // Extruder-only moves drive the toolhead extruder, and HH puts no print
@@ -3592,14 +3636,18 @@ AmsError AmsBackendHappyHare::execute_device_action(const std::string& action_id
     // spells it.
     auto test_config = [this](const char* key, const std::string& value) {
         std::string param;
+        std::string unit;
         {
             std::lock_guard<std::mutex> lock(mutex_);
             param = test_config_param_locked(key);
+            if (happy_hare::param_is_per_unit(key)) {
+                unit = unit_suffix_locked(active_unit_locked());
+            }
         }
         if (param.empty()) {
             return AmsErrorHelper::not_supported(std::string("Happy Hare parameter ") + key);
         }
-        return execute_gcode(fmt::format("MMU_TEST_CONFIG {}={}", param, value));
+        return execute_gcode(fmt::format("MMU_TEST_CONFIG {}={}{}", param, value, unit));
     };
 
     // --- Speed sliders (integer formatting) ---
@@ -3701,7 +3749,12 @@ AmsError AmsBackendHappyHare::execute_device_action(const std::string& action_id
         auto [enable, err] = require_bool("motor state");
         if (!err)
             return err;
-        return execute_gcode(enable ? "MMU_MOTORS_ON" : "MMU_MOTORS_OFF");
+        std::string cmd = enable ? "MMU_MOTORS_ON" : "MMU_MOTORS_OFF";
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
+            cmd += unit_suffix_locked(kAllUnits);
+        }
+        return execute_gcode(cmd);
     }
 
     return AmsErrorHelper::not_supported("Unknown action: " + action_id);

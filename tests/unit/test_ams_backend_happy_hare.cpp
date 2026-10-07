@@ -197,7 +197,7 @@ class AmsBackendHappyHareTestHelper : public AmsBackendHappyHare {
     /**
      * @brief Populate system_info_.units AND the slot registry for multiple units.
      * Unlike initialize_test_units (registry only), this fills system_info_.units so
-     * per-unit logic (e.g. gates_suffix_for_unit) sees the multi-unit topology.
+     * per-unit logic (e.g. heater_suffix_for_unit) sees the multi-unit topology.
      * @param gates_per_unit Gate count for each unit; total gates = sum.
      */
     void initialize_test_gates_multi(const std::vector<int>& gates_per_unit) {
@@ -6059,4 +6059,91 @@ TEST_CASE("Happy Hare v4 reapplies persisted overrides under the v4 names",
     CHECK(cmd.find(" SYNC_TO_EXTRUDER=0") != std::string::npos);
     CHECK(cmd.find("GEAR_FROM_SPOOL_SPEED") == std::string::npos);
     CHECK(cmd.find("CLOG_DETECTION") == std::string::npos);
+}
+
+namespace {
+
+/// Every command whose shape depends on the version or the unit count, in a
+/// fixed order, with the selected unit already set by the caller.
+std::vector<std::string> unit_scoped_commands(AmsBackendHappyHareTestHelper& helper,
+                                              int drying_unit) {
+    helper.set_running(true);
+    HappyHareTestAccess::dryer_info(helper).supported = true;
+    helper.clear_captured_gcodes();
+    CHECK(helper.reset().success());
+    helper.execute_device_action("motors_toggle", std::any(true));
+    helper.execute_device_action("motors_toggle", std::any(false));
+    CHECK(helper.start_drying(50.0f, 60, -1, drying_unit).success());
+    CHECK(helper.update_drying(55.0f, -1, -1, drying_unit).success());
+    CHECK(helper.stop_drying(drying_unit).success());
+    helper.execute_device_action("servo_up", {});
+    helper.execute_device_action("calibrate_gates", {});
+    helper.execute_device_action("calibrate_bowden", {});
+    helper.execute_device_action("test_grip", {});
+    helper.execute_device_action("gear_from_spool_speed", std::any(70.0));
+    helper.execute_device_action("extruder_load_speed", std::any(20.0));
+    helper.execute_device_action("toolhead_ooze_reduction", std::any(1.0));
+    return helper.captured_gcodes;
+}
+
+} // namespace
+
+TEST_CASE("Happy Hare names the unit only where v4 multi-unit requires it",
+          "[ams][happy_hare][hh_v4]") {
+    QueryCapturingClient client;
+    helix::test::RegisteredBackend<AmsBackendHappyHareTestHelper> helper_reg(nullptr, &client);
+    AmsBackendHappyHareTestHelper& helper = *helper_reg;
+
+    SECTION("v3 single unit") {
+        helper.initialize_test_gates(4);
+        helper.set_config_defaults_for_test();
+        CHECK(unit_scoped_commands(helper, 0) ==
+              std::vector<std::string>{"MMU_HOME", "MMU_MOTORS_ON", "MMU_MOTORS_OFF",
+                                       "MMU_HEATER DRY=1 TEMP=50 TIMER=60", "MMU_HEATER TEMP=55",
+                                       "MMU_HEATER STOP=1", "MMU_SERVO POS=up",
+                                       "MMU_CALIBRATE_GATES", "MMU_CALIBRATE_BOWDEN",
+                                       "MMU_TEST_GRIP", "MMU_TEST_CONFIG GEAR_FROM_SPOOL_SPEED=70",
+                                       "MMU_TEST_CONFIG EXTRUDER_LOAD_SPEED=20",
+                                       "MMU_TEST_CONFIG TOOLHEAD_OOZE_REDUCTION=1.0"});
+    }
+    SECTION("v4 single unit") {
+        const auto fx = helix::test::load_happy_hare_fixture("happy_hare_v4_single_unit.json");
+        helper.test_parse_mmu_state(fx["mmu_status"]);
+        connect_with_fixture(helper, client, fx);
+        CHECK(unit_scoped_commands(helper, 0) ==
+              std::vector<std::string>{"MMU_HOME", "MMU_MOTORS_ON", "MMU_MOTORS_OFF",
+                                       "MMU_HEATER DRY=1 TEMP=50 TIMER=60", "MMU_HEATER TEMP=55",
+                                       "MMU_HEATER STOP=1", "MMU_SERVO POS=up",
+                                       "MMU_CALIBRATE_GATE ALL=1", "MMU_CALIBRATE_BOWDEN",
+                                       "MMU_TEST_GRIP", "MMU_TEST_CONFIG GEAR_LOAD_SPEED=70",
+                                       "MMU_TEST_CONFIG EXTRUDER_LOAD_SPEED=20",
+                                       "MMU_TEST_CONFIG TOOLHEAD_OOZE_REDUCTION=1.0"});
+    }
+    SECTION("v4 two units, unit 1 selected") {
+        const auto fx = helix::test::load_happy_hare_fixture("happy_hare_v4_two_unit.json");
+        helper.test_parse_mmu_state(fx["mmu_status"]);
+        connect_with_fixture(helper, client, fx);
+        CHECK(unit_scoped_commands(helper, 1) ==
+              std::vector<std::string>{
+                  "MMU_HOME UNIT=ALL", "MMU_MOTORS_ON UNIT=ALL", "MMU_MOTORS_OFF UNIT=ALL",
+                  "MMU_HEATER DRY=1 TEMP=50 TIMER=60 UNIT=1", "MMU_HEATER TEMP=55 UNIT=1",
+                  "MMU_HEATER STOP=1 UNIT=1", "MMU_SERVO POS=up UNIT=1",
+                  "MMU_CALIBRATE_GATE ALL=1 UNIT=1", "MMU_CALIBRATE_BOWDEN", "MMU_TEST_GRIP UNIT=1",
+                  "MMU_TEST_CONFIG GEAR_LOAD_SPEED=70 UNIT=1",
+                  "MMU_TEST_CONFIG EXTRUDER_LOAD_SPEED=20",
+                  "MMU_TEST_CONFIG TOOLHEAD_OOZE_REDUCTION=1.0 UNIT=1"});
+
+        helper.execute_device_action("gear_from_spool_speed", std::any(75.0));
+        helper.clear_captured_gcodes();
+        helper.test_reapply_overrides();
+        REQUIRE(helper.captured_gcodes.size() == 1);
+        CHECK(helper.captured_gcodes[0].find(" GEAR_LOAD_SPEED=75") != std::string::npos);
+        CHECK(helper.captured_gcodes[0].size() >= 7);
+        CHECK(helper.captured_gcodes[0].substr(helper.captured_gcodes[0].size() - 7) == " UNIT=1");
+
+        helper.set_current_slot(-2);
+        helper.clear_captured_gcodes();
+        CHECK(helper.disable_bypass().success());
+        CHECK(helper.captured_gcodes == std::vector<std::string>{"MMU_HOME UNIT=ALL"});
+    }
 }

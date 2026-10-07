@@ -417,11 +417,23 @@ class AmsBackendHappyHare : public AmsSubscriptionBackend {
     /// edit and a sync share. Callers hold mutex_.
     void write_gate_locked(int slot_index, SlotInfo& slot, const SlotInfo& info);
 
-    // Build a " GATES=g0,g1,..." suffix targeting a specific unit's gates for
-    // MMU_HEATER on multi-unit (EMU) rigs. Returns "" for a single-unit MMU or
-    // unit<0 so the command omits GATES and HH defaults to all non-empty gates.
-    // Locks mutex_ internally — call with no lock held.
-    [[nodiscard]] std::string gates_suffix_for_unit(int unit) const;
+    // Build the MMU_HEATER target for @p unit: UNIT= where unit_suffix_locked()
+    // needs one, then " GATES=g0,g1,..." naming the unit's gates on multi-unit
+    // (EMU) rigs. GATES is omitted for a single-unit MMU or unit<0, so HH
+    // defaults to all non-empty gates. Locks mutex_ internally — call with no
+    // lock held.
+    [[nodiscard]] std::string heater_suffix_for_unit(int unit) const;
+
+    /// UNIT value naming every unit; v4 takes UNIT=ALL on its per-unit commands.
+    static constexpr int kAllUnits = -1;
+    /// " UNIT=<n>" (" UNIT=ALL" for kAllUnits) when a command has to name its
+    /// unit: a v4 install with more than one unit refuses a per-unit command
+    /// without it. Empty otherwise, and always on v3, whose MMU_TEST_CONFIG
+    /// rejects an unknown parameter. Caller holds mutex_.
+    [[nodiscard]] std::string unit_suffix_locked(int unit) const;
+    /// The unit a command with no unit context of its own targets: the
+    /// selected one. Caller holds mutex_.
+    [[nodiscard]] int active_unit_locked() const;
 
     // Build context-aware recovery actions from live MMU state. Caller holds mutex_
     // (the base declares that contract; mutex_ is non-recursive, so this must not

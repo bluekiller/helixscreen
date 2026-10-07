@@ -154,6 +154,7 @@ struct MmuStatusDelta {
 struct MachineLayout {
     std::string version;             ///< happy_hare_version; empty when neither source names one
     bool v4 = false;                 ///< version 4 or later: the split layout
+    int num_units = 1;               ///< mmu_machine.num_units, v4 only
     std::string unit_params_section; ///< "mmu_unit_parameters <unit 0>", v4 only
     std::string toolhead_section;    ///< "mmu_toolhead <name>" unit 0 uses, v4 only
     /// Whether any unit has a bypass, from mmu_machine.unit_N.has_bypass. v4
@@ -169,6 +170,10 @@ struct MachineLayout {
 /// The name an install accepts for the tunable @p key, which callers spell the
 /// way Happy Hare 3 does. Empty when a v4 install has no such parameter.
 [[nodiscard]] std::string_view param_name(std::string_view key, bool v4);
+
+/// Whether v4 keeps tunable @p key (v3 spelling) per unit, so a multi-unit
+/// MMU_TEST_CONFIG setting it needs UNIT=.
+[[nodiscard]] bool param_is_per_unit(std::string_view key);
 
 /// The configfile value of the tunable @p key (v3 spelling) from whichever
 /// section @p layout keeps it in, or nullptr.

@@ -206,6 +206,11 @@ MachineLayout read_machine_layout(const nlohmann::json& settings,
         return layout;
     }
 
+    if (const auto* units = find_member(live_mmu_machine, "num_units")) {
+        if (const auto n = ams::read_integer(*units)) {
+            layout.num_units = std::max(*n, 1);
+        }
+    }
     for (int u = 0;; ++u) {
         const auto* unit = find_member(live_mmu_machine, "unit_" + std::to_string(u));
         if (!unit) {
@@ -247,6 +252,11 @@ std::string_view param_name(std::string_view key, bool v4) {
     }
     const ParamRow* row = find_param_row(key);
     return row ? row->v4 : key;
+}
+
+bool param_is_per_unit(std::string_view key) {
+    const ParamRow* row = find_param_row(key);
+    return row && row->scope != ParamScope::Machine;
 }
 
 const nlohmann::json* find_config_param(const nlohmann::json& settings, const MachineLayout& layout,
