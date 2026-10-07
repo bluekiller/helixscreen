@@ -245,6 +245,9 @@ class EspMoonrakerClient final : public IMoonrakerClient {
     // stall report, for the rx-stall tripwire in process_timeouts().
     std::atomic<int64_t> last_rx_us_{0};
     int64_t last_stall_log_us_ = 0;
+    /// Frames dropped because they came from a transport no longer current; reported with
+    /// the rx-stall and discovery-recovery lines.
+    std::atomic<uint32_t> stale_frames_dropped_{0};
     static constexpr int64_t RX_STALL_LOG_US = 5 * 1000 * 1000;
     static_assert(PING_PONG_TIMEOUT_SEC * 1000u < DEFAULT_REQUEST_TIMEOUT_MS,
                   "ping/pong must detect a dead link before the per-request timeout fires — "
@@ -320,6 +323,10 @@ class EspMoonrakerClient final : public IMoonrakerClient {
     void discovery_subscribe(DiscoveryDone done, DiscoveryFail fail, uint64_t generation);
     // Emit `ev`, clear discovery_in_flight_, and invoke the error callback once
     // — but only if `generation` still matches (see above).
+    /// A discovery request failed: fails the chain, and reconnects when it timed out on a
+    /// connection still marked up.
+    void discovery_request_failed(const DiscoveryFail& fail, const MoonrakerError& err,
+                                  uint64_t generation);
     void discovery_fail(const DiscoveryFail& fail, MoonrakerEventType ev, const std::string& reason,
                         uint64_t generation);
 

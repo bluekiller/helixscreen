@@ -434,6 +434,9 @@ void EspMoonrakerClient::ws_event_trampoline(void* arg, esp_event_base_t /*base*
     }
     if (!current && event_id != WEBSOCKET_EVENT_DISCONNECTED &&
         event_id != WEBSOCKET_EVENT_CLOSED && event_id != WEBSOCKET_EVENT_ERROR) {
+        if (event_id == WEBSOCKET_EVENT_DATA) {
+            self->stale_frames_dropped_.fetch_add(1);
+        }
         return;
     }
     switch (event_id) {
@@ -672,6 +675,10 @@ void EspMoonrakerClient::dispatch_message(const char* buf, size_t len) {
                 pending_.erase(it);
             }
         }
+        if (!found) {
+            ESP_LOGW(TAG, "response for no pending request (id %llu, %u bytes)",
+                     (unsigned long long)id, (unsigned)len);
+        }
         if (found) {
             if (has_error) {
                 MoonrakerError err = MoonrakerError::from_json_rpc(msg["error"], method);
@@ -826,10 +833,10 @@ void EspMoonrakerClient::process_timeouts() {
         now - last_stall_log_us_ > RX_STALL_LOG_US) {
         last_stall_log_us_ = now;
         ESP_LOGW(TAG,
-                 "rx stall: %llds since last frame, %u pending (oldest '%s' %llds), internal "
-                 "free %u largest %u",
+                 "rx stall: %llds since last frame, %u pending (oldest '%s' %llds), %u stale "
+                 "frames dropped, internal free %u largest %u",
                  (long long)((now - last_rx) / 1000000), (unsigned)pending_n, oldest_method.c_str(),
-                 (long long)(oldest_age_us / 1000000),
+                 (long long)(oldest_age_us / 1000000), (unsigned)stale_frames_dropped_.load(),
                  (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
                  (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL));
     }
@@ -1405,7 +1412,7 @@ void EspMoonrakerClient::discover_printer(std::function<void()> on_complete,
             }
             if (resp.contains("result")) {
                 spdlog::info("[helixnet] identified to Moonraker (connection_id: {})",
-                             helix::json_util::safe_int(resp["result"], "connection_id", 0));
+                             helix::json_util::safe_int64(resp["result"], "connection_id", 0));
             }
             discovery_gate_klippy(done, fail, generation);
         },
@@ -1450,7 +1457,7 @@ void EspMoonrakerClient::discovery_gate_klippy(DiscoveryDone done, DiscoveryFail
                 return;
             }
             spdlog::error("[helixnet] server.info failed: {}", err.message);
-            discovery_fail(fail, MoonrakerEventType::DISCOVERY_FAILED, err.message, generation);
+            discovery_request_failed(fail, err, generation);
         });
 }
 
@@ -1507,7 +1514,7 @@ void EspMoonrakerClient::discovery_query_objects(DiscoveryDone done, DiscoveryFa
                 return;
             }
             spdlog::error("[helixnet] printer.objects.list request failed: {}", err.message);
-            discovery_fail(fail, MoonrakerEventType::DISCOVERY_FAILED, err.message, generation);
+            discovery_request_failed(fail, err, generation);
         },
         0,     // default timeout
         true); // silent
@@ -1589,8 +1596,28 @@ void EspMoonrakerClient::discovery_subscribe(DiscoveryDone done, DiscoveryFail f
                 return;
             }
             spdlog::error("[helixnet] subscribe request failed: {}", err.message);
-            discovery_fail(fail, MoonrakerEventType::DISCOVERY_FAILED, err.message, generation);
+            discovery_request_failed(fail, err, generation);
         });
+}
+
+void EspMoonrakerClient::discovery_request_failed(const DiscoveryFail& fail,
+                                                  const MoonrakerError& err, uint64_t generation) {
+    if (helix::is_stale_generation(generation, connection_generation_.load())) {
+        return;
+    }
+    discovery_fail(fail, MoonrakerEventType::DISCOVERY_FAILED, err.message, generation);
+    // A discovery request that times out on a connection still marked up means replies are
+    // not reaching it, and nothing else would notice: the session would sit Connected with
+    // no hardware. A reconnect starts a fresh session; a transport that will not stop takes
+    // the stall fallback.
+    if (err.type == MoonrakerErrorType::TIMEOUT &&
+        get_connection_state() == ConnectionState::CONNECTED) {
+        ESP_LOGW(TAG,
+                 "discovery timed out on a live connection (%u stale frames dropped); "
+                 "reconnecting",
+                 (unsigned)stale_frames_dropped_.load());
+        force_reconnect();
+    }
 }
 
 void EspMoonrakerClient::discovery_fail(const DiscoveryFail& fail, MoonrakerEventType ev,
