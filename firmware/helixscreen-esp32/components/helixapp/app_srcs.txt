@@ -329,6 +329,7 @@ src/ui/overlay_base.cpp
 src/ui/page_scroll_auto_inject.cpp
 src/ui/page_scroll_controller.cpp
 src/ui/panel_widget_manager.cpp
+src/ui/buffer_slider_geometry.cpp
 src/ui/clog_meter_geometry.cpp
 src/ui/clog_meter_model.cpp
 src/ui/panel_widget_registry.cpp
