@@ -632,3 +632,22 @@ TEST_CASE_METHOD(TemperatureSensorTestFixture,
         }
     }
 }
+
+TEST_CASE_METHOD(TemperatureSensorTestFixture,
+                 "TemperatureSensorManager - an unknown chamber sensor still promotes the heater",
+                 "[temperature][heater_generic][chamber]") {
+    // The saved sensor name is stale, so the incumbent roles stand; the
+    // chamber heater must still leave the auxiliary list or it is graphed twice.
+    mgr().discover({"heater_generic enclosure_heat", "temperature_sensor mcu_temp"});
+
+    mgr().apply_chamber_sensor_override("temperature_sensor gone", "heater_generic enclosure_heat");
+
+    for (const auto& c : mgr().get_sensors()) {
+        INFO(c.klipper_name);
+        if (c.klipper_name == "heater_generic enclosure_heat") {
+            REQUIRE(c.role == TemperatureSensorRole::CHAMBER);
+        } else {
+            REQUIRE(c.role == TemperatureSensorRole::MCU);
+        }
+    }
+}

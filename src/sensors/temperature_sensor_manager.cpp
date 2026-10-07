@@ -326,23 +326,32 @@ void TemperatureSensorManager::apply_chamber_sensor_override(const std::string& 
                                                              const std::string& heater_name) {
     std::lock_guard<std::recursive_mutex> lock(mutex_);
 
-    // A name this printer does not report would demote the incumbent CHAMBER
-    // below and promote nothing in its place, vacating the chamber role. Keep
-    // the auto-categorizer's classification standing instead.
+    // The chamber's heater_generic joins the chamber role so it is not listed
+    // again as an auxiliary heater. A temperature_fan in the heater slot keeps
+    // its own role: it is a fan with its own reading, listed as one.
+    auto* chamber_heater =
+        heater_name.rfind("heater_generic ", 0) == 0 ? sensors_.find(heater_name) : nullptr;
+
+    // A sensor name this printer does not report would demote the incumbent
+    // CHAMBER below and promote nothing in its place, vacating the chamber role.
+    // Keep the auto-categorizer's classification standing instead, apart from
+    // the heater, which is the chamber's whatever the sensor resolves to.
     if (!klipper_name.empty() && !sensors_.find(klipper_name)) {
         spdlog::debug("[TemperatureSensorManager] Chamber override '{}' not found in discovered "
                       "sensors; keeping auto-categorized roles",
                       klipper_name);
+        if (chamber_heater && chamber_heater->role != TemperatureSensorRole::CHAMBER) {
+            chamber_heater->role = TemperatureSensorRole::CHAMBER;
+            chamber_heater->priority = 0;
+            update_subjects();
+        }
         return;
     }
 
-    // The chamber's heater_generic joins the chamber role so it is not listed
-    // again as an auxiliary heater. A temperature_fan in the heater slot keeps
-    // its own role: it is a fan with its own reading, listed as one.
     std::vector<std::string> chamber_names;
     if (!klipper_name.empty())
         chamber_names.push_back(klipper_name);
-    if (heater_name.rfind("heater_generic ", 0) == 0 && sensors_.find(heater_name))
+    if (chamber_heater)
         chamber_names.push_back(heater_name);
     auto is_chamber_name = [&](const std::string& name) {
         return std::find(chamber_names.begin(), chamber_names.end(), name) != chamber_names.end();
