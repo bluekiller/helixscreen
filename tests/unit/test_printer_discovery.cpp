@@ -1409,6 +1409,29 @@ TEST_CASE("PrinterDiscovery chamber-keyword scoring prefers 'chamber' over 'box'
         // chamber (conf 100) > enclosure (conf 90)
         REQUIRE(hw.chamber_sensor_name() == "temperature_sensor chamber");
     }
+
+    SECTION("QIDI Box dryer heaters are never the chamber heater") {
+        json objects = {"box_stepper slot0",
+                        "box_stepper slot1",
+                        "heater_generic heater_box1",
+                        "aht20_f heater_box1",
+                        "heater_generic heater_box2",
+                        "aht20_f heater_box2",
+                        "heater_bed",
+                        "extruder"};
+        hw.parse_objects(objects);
+
+        REQUIRE_FALSE(hw.has_chamber_heater());
+        REQUIRE(hw.chamber_heater_name().empty());
+    }
+
+    SECTION("a real chamber heater alongside QIDI Box heaters is still picked") {
+        json objects = {"heater_generic heater_box1", "heater_generic chamber",
+                        "heater_generic heater_box2", "box_stepper slot0"};
+        hw.parse_objects(objects);
+
+        REQUIRE(hw.chamber_heater_name() == "heater_generic chamber");
+    }
 }
 
 // ============================================================================
