@@ -214,16 +214,6 @@ void UiBufferSlider::draw_trace(lv_layer_t* layer) const {
     }
     const lv_color_t muted = theme_manager_get_color("text_muted");
 
-    // The band the block's target window stands for, shaded across the trace.
-    const float warning = kPressureWarningPct / 100.0f;
-    lv_draw_fill_dsc_t fill;
-    lv_draw_fill_dsc_init(&fill);
-    fill.color = muted;
-    fill.opa = LV_OPA_10;
-    const lv_area_t band = {a.x1, a.y1 + buffer_trace_y(warning, h), a.x2,
-                            a.y1 + buffer_trace_y(-warning, h)};
-    lv_draw_fill(layer, &fill, &band);
-
     const int64_t now = buffer_clock_ms();
     const auto window = AmsState::instance().buffer_trace(trace_unit_).window(now);
 
@@ -233,7 +223,8 @@ void UiBufferSlider::draw_trace(lv_layer_t* layer) const {
     const int32_t target_y = a.y1 + buffer_trace_y(0.0f, h);
     lv_draw_line_dsc_t line;
     lv_draw_line_dsc_init(&line);
-    line.color = theme_manager_get_color("text_subtle");
+    line.color = muted;
+    line.opa = LV_OPA_30;
     line.width = 1;
     line.dash_width = 4;
     line.dash_gap = 3;
@@ -253,17 +244,23 @@ void UiBufferSlider::draw_trace(lv_layer_t* layer) const {
     const auto lines = buffer_trace_polylines(window, now, w, h);
     lv_draw_line_dsc_t trace;
     lv_draw_line_dsc_init(&trace);
-    trace.color = muted;
     trace.width = 2;
     trace.round_start = 1;
     trace.round_end = 1;
     for (const auto& run : lines) {
         for (std::size_t i = 1; i < run.size(); ++i) {
+            const auto status = buffer_trace_segment_status(run[i - 1], run[i]);
+            trace.color = status == ClogMeterStatus::Ok
+                              ? muted
+                              : theme_manager_get_color(buffer_status_token(status));
             trace.p1 = point(a.x1 + run[i - 1].x, a.y1 + run[i - 1].y);
             trace.p2 = point(a.x1 + run[i].x, a.y1 + run[i].y);
             lv_draw_line(layer, &trace);
         }
     }
+
+    lv_draw_fill_dsc_t fill;
+    lv_draw_fill_dsc_init(&fill);
 
     // The newest reading, in the block's colour, where the trace leaves "now".
     if (!lines.empty() && lines.front().front().x == 0) {

@@ -55,7 +55,13 @@ int buffer_trace_y(float bias, int height);
 struct BufferTraceXY {
     int x;
     int y;
+    /// pressure_status() of the reading this point belongs to.
+    ClogMeterStatus status = ClogMeterStatus::Ok;
 };
+
+/// Severity a trace segment is drawn in: the worse of its end points', so a
+/// step between two bands takes the band that is further from target.
+ClogMeterStatus buffer_trace_segment_status(const BufferTraceXY& a, const BufferTraceXY& b);
 
 /// The trace as polylines in a box width x height: newest at x = 0, the side
 /// facing the slider, older readings further right, one polyline per run of

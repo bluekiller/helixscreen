@@ -56,9 +56,9 @@
           </text_body>
         </lv_obj>
 
-        <!-- The last minute, drawn by UiBufferSlider into its own panel. -->
+        <!-- The last minute, drawn by UiBufferSlider. -->
         <lv_obj name="buf_trace" width="100%" height="#buffer_trace_h" scrollable="false">
-          <style name="styles.buffer_trace_panel"/>
+          <style name="styles.buffer_trace_area"/>
           <bind_flag_if_eq subject="buf_show_meter" flag="hidden" ref_value="0"/>
         </lv_obj>
         <text_tiny name="buf_trace_caption" text="last 60 s · LOOSE up, TIGHT down" style_text_color="#text_muted">

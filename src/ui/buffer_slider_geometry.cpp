@@ -102,6 +102,10 @@ int buffer_trace_y(float bias, int height) {
     return static_cast<int>(std::lround((1.0f - clamp_bias(bias)) * (height - 1) / 2.0f));
 }
 
+ClogMeterStatus buffer_trace_segment_status(const BufferTraceXY& a, const BufferTraceXY& b) {
+    return static_cast<int>(a.status) > static_cast<int>(b.status) ? a.status : b.status;
+}
+
 std::vector<std::vector<BufferTraceXY>>
 buffer_trace_polylines(const std::vector<BufferTracePoint>& window, int64_t now_ms, int width,
                        int height) {
@@ -119,8 +123,10 @@ buffer_trace_polylines(const std::vector<BufferTracePoint>& window, int64_t now_
         const int older_x = x_of(it->t_ms);
         if (it->valid) {
             const int y = buffer_trace_y(it->bias, height);
-            run.push_back({newer_x, y});
-            run.push_back({older_x, y});
+            const auto status = pressure_status(
+                static_cast<int>(std::lround(std::fabs(clamp_bias(it->bias)) * 100.0f)));
+            run.push_back({newer_x, y, status});
+            run.push_back({older_x, y, status});
         } else if (!run.empty()) {
             lines.push_back(std::move(run));
             run.clear();
