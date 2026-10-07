@@ -575,7 +575,8 @@ class DisplayManager : public helix::ICalibrationSink {
 
     bool m_initialized = false;
     bool m_shutting_down = false;
-    /// Physical (unrotated) size the display is created at; width()/height() report the live one.
+    /// Unrotated size requested of the backend, which may create the display at another size;
+    /// width()/height() report the display's actual size.
     int m_width = 0;
     int m_height = 0;
     bool m_size_was_explicit = false;

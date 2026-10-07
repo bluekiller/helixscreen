@@ -1157,7 +1157,7 @@ void DisplayManager::run_rotation_probe() {
                      "but UI and tap detection work for testing");
     }
 
-    // m_width/m_height hold the physical, unrotated size.
+    // m_width/m_height hold the unrotated size requested of the backend.
     const int phys_w = m_width;
     const int phys_h = m_height;
 

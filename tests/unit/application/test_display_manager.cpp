@@ -169,8 +169,7 @@ TEST_CASE("DisplayManager init creates display with correct dimensions", "[appli
     REQUIRE(mgr.width() == 0);
     REQUIRE(mgr.height() == 0);
 
-    // After init (if it were possible), width()/height() would return config values.
-    // This is verified by the implementation: m_width = config.width in init().
+    // After init (if it were possible), width()/height() would return the display's resolution.
 }
 
 TEST_CASE("DisplayManager init creates pointer input", "[application][display]") {
@@ -902,7 +901,7 @@ class PlaneRotationBackend : public MockPointerBackend {
 } // namespace
 
 TEST_CASE_METHOD(ApplicationTestFixture,
-                 "settle_display_rotation caches the resolution the backend settled on",
+                 "width()/height() report the resolution the backend settled on",
                  "[application][display][rotation]") {
     lv_display_t* disp = lv_display_get_default();
     REQUIRE(disp != nullptr);
@@ -916,7 +915,7 @@ TEST_CASE_METHOD(ApplicationTestFixture,
     DisplayManager mgr;
     DisplayManagerTestAccess::set_display(mgr, disp);
 
-    SECTION("a backend rotating through LVGL swaps the cached resolution") {
+    SECTION("a backend rotating through LVGL swaps the reported resolution") {
         DisplayManagerTestAccess::set_backend(mgr, std::make_unique<MockPointerBackend>());
         DisplayManagerTestAccess::settle_display_rotation(mgr, LV_DISPLAY_ROTATION_90, phys_w,
                                                           phys_h);
@@ -924,7 +923,7 @@ TEST_CASE_METHOD(ApplicationTestFixture,
         CHECK(mgr.height() == phys_w);
     }
 
-    SECTION("a plane taking the rotation over leaves the cache unswapped") {
+    SECTION("a plane taking the rotation over leaves the reported resolution unswapped") {
         // LVGL is mid-rotation, as on a probe's second candidate, until the plane takes over.
         lv_display_set_rotation(disp, LV_DISPLAY_ROTATION_90);
         DisplayManagerTestAccess::set_backend(mgr, std::make_unique<PlaneRotationBackend>());

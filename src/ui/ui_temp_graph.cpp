@@ -48,17 +48,10 @@ static inline void mark_gradient_cache_dirty(ui_temp_graph_t* graph) {
 // Returns nullptr if graph, chart, or series is invalid (protects against use-after-free
 // when chart LVGL widget is destroyed but ui_temp_graph_t struct survives)
 static ui_temp_series_meta_t* find_series(ui_temp_graph_t* graph, SeriesId series_id) {
-    if (!graph || !graph->chart || series_id == SeriesId::None) {
+    if (!graph || !graph->chart) {
         return nullptr;
     }
-
-    for (int i = 0; i < UI_TEMP_GRAPH_MAX_SERIES; i++) {
-        if (graph->series_meta[i].id == series_id &&
-            graph->series_meta[i].chart_series != nullptr) {
-            return &graph->series_meta[i];
-        }
-    }
-    return nullptr;
+    return helix::temp_graph_internal::find_meta_by_id(graph, series_id);
 }
 
 namespace helix::temp_graph_internal {
