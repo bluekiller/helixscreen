@@ -269,7 +269,8 @@ void PWMSoundBackend::shutdown() {
 
     stop_render_thread();
     silence();
-    s_signal_enable_fd.store(-1, std::memory_order_relaxed);
+    int expected = fd_enable_;
+    s_signal_enable_fd.compare_exchange_strong(expected, -1, std::memory_order_relaxed);
 
     if (fd_duty_ >= 0)
         ::close(fd_duty_);
@@ -317,11 +318,7 @@ void PWMSoundBackend::set_tone(float freq_hz, float amplitude, float /* duty_cyc
 
     amplitude = std::clamp(amplitude, 0.0f, 1.0f);
 
-    // A narrow pulse still rings the transducer near its resonance, so a fade
-    // toward zero duty sounds like a held buzz that stops abruptly. Below
-    // this the note is silent instead.
-    // ponytail: fixed floor, an env knob like HELIX_PWM_MIN_NOTE_MS if a rig needs tuning
-    if (amplitude < kMinAudibleAmplitude || freq_hz <= 0.0f) {
+    if (amplitude == 0.0f || freq_hz <= 0.0f) {
         silence();
         return;
     }

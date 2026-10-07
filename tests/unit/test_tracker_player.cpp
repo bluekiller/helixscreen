@@ -312,6 +312,38 @@ TEST_CASE("TrackerPlayer mono backend slower than a frame keeps the lead line",
     player->stop();
 }
 
+TEST_CASE("TrackerPlayer mono backend drops a faded channel but not a quiet master",
+          "[tracker][player]") {
+    const uint8_t lead = 58;
+    const float lead_hz = TrackerModule::note_to_freq(lead);
+    // C02: channel volume 2/64, below the mono floor
+    const uint8_t faded = static_cast<uint8_t>(TrackerPlayer::kMonoMinVolume * 64.0f) - 2;
+
+    {
+        auto backend = std::make_shared<TrackerMockBackend>(/*voices=*/1, /*tick_ms=*/16.0f);
+        auto player = make_player(backend);
+        auto pat = empty_pattern(2);
+        pat[0] = {lead, 1, 0x0C, faded};
+        player->load(make_module({0}, {pat}, 2));
+        player->play();
+        CHECK_FALSE(backend->voices[0].active);
+        player->stop();
+    }
+    {
+        // Full channel volume at a 10% master stays audible.
+        auto backend = std::make_shared<TrackerMockBackend>(/*voices=*/1, /*tick_ms=*/16.0f);
+        auto player = std::make_unique<TrackerPlayer>(backend);
+        player->set_volume_override(10);
+        auto pat = empty_pattern(2);
+        pat[0] = {lead, 1, 0x00, 0x00};
+        player->load(make_module({0}, {pat}, 2));
+        player->play();
+        REQUIRE(backend->voices[0].active);
+        CHECK(backend->voices[0].freq == Catch::Approx(lead_hz).margin(0.1f));
+        player->stop();
+    }
+}
+
 TEST_CASE("TrackerPlayer silences the backend when the module ends", "[tracker][player]") {
     // A tone-mode backend holds whatever the last set_voice left it emitting;
     // without an explicit silence at module end the final note sticks on

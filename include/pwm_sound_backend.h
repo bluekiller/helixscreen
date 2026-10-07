@@ -74,9 +74,6 @@ class PWMSoundBackend : public SoundBackend {
         min_note_ms_ = ms;
     }
 
-    /// Amplitude below which a tone is emitted as silence.
-    static constexpr float kMinAudibleAmplitude = 0.08f;
-
     /// Disable the initialized channel. Async-signal-safe (lseek + write on a
     /// cached fd), for the SIGTERM fast exit.
     static void silence_signal_safe();

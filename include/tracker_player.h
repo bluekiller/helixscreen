@@ -39,6 +39,11 @@ class TrackerPlayer {
     /// whatever the module's tempo or speed.
     static constexpr float kArpFrameMs = 1000.0f / 59.73f;
 
+    /// A mono buzzer drops a channel below this volume (before master volume):
+    /// a narrow pulse still rings the transducer, so a fade's tail would
+    /// otherwise sound like a held buzz that stops abruptly.
+    static constexpr float kMonoMinVolume = 0.08f;
+
     /// Advance the player by dt_ms milliseconds.
     /// Called from the sequencer thread at ~1ms rate.
     void tick(float dt_ms);

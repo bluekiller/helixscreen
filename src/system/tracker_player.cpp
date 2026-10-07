@@ -594,7 +594,7 @@ void TrackerPlayer::apply_to_backend() {
         for (int ch = 0; ch < 4; ++ch) {
             const auto& cs = channels_[static_cast<size_t>(ch)];
             const float freq = emit_freq(cs);
-            if (cs.active && freq > 0.0f && cs.volume > 0.0f) {
+            if (cs.active && freq > 0.0f && cs.volume >= kMonoMinVolume) {
                 active[static_cast<size_t>(n_active++)] = ch;
                 if (freq > best_freq) {
                     best = ch;

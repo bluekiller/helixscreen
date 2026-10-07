@@ -1265,20 +1265,16 @@ TEST_CASE("clear_render_source joins promptly while parked", "[sound][pwm][slow]
 // Channel never left sounding
 // ============================================================================
 
-TEST_CASE("set_tone below the audible floor silences instead of buzzing", "[sound][pwm]") {
+TEST_CASE("set_tone keeps a quiet tone audible", "[sound][pwm]") {
+    // Master volume arrives squared in the amplitude (a 25% slider is 0.06),
+    // so the backend must not gate small amplitudes itself.
     auto base = create_mock_sysfs(0, 6);
     std::string pwm_dir = base + "/pwmchip0/pwm6";
 
     PWMSoundBackend backend(base, 0, 6);
     REQUIRE(backend.initialize());
 
-    backend.set_tone(587.0f, 0.5f, 0.5f);
-    REQUIRE(read_sysfs_file(pwm_dir + "/enable") == "1");
-
-    backend.set_tone(587.0f, PWMSoundBackend::kMinAudibleAmplitude * 0.5f, 0.5f);
-    REQUIRE(read_sysfs_file(pwm_dir + "/enable") == "0");
-
-    backend.set_tone(587.0f, PWMSoundBackend::kMinAudibleAmplitude, 0.5f);
+    backend.set_tone(587.0f, 0.06f, 0.5f);
     REQUIRE(read_sysfs_file(pwm_dir + "/enable") == "1");
 
     cleanup_mock_sysfs(base);

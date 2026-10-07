@@ -418,7 +418,8 @@ std::shared_ptr<SoundBackend> SoundManager::create_backend() {
     if (const char* e = std::getenv("HELIX_PWM_SOUND"); e && e[0] != '\0') {
         int chip = -1;
         int channel = -1;
-        if (std::sscanf(e, "%d:%d", &chip, &channel) == 2 && chip >= 0 && channel >= 0) {
+        char extra = 0;
+        if (std::sscanf(e, "%d:%d%c", &chip, &channel, &extra) == 2 && chip >= 0 && channel >= 0) {
             auto pwm = std::make_shared<PWMSoundBackend>("/sys/class/pwm", chip, channel);
             pwm->set_auto_export(true);
             pwm->set_klippy_shares_channel(false);
