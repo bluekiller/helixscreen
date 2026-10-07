@@ -252,6 +252,7 @@ inline void carry_forward_print_file_metadata(std::vector<PrintFileData>& files,
                 }
                 it->second.esp_thumbnail.reset();
                 it->second.esp_thumbnail_tried = false;
+                it->second.esp_fetch_retried = false;
             }
 #endif
             f = std::move(it->second);

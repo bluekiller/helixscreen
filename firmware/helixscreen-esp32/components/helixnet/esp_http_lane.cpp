@@ -13,6 +13,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <cstdio>
 #include <pthread.h>
 #include <strings.h>
 #include <utility>
@@ -24,9 +25,12 @@ constexpr char TAG[] = "esp_http_lane";
 // Lazily claimed on first submit_get(), from PSRAM (see
 // ensure_worker_started_locked).
 constexpr size_t WORKER_STACK_BYTES = 16 * 1024;
-// Each socket operation's timeout: short enough that a body read stalled on a
-// weak link comes back to read_capped_body() to be timed, rather than blocking.
-constexpr int HTTP_TIMEOUT_MS = 5000;
+// Connecting and reading the headers: a busy Moonraker on a weak link can take
+// seconds to answer, and one timeout here fails the request.
+constexpr int HTTP_TIMEOUT_MS = 15000;
+// Each socket read of the body: short, so a stalled read comes back to
+// read_capped_body() to be timed against BODY_DEADLINES rather than blocking.
+constexpr int BODY_READ_TIMEOUT_MS = 5000;
 // A thumbnail is a few KB: a body still arriving after 30 s, or silent for
 // 10 s, is a link that has stopped, and the lane has other cards waiting.
 constexpr LaneDeadlines BODY_DEADLINES{30000, 10000};
@@ -205,6 +209,7 @@ void EspHttpLane::run_one(const Job& job) {
     // Accumulation buffer, in PSRAM: this is the buffer the RAM budget cares
     // about, not esp_http_client's own small read-chunk buffer
     // (config.buffer_size above, CLIENT_BUFFER_BYTES).
+    esp_http_client_set_timeout_ms(client, BODY_READ_TIMEOUT_MS);
     struct Transport {
         esp_http_client_handle_t client;
         int read(char* buf, int len) {
@@ -224,12 +229,20 @@ void EspHttpLane::run_one(const Job& job) {
     esp_http_client_cleanup(client);
 
     if (read != BodyRead::Ok) {
-        const char* why = read == BodyRead::AllocFailed  ? "PSRAM allocation failed"
-                          : read == BodyRead::ReadFailed ? "esp_http_client_read failed"
-                          : read == BodyRead::OverCap    ? "response exceeds size cap"
-                          : read == BodyRead::Stalled    ? "stalled: no data for 10 s"
-                          : read == BodyRead::TimedOut   ? "timed out after 30 s"
-                                                         : "cancelled";
+        char why[64];
+        if (read == BodyRead::Stalled) {
+            snprintf(why, sizeof(why), "stalled: no data for %lld ms",
+                     static_cast<long long>(BODY_DEADLINES.stall_ms));
+        } else if (read == BodyRead::TimedOut) {
+            snprintf(why, sizeof(why), "timed out after %lld ms",
+                     static_cast<long long>(BODY_DEADLINES.total_ms));
+        } else {
+            snprintf(why, sizeof(why), "%s",
+                     read == BodyRead::AllocFailed  ? "PSRAM allocation failed"
+                     : read == BodyRead::ReadFailed ? "esp_http_client_read failed"
+                     : read == BodyRead::OverCap    ? "response exceeds size cap"
+                                                    : "cancelled");
+        }
         if (read != BodyRead::Cancelled) {
             ESP_LOGW(TAG, "%s: %s", why, job.url.c_str());
         }

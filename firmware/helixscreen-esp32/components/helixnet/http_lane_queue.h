@@ -74,6 +74,11 @@ struct LaneDeadlines {
     int64_t stall_ms;
 };
 
+// Most one transport read asks for. A read keeps going until it fills what it
+// was asked for, so on a trickling link an unbounded one would hold off the
+// deadlines and the cancel check for the whole remaining body.
+inline constexpr int BODY_READ_CHUNK = 1024;
+
 enum class BodyRead { Ok, AllocFailed, ReadFailed, OverCap, Stalled, TimedOut, Cancelled };
 
 // Reads a response body into @p body, at most @p cap bytes: a known
@@ -116,7 +121,9 @@ BodyRead read_capped_body(Transport& t, size_t cap, long long content_length, st
             }
         }
         body.resize(room()); // within capacity: no allocation
-        const int n = t.read(&body[total], static_cast<int>(body.size() - total));
+        const int want =
+            static_cast<int>(std::min(body.size() - total, static_cast<size_t>(BODY_READ_CHUNK)));
+        const int n = t.read(&body[total], want);
         const int64_t at = now();
         if (n > 0) {
             total += static_cast<size_t>(n);
