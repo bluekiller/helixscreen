@@ -585,7 +585,7 @@ In Edit Mode, select the Clog Detection widget and tap the **gear icon** to open
 
 ## Filament Buffer Widget
 
-![Filament Buffer widget at 2x1: slider, 32% target 50%, a one-minute trace, FPS Running tight](../../images/user/home-filament-buffer.png)
+![Filament Buffer widget at 2x1: slider, 32% target 50%, a one-minute trace line, FPS Running tight](../../images/user/home-filament-buffer.png)
 
 The filament buffer is the slack between your feeder and the extruder, and the feeder steers it toward a target. The widget shows where it sits right now. The upright slider has loose filament up and tight filament down, with the target as a dashed window in the middle and faint zones at both ends. Only the block on the filament moves.
 
@@ -596,7 +596,7 @@ The block and the number beside it share one color: grey when the buffer is near
 | **1x1** | The slider, the reading and its label |
 | **2x1** | The reading with its target (for example "32%  target 50%"), the last minute as a trace, and the label with **Running tight**, **Running loose** or **Balanced** |
 
-The trace runs from the slider to the right, newest next to the slider, with the target as a shaded band. It starts empty and fills as the minute goes by: the part with no history yet is a dotted line.
+The trace runs from the slider to the right, newest next to the slider. It is a line that turns amber or red for the stretches where the buffer drifted off its target, over a faint dashed line for the target itself. It starts empty and fills as the minute goes by: the part with no history yet is a dotted line.
 
 A sensor that reports no target shows the pressure as text only (for example "Pressure: 32%"), with no slider or trace.
 

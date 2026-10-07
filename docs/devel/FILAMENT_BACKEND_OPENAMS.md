@@ -80,7 +80,7 @@ that field is Happy Hare's. Everything draws through `helix::buffer_reading()`
   pressure (`ui_ams_detail.cpp`), tinted live; any buffer that reports pressure gets
   the same label;
 - tapping it opens the Buffer Status modal: the slider, "FPS 62%" and "target 50%",
-  the lean in words and the last minute in its own trace panel.
+  the lean in words and the last minute as a trace line.
 
 OpenAMS has a buffer reading and no clog detection: klipper_openams publishes none, so
 the Clog Detection widget has nothing to show. See

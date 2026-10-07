@@ -1309,7 +1309,7 @@ or FlowGuard, clog detection.
 
 **Colour rule.** From the bias (-1 tight .. +1 loose around the set point), one rule on
 every surface: below 0.3 neutral grey (`text_muted`), 0.3 up to 0.7 `warning`, 0.7 and
-above `danger`. A switched AFC buffer keeps its own discrete colours. A pressure reading
+above `danger`. A switched AFC buffer keeps its own two states, drawn in the `warning` and `success` tokens. A pressure reading
 with no set point (OpenAMS publishes `set_point: null` when no unit reports `fps_target`)
 has nothing to centre on: every surface shows the pressure as text ("Pressure: N%"), with
 no slider, no trace and no tint.
@@ -1318,18 +1318,21 @@ no slider, no trace and no tint.
 path canvas: loose up, tight down. A housing on the filament strand with a dashed target
 window, faint end zones past 0.7 either way, and a grip block that rides the strand. Only
 the block moves and takes the status colour, so it cannot read as a progress bar. The
-trace sits in its own panel (`styles.buffer_trace_panel`) with a shaded target band;
-newest is at the slider side, older readings run away from it, and the part of the 60 s
-window with no history yet is a dotted baseline.
+trace is a 2 px step line with no panel behind it (`styles.buffer_trace_area`) over a
+very faint dashed target line. Each step is drawn in the colour of its own reading's
+band (`buffer_trace_segment_status`, the worse end for the step between two), so a
+past excursion stays visible in its colour. Newest is at the slider side, older readings
+run away from it, a status dot marks the newest end, and the part of the 60 s window
+with no history yet is a dotted baseline.
 
 **Surfaces.**
 
 | Surface | Content |
 |---|---|
-| **Filament Buffer** home widget (`filament_buffer`, `src/ui/panel_widgets/filament_buffer_widget.cpp`) | 1x1: the slider beside a big status-coloured number over its label. 2x1: the number with "target N%", the trace panel, then the label and the lean in words ("Running tight", "Running loose", "Balanced"). No set point: 1x1 keeps the number over the label, 2x1 says "Pressure: N%". Tap opens the modal. Padding is the `buffer_tile_pad` token, so the tile keeps its padding at 480x320 |
+| **Filament Buffer** home widget (`filament_buffer`, `src/ui/panel_widgets/filament_buffer_widget.cpp`) | 1x1: the slider beside a big status-coloured number over its label. 2x1: the number with "target N%", the trace, then the label and the lean in words ("Running tight", "Running loose", "Balanced"). No set point: 1x1 keeps the number over the label, 2x1 says "Pressure: N%". Tap opens the modal. Padding is the `buffer_tile_pad` token, so the tile keeps its padding at 480x320 |
 | Loaded-spool card (`ams_loaded_card.xml`) | A small slider (`buffer_mini_h`, taller at larger breakpoints) with the short number; the FPS/Sync label hides below the medium breakpoint, as the clog arc's mode label does, so the material name keeps the width. The colour swatch narrows to `loaded_swatch_narrow_w` (14 px) below medium |
 | Path canvas buffer box (`ams_detail_buffer_box()`) | The existing labelled FPS/BUF box, tinted live by the colour rule as the reading moves; a pressure with no set point is untinted. Tap opens the modal on the buffer feeding the toolhead |
-| Buffer Status modal (`BufferStatusModal::show_for`, `buffer_status_modal.xml`) | The clog bar (hidden with no detector), then the tall slider with the reading, target and lean in words beside it, the trace panel and its caption ("last 60 s"), and the backend's own rows (Happy Hare spool motor, gear sync, flow; AFC state, distance to fault). Live while open; closes only with its X |
+| Buffer Status modal (`BufferStatusModal::show_for`, `buffer_status_modal.xml`) | The clog bar (hidden with no detector), then the tall slider with the reading, target and lean in words beside it, the trace and its caption ("last 60 s"), and the backend's own rows (Happy Hare spool motor, gear sync, flow; AFC state, distance to fault). Live while open; closes only with its X |
 
 The Clog Detection widget never shows a buffer reading. `show_for(-1)` opens the modal on
 the buffer feeding the toolhead.
