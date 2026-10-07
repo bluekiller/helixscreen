@@ -239,7 +239,13 @@ class EspMoonrakerClient final : public IMoonrakerClient {
     static constexpr int64_t SLOW_DISPATCH_LOG_MS = 500;
     // Websocket-task only: reported when a connection drops.
     unsigned pongs_this_connection_ = 0;
-    int64_t last_pong_us_ = 0;
+    /// Last PONG for one of our PINGs (the connect time until the first), read by the
+    /// timer-side dead-link check.
+    std::atomic<int64_t> last_pong_us_{0};
+    std::atomic<bool> dead_link_reported_{false};
+    /// A connection with no PONG for this long is not answering our PINGs (one every
+    /// 10 s), whatever the websocket task believes; the client reconnects.
+    static constexpr int64_t PONG_DEAD_US = 30LL * 1000 * 1000;
     int64_t connected_us_ = 0;
     // Any frame received (websocket task writes, timer task reads) and the last
     // stall report, for the rx-stall tripwire in process_timeouts().

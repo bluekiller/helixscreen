@@ -476,7 +476,8 @@ void EspMoonrakerClient::ws_event_trampoline(void* arg, esp_event_base_t /*base*
 void EspMoonrakerClient::on_ws_connected() {
     ESP_LOGI(TAG, "connected to %s", url_.c_str());
     pongs_this_connection_ = 0;
-    last_pong_us_ = 0;
+    last_pong_us_.store(esp_timer_get_time());
+    dead_link_reported_.store(false);
     connected_us_ = esp_timer_get_time();
     last_rx_us_.store(connected_us_);
     // Reset exponential backoff for the next disconnect.
@@ -522,7 +523,9 @@ void EspMoonrakerClient::on_ws_disconnected() {
     const bool was_established = get_connection_state() == ConnectionState::CONNECTED;
     ESP_LOGW(TAG, "disconnected from %s (%u pongs this connection, last %llds ago, up %llds)",
              url_.c_str(), pongs_this_connection_,
-             last_pong_us_ ? static_cast<long long>((now_us - last_pong_us_) / 1000000) : -1LL,
+             pongs_this_connection_
+                 ? static_cast<long long>((now_us - last_pong_us_.load()) / 1000000)
+                 : -1LL,
              static_cast<long long>((now_us - connected_us_) / 1000000));
 
     // Any discovery chain in flight is now invalid: its pending requests are about
@@ -595,7 +598,7 @@ void EspMoonrakerClient::on_ws_data(const esp_websocket_event_data_t* d) {
     last_rx_us_.store(esp_timer_get_time());
     if (d->op_code == OP_PONG) {
         ++pongs_this_connection_;
-        last_pong_us_ = esp_timer_get_time();
+        last_pong_us_.store(esp_timer_get_time());
         return;
     }
     // Only text (0x01) and its continuation frames (0x00) carry JSON-RPC.
@@ -840,6 +843,21 @@ void EspMoonrakerClient::process_timeouts() {
                  (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
                  (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL));
     }
+    // Dead-link check, run here on the timer rather than on the websocket task, so it holds
+    // even when that task stops servicing the socket: no PONG for our PINGs means the link
+    // is not carrying traffic both ways, and nothing on that task will say so.
+    const int64_t last_pong = last_pong_us_.load();
+    if (get_connection_state() == ConnectionState::CONNECTED && last_pong > 0 &&
+        now - last_pong > PONG_DEAD_US && !dead_link_reported_.exchange(true)) {
+        ESP_LOGW(TAG,
+                 "no PONG for %llds on a live connection (last frame %llds ago, %u pending, %u "
+                 "stale frames dropped); reconnecting",
+                 (long long)((now - last_pong) / 1000000),
+                 (long long)((now - last_rx_us_.load()) / 1000000), (unsigned)pending_n,
+                 (unsigned)stale_frames_dropped_.load());
+        force_reconnect();
+    }
+
     for (auto& t : timed_out) {
         if (!t.silent) {
             emit_event(moonraker_event::request_timed_out(t.method, t.timeout_ms));

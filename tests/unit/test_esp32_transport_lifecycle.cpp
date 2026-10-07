@@ -280,3 +280,22 @@ TEST_CASE("Transport: a reconnect of a transport that never connected is flagged
     h.run_jobs();
     CHECK_FALSE(flagged_during_stop);
 }
+
+TEST_CASE("Transport: an in-place reconnect keeps accepting the same transport's events",
+          "[esp32][transport]") {
+    // A boot whose first connect attempt fails restarts the same transport in place; its
+    // events must still be accepted, or replies and disconnects would be dropped as stale.
+    Harness h;
+    h.lc().connect("ws://a");
+    h.run_jobs();
+    FakeTransport* a = h.lc().current();
+    REQUIRE(a != nullptr);
+
+    h.lc().reconnect();
+    CHECK_FALSE(h.lc().accepts(a)); // between the request and its job: stale
+    h.run_jobs();
+
+    CHECK(h.lc().current() == a);
+    CHECK(h.lc().accepts(a));
+    CHECK(h.creates == 1);
+}
