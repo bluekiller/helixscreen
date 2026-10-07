@@ -437,6 +437,7 @@ translations:
   CURRENT SELECTION: SELECCIÓN ACTUAL
   CUSTOM IMAGES: IMÁGENES PERSONALIZADAS
   Cache Dir: Directorio de Caché
+  Calculator: Calculadora
   Calibrate: Calibrar
   Calibrate All: Calibrar Todo
   Calibrate Bowden: 'Calibrar el bowden'
@@ -2200,6 +2201,7 @@ translations:
   Nozzle temp must be 100-%d°C: La temperatura de la boquilla debe ser 100-%d°C
   Nozzle, bed, and chamber in one widget: Boquilla, cama y cámara en un widget
   'Nozzle:': 'Boquilla:'
+  Number Pad Layout: Diseño del teclado numérico
   OD: OD
   'OFF': 'OFF'
   OK: OK
@@ -2322,6 +2324,8 @@ translations:
   Permission denied. Check printer configuration.: Permiso denegado. Comprueba la configuración de la impresora.
   Phomemo (Bluetooth): Phomemo (Bluetooth)
   Phomemo M110: Phomemo M110
+  Phone: Teléfono
+  Phone puts 1 2 3 on the top row, calculator puts 7 8 9 there: Teléfono pone 1 2 3 en la fila superior; calculadora, 7 8 9
   Pick: Elegir
   Pick Color: Elegir Color
   Pick up tool: Recoger herramienta

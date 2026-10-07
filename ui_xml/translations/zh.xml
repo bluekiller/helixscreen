@@ -402,6 +402,7 @@
   <translation tag="CURRENT SELECTION" zh="当前选择"/>
   <translation tag="CUSTOM IMAGES" zh="自定义图片"/>
   <translation tag="Cache Dir" zh="缓存目录"/>
+  <translation tag="Calculator" zh="计算器"/>
   <translation tag="Calibrate" zh="校准"/>
   <translation tag="Calibrate All" zh="全部校准"/>
   <translation tag="Calibrate Bowden" zh="校准波顿管"/>
@@ -1988,6 +1989,7 @@
   <translation tag="Nozzle temp must be 100-%d°C" zh="喷嘴温度必须为 100-%d°C"/>
   <translation tag="Nozzle, bed, and chamber in one widget" zh="喷嘴、热床和腔体合为一个小组件"/>
   <translation tag="Nozzle:" zh="喷嘴："/>
+  <translation tag="Number Pad Layout" zh="数字键盘布局"/>
   <translation tag="OD" zh="OD"/>
   <translation tag="OFF" zh="关"/>
   <translation tag="OK" zh="确定"/>
@@ -2101,6 +2103,8 @@
   <translation tag="Permission denied. Check printer configuration." zh="权限被拒绝。请检查打印机配置。"/>
   <translation tag="Phomemo (Bluetooth)" zh="Phomemo（蓝牙）"/>
   <translation tag="Phomemo M110" zh="Phomemo M110"/>
+  <translation tag="Phone" zh="电话"/>
+  <translation tag="Phone puts 1 2 3 on the top row, calculator puts 7 8 9 there" zh="电话布局第一行为 1 2 3，计算器布局第一行为 7 8 9"/>
   <translation tag="Pick" zh="选取"/>
   <translation tag="Pick Color" zh="选择颜色"/>
   <translation tag="Pick up tool" zh="取出工具"/>

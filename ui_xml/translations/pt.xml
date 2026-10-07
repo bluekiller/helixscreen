@@ -402,6 +402,7 @@
   <translation tag="CURRENT SELECTION" pt="SELEÇÃO ATUAL"/>
   <translation tag="CUSTOM IMAGES" pt="IMAGENS PERSONALIZADAS"/>
   <translation tag="Cache Dir" pt="Diretório de Cache"/>
+  <translation tag="Calculator" pt="Calculadora"/>
   <translation tag="Calibrate" pt="Calibrar"/>
   <translation tag="Calibrate All" pt="Calibrar Tudo"/>
   <translation tag="Calibrate Bowden" pt="Calibrar o bowden"/>
@@ -1988,6 +1989,7 @@
   <translation tag="Nozzle temp must be 100-%d°C" pt="A temperatura do bico deve ser 100-%d°C"/>
   <translation tag="Nozzle, bed, and chamber in one widget" pt="Bico, mesa e câmara em um widget"/>
   <translation tag="Nozzle:" pt="Bico:"/>
+  <translation tag="Number Pad Layout" pt="Layout do teclado numérico"/>
   <translation tag="OD" pt="OD"/>
   <translation tag="OFF" pt="OFF"/>
   <translation tag="OK" pt="OK"/>
@@ -2101,6 +2103,8 @@
   <translation tag="Permission denied. Check printer configuration." pt="Permissão negada. Verifique a configuração da impressora."/>
   <translation tag="Phomemo (Bluetooth)" pt="Phomemo (Bluetooth)"/>
   <translation tag="Phomemo M110" pt="Phomemo M110"/>
+  <translation tag="Phone" pt="Telefone"/>
+  <translation tag="Phone puts 1 2 3 on the top row, calculator puts 7 8 9 there" pt="Telefone põe 1 2 3 na linha de cima, calculadora põe 7 8 9"/>
   <translation tag="Pick" pt="Escolher"/>
   <translation tag="Pick Color" pt="Escolher Cor"/>
   <translation tag="Pick up tool" pt="Pegar ferramenta"/>

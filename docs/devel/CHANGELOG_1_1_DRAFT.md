@@ -955,6 +955,10 @@ git log --no-merges --oneline 2ad32dc6e..main --not release/1.0
 - **The number keypad was cramped on 480x320 and 480x272 screens** - it is wider there, its keys
   fill the height, heater keypads are titled with the short heater name, and header titles
   shorten with dots instead of wrapping.
+- **The number pad puts 1 2 3 on top, like a phone** - backspace moves to the bottom left, and
+  on whole-number fields such as temperatures a confirm key sits bottom right, where the
+  decimal point would be. The unit (°C, mm) now sits inside the value field, which spans the
+  keys. Prefer 7 8 9 on top? Settings > Touch & Input > Number Pad Layout > Calculator.
 
 **Printer identification**
 

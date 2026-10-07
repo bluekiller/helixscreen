@@ -402,6 +402,7 @@
   <translation tag="CURRENT SELECTION" ja="現在の選択"/>
   <translation tag="CUSTOM IMAGES" ja="カスタム画像"/>
   <translation tag="Cache Dir" ja="キャッシュディレクトリ"/>
+  <translation tag="Calculator" ja="計算機"/>
   <translation tag="Calibrate" ja="キャリブレート"/>
   <translation tag="Calibrate All" ja="すべてキャリブレート"/>
   <translation tag="Calibrate Bowden" ja="ボーデンをキャリブレート"/>
@@ -1988,6 +1989,7 @@
   <translation tag="Nozzle temp must be 100-%d°C" ja="ノズル温度は 100〜%d°C にしてください"/>
   <translation tag="Nozzle, bed, and chamber in one widget" ja="ノズル、ベッド、チャンバーをまとめて表示"/>
   <translation tag="Nozzle:" ja="ノズル:"/>
+  <translation tag="Number Pad Layout" ja="テンキーの配列"/>
   <translation tag="OD" ja="OD"/>
   <translation tag="OFF" ja="OFF"/>
   <translation tag="OK" ja="OK"/>
@@ -2101,6 +2103,8 @@
   <translation tag="Permission denied. Check printer configuration." ja="権限がありません。プリンターの設定を確認してください。"/>
   <translation tag="Phomemo (Bluetooth)" ja="Phomemo (Bluetooth)"/>
   <translation tag="Phomemo M110" ja="Phomemo M110"/>
+  <translation tag="Phone" ja="電話"/>
+  <translation tag="Phone puts 1 2 3 on the top row, calculator puts 7 8 9 there" ja="電話は上段が 1 2 3、計算機は上段が 7 8 9"/>
   <translation tag="Pick" ja="選択"/>
   <translation tag="Pick Color" ja="色を選択"/>
   <translation tag="Pick up tool" ja="ツールを取得"/>

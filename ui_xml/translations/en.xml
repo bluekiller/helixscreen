@@ -402,6 +402,7 @@
   <translation tag="CURRENT SELECTION" en="CURRENT SELECTION"/>
   <translation tag="CUSTOM IMAGES" en="CUSTOM IMAGES"/>
   <translation tag="Cache Dir" en="Cache Dir"/>
+  <translation tag="Calculator" en="Calculator"/>
   <translation tag="Calibrate" en="Calibrate"/>
   <translation tag="Calibrate All" en="Calibrate All"/>
   <translation tag="Calibrate Bowden" en="Calibrate Bowden"/>
@@ -1988,6 +1989,7 @@
   <translation tag="Nozzle temp must be 100-%d°C" en="Nozzle temp must be 100-%d°C"/>
   <translation tag="Nozzle, bed, and chamber in one widget" en="Nozzle, bed, and chamber in one widget"/>
   <translation tag="Nozzle:" en="Nozzle:"/>
+  <translation tag="Number Pad Layout" en="Number Pad Layout"/>
   <translation tag="OD" en="OD"/>
   <translation tag="OFF" en="OFF"/>
   <translation tag="OK" en="OK"/>
@@ -2101,6 +2103,8 @@
   <translation tag="Permission denied. Check printer configuration." en="Permission denied. Check printer configuration."/>
   <translation tag="Phomemo (Bluetooth)" en="Phomemo (Bluetooth)"/>
   <translation tag="Phomemo M110" en="Phomemo M110"/>
+  <translation tag="Phone" en="Phone"/>
+  <translation tag="Phone puts 1 2 3 on the top row, calculator puts 7 8 9 there" en="Phone puts 1 2 3 on the top row, calculator puts 7 8 9 there"/>
   <translation tag="Pick" en="Pick"/>
   <translation tag="Pick Color" en="Pick Color"/>
   <translation tag="Pick up tool" en="Pick up tool"/>

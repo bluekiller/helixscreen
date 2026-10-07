@@ -588,6 +588,7 @@ Located in the `input` section:
     "long_press_time": 500,
     "scroll_guard": false,
     "home_edit_mode_enabled": true,
+    "keypad_layout": 0,
     "touch_device": "",
     "device_blacklist": [],
     "force_calibration": false,
@@ -635,6 +636,11 @@ Matches LVGL's native default of 10.
 **Type:** boolean
 **Default:** `true`
 **Description:** Whether a long-press on the home grid enters Edit Mode (the drag-and-drop layout editor). When `false`, the long-press is suppressed entirely. Turn off if Edit Mode triggers by accident and you don't need to rearrange widgets, or pair with a higher `long_press_time` to make accidental entry harder while keeping the feature available. Applied live — no restart needed.
+
+### `keypad_layout`
+**Type:** integer
+**Default:** `0`
+**Description:** Digit order of the number pad. `0` = phone (1 2 3 on top, backspace bottom left, and a confirm key bottom right on whole-number fields); `1` = calculator (7 8 9 on top). Set it from [Touch & Input Settings](guide/settings/touch-input.md#number-pad-layout). Applied live — no restart needed.
 
 ### `touch_device`
 **Type:** string

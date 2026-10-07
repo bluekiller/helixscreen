@@ -443,6 +443,7 @@ translations:
   CURRENT SELECTION: AKTUELLE AUSWAHL
   CUSTOM IMAGES: EIGENE BILDER
   Cache Dir: Cache-Verzeichnis
+  Calculator: Taschenrechner
   Calibrate: Kalibrieren
   Calibrate All: Alle kalibrieren
   Calibrate Bowden: 'Bowden kalibrieren'
@@ -2209,6 +2210,7 @@ translations:
   Nozzle temp must be 100-%d°C: Düsentemperatur muss 100-%d°C betragen
   Nozzle, bed, and chamber in one widget: Düse, Bett und Kammer in einem Widget
   'Nozzle:': 'Düse:'
+  Number Pad Layout: Ziffernblock-Layout
   OD: OD
   'OFF': AUS
   OK: OK
@@ -2331,6 +2333,8 @@ translations:
   Permission denied. Check printer configuration.: Zugriff verweigert. Prüfe die Druckerkonfiguration.
   Phomemo (Bluetooth): Phomemo (Bluetooth)
   Phomemo M110: Phomemo M110
+  Phone: Telefon
+  Phone puts 1 2 3 on the top row, calculator puts 7 8 9 there: 'Telefon: 1 2 3 in der obersten Reihe, Taschenrechner: 7 8 9'
   Pick: Auswählen
   Pick Color: Farbe wählen
   Pick up tool: Werkzeug aufnehmen

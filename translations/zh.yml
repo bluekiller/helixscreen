@@ -408,6 +408,7 @@ translations:
   CURRENT SELECTION: 当前选择
   CUSTOM IMAGES: 自定义图片
   Cache Dir: 缓存目录
+  Calculator: 计算器
   Calibrate: 校准
   Calibrate All: 全部校准
   Calibrate Bowden: '校准波顿管'
@@ -2057,6 +2058,7 @@ translations:
   Nozzle temp must be 100-%d°C: 喷嘴温度必须为 100-%d°C
   Nozzle, bed, and chamber in one widget: 喷嘴、热床和腔体合为一个小组件
   'Nozzle:': 喷嘴：
+  Number Pad Layout: 数字键盘布局
   OD: OD
   'OFF': 关
   OK: 确定
@@ -2175,6 +2177,8 @@ translations:
   Permission denied. Check printer configuration.: 权限被拒绝。请检查打印机配置。
   Phomemo (Bluetooth): Phomemo（蓝牙）
   Phomemo M110: Phomemo M110
+  Phone: 电话
+  Phone puts 1 2 3 on the top row, calculator puts 7 8 9 there: 电话布局第一行为 1 2 3，计算器布局第一行为 7 8 9
   Pick: 选取
   Pick Color: 选择颜色
   Pick up tool: 取出工具

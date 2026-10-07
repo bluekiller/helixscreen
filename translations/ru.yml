@@ -431,6 +431,7 @@ translations:
   CURRENT SELECTION: ТЕКУЩИЙ ВЫБОР
   CUSTOM IMAGES: СВОИ ИЗОБРАЖЕНИЯ
   Cache Dir: Директория кэша
+  Calculator: Калькулятор
   Calibrate: Калибровать
   Calibrate All: Калибровать всё
   Calibrate Bowden: 'Калибровать боуден'
@@ -2180,6 +2181,7 @@ translations:
   Nozzle temp must be 100-%d°C: Температура сопла должна быть 100-%d°C
   Nozzle, bed, and chamber in one widget: Сопло, стол и камера в одном виджете
   'Nozzle:': 'Сопло:'
+  Number Pad Layout: Раскладка цифровой клавиатуры
   OD: OD
   'OFF': ВЫКЛ
   OK: OK
@@ -2300,6 +2302,8 @@ translations:
   Permission denied. Check printer configuration.: Доступ запрещён. Проверьте конфигурацию принтера.
   Phomemo (Bluetooth): Phomemo (Bluetooth)
   Phomemo M110: Phomemo M110
+  Phone: Телефон
+  Phone puts 1 2 3 on the top row, calculator puts 7 8 9 there: 'Телефон: 1 2 3 в верхнем ряду, калькулятор: 7 8 9'
   Pick: Выбрать
   Pick Color: Выбрать цвет
   Pick up tool: Забрать инструмент

@@ -402,6 +402,7 @@
   <translation tag="CURRENT SELECTION" ru="ТЕКУЩИЙ ВЫБОР"/>
   <translation tag="CUSTOM IMAGES" ru="СВОИ ИЗОБРАЖЕНИЯ"/>
   <translation tag="Cache Dir" ru="Директория кэша"/>
+  <translation tag="Calculator" ru="Калькулятор"/>
   <translation tag="Calibrate" ru="Калибровать"/>
   <translation tag="Calibrate All" ru="Калибровать всё"/>
   <translation tag="Calibrate Bowden" ru="Калибровать боуден"/>
@@ -1988,6 +1989,7 @@
   <translation tag="Nozzle temp must be 100-%d°C" ru="Температура сопла должна быть 100-%d°C"/>
   <translation tag="Nozzle, bed, and chamber in one widget" ru="Сопло, стол и камера в одном виджете"/>
   <translation tag="Nozzle:" ru="Сопло:"/>
+  <translation tag="Number Pad Layout" ru="Раскладка цифровой клавиатуры"/>
   <translation tag="OD" ru="OD"/>
   <translation tag="OFF" ru="ВЫКЛ"/>
   <translation tag="OK" ru="OK"/>
@@ -2101,6 +2103,8 @@
   <translation tag="Permission denied. Check printer configuration." ru="Доступ запрещён. Проверьте конфигурацию принтера."/>
   <translation tag="Phomemo (Bluetooth)" ru="Phomemo (Bluetooth)"/>
   <translation tag="Phomemo M110" ru="Phomemo M110"/>
+  <translation tag="Phone" ru="Телефон"/>
+  <translation tag="Phone puts 1 2 3 on the top row, calculator puts 7 8 9 there" ru="Телефон: 1 2 3 в верхнем ряду, калькулятор: 7 8 9"/>
   <translation tag="Pick" ru="Выбрать"/>
   <translation tag="Pick Color" ru="Выбрать цвет"/>
   <translation tag="Pick up tool" ru="Забрать инструмент"/>
