@@ -105,7 +105,7 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 <div class="wrap">
 <header>
 <h1>HelixScreen architecture and bloat audit</h1>
-<p>Generated 2026-09-30 against <code>main</code> @ <code>5009a40e9</code>. Nine read-only slice audits, deduplicated; detail in <code>docs/superpowers/architecture-audit/</code>. Statuses updated against <code>origin/main</code> @ <code>e6176a0e1</code>.</p>
+<p>Generated 2026-09-30 against <code>main</code> @ <code>5009a40e9</code>. Nine read-only slice audits, deduplicated; detail in <code>docs/superpowers/architecture-audit/</code>. Statuses updated against <code>origin/main</code> @ <code>a7802c03b</code>.</p>
 <p>Per <code>docs/CLAUDE.md</code>, this plan file is deleted when the work ships. Finding-level line and size figures are the auditors' estimates; the tiles below are measured on main where they say so. "CONFIRMED" means the orchestrator read the code, not just the agent's claim.</p>
 <p class="tiles-label"><strong>Shipped so far</strong>: measured on main. A minus sign is a reduction.</p>
 <div class="tiles">
@@ -113,7 +113,7 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 <div class="tile"><div class="v">-23% / -8% / -9%</div><div class="k">release binary size on Pi / MIPS / K2 (mocks out of release builds, -fno-rtti, dead code). Plus settings table -60 KB and observer core -371 KB and the observer rename -35 KB native, measured after</div></div>
 <div class="tile"><div class="v">-28.5 MB</div><div class="k">clone size from dead submodules</div></div>
 <div class="tile"><div class="v">20 of 22</div><div class="k">BUG/SEC findings shipped or moot; 3 new from reviews</div></div>
-<div class="tile"><div class="v">138</div><div class="k">findings: 127 done, 3 in progress, 6 open, 2 wontfix</div></div>
+<div class="tile"><div class="v">138</div><div class="k">findings: 128 done, 2 in progress, 6 open, 2 wontfix</div></div>
 </div>
 <p class="tiles-label"><strong>Still on the table</strong>: auditors' estimates, not measurements. Sizes are what could be reclaimed, not growth.</p>
 <div class="tiles">
@@ -952,10 +952,10 @@ footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; }
 </dl>
 </div>
 </details>
-<details class="f" id="FW-2" data-tag="dup" data-size="1.1" data-status="progress">
-<summary><span class="fid">FW-2</span><span class="chip t-dup">dup</span><span class="chip sz">1.1</span><span class="pill st-progress">in progress</span><code class="br">743eed883</code><span class="ftitle">261 hand-written event trampolines become lambdas in the register table</span><span class="fimpact">~-2,500 lines (.cpp + headers)</span></summary>
+<details class="f" id="FW-2" data-tag="dup" data-size="1.1" data-status="done">
+<summary><span class="fid">FW-2</span><span class="chip t-dup">dup</span><span class="chip sz">1.1</span><span class="pill st-done">done</span><code class="br">a7802c03b</code><span class="ftitle">261 hand-written event trampolines become lambdas in the register table</span><span class="fimpact">~-2,500 lines (.cpp + headers)</span></summary>
 <div class="fbody">
-<p class="branch">Partly shipped: <code>refactor/fw-infra</code> (<code>4d4057937</code>) gave <code>XmlCallbackEntry</code> a lambda constructor plus <code>event_checked</code>/<code>event_selected</code>, and gates orphan and doubly-registered callbacks. Three overlay sweeps merged to main (print-misc <code>a1f2c83aa</code>, settings <code>b663be0e8</code>, ams-cal <code>94c107fe5</code>) and the final sweep at <code>743eed883</code> converted the settings root to one callback table (19 orphan-callback baseline entries dropped). Remaining: about 50 <code>static void on_*(lv_event_t*)</code> handlers in <code>src/ui</code> and the two users of <code>ui_event_trampoline.h</code>.</p>
+<p class="branch">Shipped: <code>refactor/fw-infra</code> (<code>4d4057937</code>), three overlay sweeps, the settings root (<code>743eed883</code>) and <code>refactor/fw2-trampolines-final</code> (<code>a7802c03b</code>): 73 more forwarders became table lambdas and <code>ui_event_trampoline.h</code> is deleted. About 220 named handlers remain where they carry logic or are attached in code.</p>
 <dl>
 <dt>Locations</dt><dd><code>src/ui/ui_settings_macro_buttons.cpp</code> (15), <code>src/ui/ui_panel_calibration_pid.cpp</code> (15), <code>src/ui/ui_panel_motion.cpp</code> (13), <code>src/ui/ui_settings_safety.cpp#on_estop_confirm_changed</code>, <code>include/ui/ui_event_trampoline.h</code>, pattern in <code>src/ui/ui_probe_overlay.cpp#register_callbacks</code></dd>
 <dt>Evidence</dt><dd>261 of 574 <code>lv_event_t*</code> handlers are pure forwarders (1,880 lines), each with a <code>static void on_y(lv_event_t*)</code> header declaration (536 in slice headers) plus a <code>handle_y</code> declaration. A typical toggle trampoline is 7 lines to read one bool. <code>ui_event_trampoline.h</code> (158 lines) has 2 users; ~120 trampolines start with the same checked-state/selected-index read.</dd>
