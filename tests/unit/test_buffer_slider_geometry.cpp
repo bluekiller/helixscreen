@@ -82,3 +82,11 @@ TEST_CASE("buffer_trace_polylines: nothing to draw", "[buffer][trace][geometry]"
     CHECK(buffer_trace_polylines({}, 100000, 120, 100).empty());
     CHECK(buffer_trace_polylines({{0, 0.0f, true}}, 100000, 0, 100).empty());
 }
+
+TEST_CASE("buffer_trace_unrecorded_x: the minute not yet recorded", "[buffer][trace][geometry]") {
+    constexpr int64_t now = 100000;
+    CHECK(buffer_trace_unrecorded_x({}, now, 120) == 0);
+    CHECK(buffer_trace_unrecorded_x({{now, 0.1f, true}}, now, 120) == 0);
+    CHECK(buffer_trace_unrecorded_x({{now - 10000, 0.1f, true}}, now, 120) == 20);
+    CHECK(buffer_trace_unrecorded_x({{now - 60000, 0.1f, true}}, now, 120) == 120);
+}

@@ -197,8 +197,20 @@ void UiBufferSlider::draw_trace(lv_layer_t* layer) const {
     }
 
     const int64_t now = buffer_clock_ms();
-    const auto lines = buffer_trace_polylines(
-        AmsState::instance().buffer_trace(trace_unit_).window(now), now, w, h);
+    const auto window = AmsState::instance().buffer_trace(trace_unit_).window(now);
+
+    // The part of the minute with no history yet is a faint dotted baseline at
+    // the target level, so the area always spans the full window.
+    const int32_t unrecorded_x = buffer_trace_unrecorded_x(window, now, w);
+    if (unrecorded_x < w) {
+        line.opa = LV_OPA_50;
+        const int32_t y = a.y1 + buffer_slider_y(0.0f, h);
+        line.p1 = point(a.x1 + unrecorded_x, y);
+        line.p2 = point(a.x2, y);
+        lv_draw_line(layer, &line);
+    }
+
+    const auto lines = buffer_trace_polylines(window, now, w, h);
     lv_draw_line_dsc_t trace;
     lv_draw_line_dsc_init(&trace);
     trace.color = muted;

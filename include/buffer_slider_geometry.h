@@ -42,4 +42,10 @@ std::vector<std::vector<BufferTraceXY>>
 buffer_trace_polylines(const std::vector<BufferTracePoint>& window, int64_t now_ms, int width,
                        int height);
 
+/// Where the not-yet-recorded part of the window begins, as an x in a box
+/// @p width wide: the oldest point's x, running to @p width. Equals @p width
+/// (zero length) once history reaches back a full window; 0 with no history.
+int buffer_trace_unrecorded_x(const std::vector<BufferTracePoint>& window, int64_t now_ms,
+                              int width);
+
 } // namespace helix::ui

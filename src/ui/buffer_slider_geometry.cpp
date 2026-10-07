@@ -76,4 +76,13 @@ buffer_trace_polylines(const std::vector<BufferTracePoint>& window, int64_t now_
     return lines;
 }
 
+int buffer_trace_unrecorded_x(const std::vector<BufferTracePoint>& window, int64_t now_ms,
+                              int width) {
+    if (width <= 0 || window.empty()) {
+        return 0;
+    }
+    return static_cast<int>(std::clamp<int64_t>(
+        (now_ms - window.front().t_ms) * width / BufferTrace::kWindowMs, 0, width));
+}
+
 } // namespace helix::ui
