@@ -6005,3 +6005,58 @@ TEST_CASE("Happy Hare v4 sensors dict with no gate selected names gates mmu_entr
     CHECK_FALSE(helper.get_gate_sensor(2)->pre_gate_triggered);
     CHECK_FALSE(helper.get_gate_sensor(3));
 }
+
+TEST_CASE("Happy Hare MMU_TEST_CONFIG names gear speeds the way each version does",
+          "[ams][happy_hare][hh_v4]") {
+    QueryCapturingClient client;
+    helix::test::RegisteredBackend<AmsBackendHappyHareTestHelper> helper_reg(nullptr, &client);
+    AmsBackendHappyHareTestHelper& helper = *helper_reg;
+    helper.initialize_test_gates(4);
+
+    SECTION("v3") {
+        helper.set_config_defaults_for_test();
+        helper.execute_device_action("gear_from_spool_speed", std::any(70.0));
+        helper.execute_device_action("gear_from_buffer_speed", std::any(160.0));
+        helper.execute_device_action("toolhead_ooze_reduction", std::any(2.5));
+        CHECK(helper.captured_gcodes ==
+              std::vector<std::string>{"MMU_TEST_CONFIG GEAR_FROM_SPOOL_SPEED=70",
+                                       "MMU_TEST_CONFIG GEAR_FROM_BUFFER_SPEED=160",
+                                       "MMU_TEST_CONFIG TOOLHEAD_OOZE_REDUCTION=2.5"});
+    }
+    SECTION("v4") {
+        connect_with_fixture(
+            helper, client, helix::test::load_happy_hare_fixture("happy_hare_v4_single_unit.json"));
+        helper.clear_captured_gcodes();
+        helper.execute_device_action("gear_from_spool_speed", std::any(70.0));
+        helper.execute_device_action("gear_from_buffer_speed", std::any(160.0));
+        helper.execute_device_action("toolhead_ooze_reduction", std::any(2.5));
+        CHECK(helper.captured_gcodes ==
+              std::vector<std::string>{"MMU_TEST_CONFIG GEAR_LOAD_SPEED=70",
+                                       "MMU_TEST_CONFIG GEAR_FROM_FILAMENT_BUFFER_SPEED=160",
+                                       "MMU_TEST_CONFIG TOOLHEAD_OOZE_REDUCTION=2.5"});
+    }
+}
+
+TEST_CASE("Happy Hare v4 reapplies persisted overrides under the v4 names",
+          "[ams][happy_hare][hh_v4]") {
+    QueryCapturingClient client;
+    helix::test::RegisteredBackend<AmsBackendHappyHareTestHelper> helper_reg(nullptr, &client);
+    AmsBackendHappyHareTestHelper& helper = *helper_reg;
+    helper.initialize_test_gates(4);
+    connect_with_fixture(helper, client,
+                         helix::test::load_happy_hare_fixture("happy_hare_v4_single_unit.json"));
+    helper.execute_device_action("gear_from_spool_speed", std::any(75.0));
+    helper.execute_device_action("sync_to_extruder", std::any(false));
+    // An override v4 has no parameter for stays out of the command.
+    HappyHareTestAccess::user_overrides(helper).clog_detection = 2;
+    helper.clear_captured_gcodes();
+
+    helper.test_reapply_overrides();
+
+    REQUIRE(helper.captured_gcodes.size() == 1);
+    const std::string& cmd = helper.captured_gcodes[0];
+    CHECK(cmd.find(" GEAR_LOAD_SPEED=75") != std::string::npos);
+    CHECK(cmd.find(" SYNC_TO_EXTRUDER=0") != std::string::npos);
+    CHECK(cmd.find("GEAR_FROM_SPOOL_SPEED") == std::string::npos);
+    CHECK(cmd.find("CLOG_DETECTION") == std::string::npos);
+}

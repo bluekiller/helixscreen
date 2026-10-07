@@ -750,6 +750,9 @@ class AmsBackendHappyHare : public AmsSubscriptionBackend {
     void save_override(const std::string& key, float value);
     void save_override(const std::string& key, int value);
     void reapply_overrides();
+    /// The MMU_TEST_CONFIG parameter for tunable @p key (v3 spelling) on this
+    /// install, uppercased; empty when it has none. Caller holds mutex_.
+    [[nodiscard]] std::string test_config_param_locked(std::string_view key) const;
 
     /// Get the config default float for a given action key
     [[nodiscard]] float get_config_default_float(const std::string& key) const;

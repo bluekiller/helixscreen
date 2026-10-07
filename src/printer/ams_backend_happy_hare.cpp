@@ -2119,14 +2119,21 @@ void AmsBackendHappyHare::save_override(const std::string& key, int value) {
     config->save();
 }
 
+std::string AmsBackendHappyHare::test_config_param_locked(std::string_view key) const {
+    return helix::text_io::to_upper(happy_hare::param_name(key, machine_layout_.v4));
+}
+
 void AmsBackendHappyHare::reapply_overrides() {
     // Build a single MMU_TEST_CONFIG command with all active overrides
     std::string cmd = "MMU_TEST_CONFIG";
     bool has_params = false;
+    std::unique_lock<std::mutex> lock(mutex_);
 
-    // Helper to append a float parameter
-    auto append_float = [&](const char* param, const std::optional<float>& val, bool integer_fmt) {
-        if (val.has_value()) {
+    // A key the install has no parameter for is left out: one unknown name
+    // fails the whole command.
+    auto append_float = [&](const char* key, const std::optional<float>& val, bool integer_fmt) {
+        const std::string param = test_config_param_locked(key);
+        if (val.has_value() && !param.empty()) {
             if (integer_fmt)
                 cmd += fmt::format(" {}={:.0f}", param, *val);
             else
@@ -2135,31 +2142,32 @@ void AmsBackendHappyHare::reapply_overrides() {
         }
     };
 
-    // Helper to append an int parameter
-    auto append_int = [&](const char* param, const std::optional<int>& val) {
-        if (val.has_value()) {
+    auto append_int = [&](const char* key, const std::optional<int>& val) {
+        const std::string param = test_config_param_locked(key);
+        if (val.has_value() && !param.empty()) {
             cmd += fmt::format(" {}={}", param, *val);
             has_params = true;
         }
     };
 
     // Speed sliders (integer format)
-    append_float("GEAR_FROM_BUFFER_SPEED", user_overrides_.gear_from_buffer_speed, true);
-    append_float("GEAR_FROM_SPOOL_SPEED", user_overrides_.gear_from_spool_speed, true);
-    append_float("GEAR_UNLOAD_SPEED", user_overrides_.gear_unload_speed, true);
-    append_float("SELECTOR_MOVE_SPEED", user_overrides_.selector_move_speed, true);
-    append_float("EXTRUDER_LOAD_SPEED", user_overrides_.extruder_load_speed, true);
-    append_float("EXTRUDER_UNLOAD_SPEED", user_overrides_.extruder_unload_speed, true);
+    append_float("gear_from_buffer_speed", user_overrides_.gear_from_buffer_speed, true);
+    append_float("gear_from_spool_speed", user_overrides_.gear_from_spool_speed, true);
+    append_float("gear_unload_speed", user_overrides_.gear_unload_speed, true);
+    append_float("selector_move_speed", user_overrides_.selector_move_speed, true);
+    append_float("extruder_load_speed", user_overrides_.extruder_load_speed, true);
+    append_float("extruder_unload_speed", user_overrides_.extruder_unload_speed, true);
 
     // Toolhead distances (one decimal)
-    append_float("TOOLHEAD_SENSOR_TO_NOZZLE", user_overrides_.toolhead_sensor_to_nozzle, false);
-    append_float("TOOLHEAD_EXTRUDER_TO_NOZZLE", user_overrides_.toolhead_extruder_to_nozzle, false);
-    append_float("TOOLHEAD_ENTRY_TO_EXTRUDER", user_overrides_.toolhead_entry_to_extruder, false);
-    append_float("TOOLHEAD_OOZE_REDUCTION", user_overrides_.toolhead_ooze_reduction, false);
+    append_float("toolhead_sensor_to_nozzle", user_overrides_.toolhead_sensor_to_nozzle, false);
+    append_float("toolhead_extruder_to_nozzle", user_overrides_.toolhead_extruder_to_nozzle, false);
+    append_float("toolhead_entry_to_extruder", user_overrides_.toolhead_entry_to_extruder, false);
+    append_float("toolhead_ooze_reduction", user_overrides_.toolhead_ooze_reduction, false);
 
     // Int toggles
-    append_int("SYNC_TO_EXTRUDER", user_overrides_.sync_to_extruder);
-    append_int("CLOG_DETECTION", user_overrides_.clog_detection);
+    append_int("sync_to_extruder", user_overrides_.sync_to_extruder);
+    append_int("clog_detection", user_overrides_.clog_detection);
+    lock.unlock();
 
     if (has_params) {
         spdlog::info("[AMS HappyHare] Re-applying overrides: {}", cmd);
@@ -3580,25 +3588,39 @@ AmsError AmsBackendHappyHare::execute_device_action(const std::string& action_id
         return execute_gcode("MMU_LED EXIT_EFFECT=" + mode);
     }
 
+    // MMU_TEST_CONFIG <param>=<value>, the parameter named as this install
+    // spells it.
+    auto test_config = [this](const char* key, const std::string& value) {
+        std::string param;
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
+            param = test_config_param_locked(key);
+        }
+        if (param.empty()) {
+            return AmsErrorHelper::not_supported(std::string("Happy Hare parameter ") + key);
+        }
+        return execute_gcode(fmt::format("MMU_TEST_CONFIG {}={}", param, value));
+    };
+
     // --- Speed sliders (integer formatting) ---
     // clang-format off
     static const std::pair<const char*, const char*> speed_params[] = {
-        {"gear_from_buffer_speed", "GEAR_FROM_BUFFER_SPEED"},
-        {"gear_from_spool_speed",  "GEAR_FROM_SPOOL_SPEED"},
-        {"gear_unload_speed",      "GEAR_UNLOAD_SPEED"},
-        {"selector_speed",         "SELECTOR_MOVE_SPEED"},
-        {"extruder_load_speed",    "EXTRUDER_LOAD_SPEED"},
-        {"extruder_unload_speed",  "EXTRUDER_UNLOAD_SPEED"},
+        {"gear_from_buffer_speed", "gear_from_buffer_speed"},
+        {"gear_from_spool_speed",  "gear_from_spool_speed"},
+        {"gear_unload_speed",      "gear_unload_speed"},
+        {"selector_speed",         "selector_move_speed"},
+        {"extruder_load_speed",    "extruder_load_speed"},
+        {"extruder_unload_speed",  "extruder_unload_speed"},
     };
     // clang-format on
-    for (const auto& [id, param] : speed_params) {
+    for (const auto& [id, key] : speed_params) {
         if (action_id == id) {
             auto [speed, err] = require_double("speed");
             if (!err)
                 return err;
             auto [lo, hi] = get_action_range(id);
             speed = std::clamp(speed, static_cast<double>(lo), static_cast<double>(hi));
-            auto result = execute_gcode(fmt::format("MMU_TEST_CONFIG {}={:.0f}", param, speed));
+            auto result = test_config(key, fmt::format("{:.0f}", speed));
             if (result.success()) {
                 save_override(action_id, static_cast<float>(speed));
             }
@@ -3607,22 +3629,20 @@ AmsError AmsBackendHappyHare::execute_device_action(const std::string& action_id
     }
 
     // --- Toolhead distance sliders (one decimal place) ---
-    // clang-format off
-    static const std::pair<const char*, const char*> toolhead_params[] = {
-        {"toolhead_sensor_to_nozzle",   "TOOLHEAD_SENSOR_TO_NOZZLE"},
-        {"toolhead_extruder_to_nozzle", "TOOLHEAD_EXTRUDER_TO_NOZZLE"},
-        {"toolhead_entry_to_extruder",  "TOOLHEAD_ENTRY_TO_EXTRUDER"},
-        {"toolhead_ooze_reduction",     "TOOLHEAD_OOZE_REDUCTION"},
+    static const char* const toolhead_params[] = {
+        "toolhead_sensor_to_nozzle",
+        "toolhead_extruder_to_nozzle",
+        "toolhead_entry_to_extruder",
+        "toolhead_ooze_reduction",
     };
-    // clang-format on
-    for (const auto& [id, param] : toolhead_params) {
-        if (action_id == id) {
+    for (const char* key : toolhead_params) {
+        if (action_id == key) {
             auto [dist, err] = require_double("distance");
             if (!err)
                 return err;
-            auto [lo, hi] = get_action_range(id);
+            auto [lo, hi] = get_action_range(key);
             dist = std::clamp(dist, static_cast<double>(lo), static_cast<double>(hi));
-            auto result = execute_gcode(fmt::format("MMU_TEST_CONFIG {}={:.1f}", param, dist));
+            auto result = test_config(key, fmt::format("{:.1f}", dist));
             if (result.success()) {
                 save_override(action_id, static_cast<float>(dist));
             }
@@ -3636,7 +3656,7 @@ AmsError AmsBackendHappyHare::execute_device_action(const std::string& action_id
         if (!err)
             return err;
         int val = enable ? 1 : 0;
-        auto result = execute_gcode(fmt::format("MMU_TEST_CONFIG SYNC_TO_EXTRUDER={}", val));
+        auto result = test_config("sync_to_extruder", std::to_string(val));
         if (result.success()) {
             save_override(action_id, val);
         }
