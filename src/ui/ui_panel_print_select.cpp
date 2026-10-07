@@ -63,6 +63,7 @@
 #include "theme_manager.h"
 #include "thumbnail_cache.h"
 #include "try_reserve.h"
+#include "ui/ui_widget_helpers.h"
 #include "usb_manager.h"
 
 #include <spdlog/spdlog.h>
@@ -374,11 +375,11 @@ void PrintSelectPanel::setup(lv_obj_t* panel, lv_obj_t* parent_screen) {
     list_view_.reset();
 
     // Find widget references
-    card_view_container_ = lv_obj_find_by_name(panel_, "card_view_container");
-    list_view_container_ = lv_obj_find_by_name(panel_, "list_view_container");
-    list_rows_container_ = lv_obj_find_by_name(panel_, "list_rows_container");
-    empty_state_container_ = lv_obj_find_by_name(panel_, "empty_state_container");
-    view_toggle_btn_ = lv_obj_find_by_name(panel_, "view_toggle_btn");
+    card_view_container_ = helix::ui::find_required(panel_, "card_view_container", get_name());
+    list_view_container_ = helix::ui::find_required(panel_, "list_view_container", get_name());
+    list_rows_container_ = helix::ui::find_required(panel_, "list_rows_container", get_name());
+    empty_state_container_ = helix::ui::find_required(panel_, "empty_state_container", get_name());
+    view_toggle_btn_ = helix::ui::find_required(panel_, "view_toggle_btn", get_name());
     view_toggle_icon_ = lv_obj_find_by_name(panel_, "view_toggle_btn_icon");
 
     if (!card_view_container_ || !list_view_container_ || !list_rows_container_ ||
@@ -942,7 +943,7 @@ void PrintSelectPanel::set_sort_recent() {
 
     // Show "Recently Printed" context banner
     if (panel_) {
-        auto* banner = lv_obj_find_by_name(panel_, "context_banner");
+        auto* banner = helix::ui::find_required(panel_, "context_banner", get_name());
         if (banner) {
             lv_obj_remove_flag(banner, LV_OBJ_FLAG_HIDDEN);
         }
@@ -953,7 +954,7 @@ void PrintSelectPanel::set_sort_recent() {
 
 void PrintSelectPanel::hide_context_banner() {
     if (panel_) {
-        auto* banner = lv_obj_find_by_name(panel_, "context_banner");
+        auto* banner = helix::ui::find_required(panel_, "context_banner", get_name());
         if (banner && !lv_obj_has_flag(banner, LV_OBJ_FLAG_HIDDEN)) {
             lv_obj_add_flag(banner, LV_OBJ_FLAG_HIDDEN);
         }
