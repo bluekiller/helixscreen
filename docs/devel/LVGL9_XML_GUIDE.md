@@ -314,15 +314,15 @@ Widgets that understand `text=` also accept inline element content, HTML-style:
 ```xml
 <text_muted>Print speed</text_muted>
 <!-- equivalent to: -->
-<text_muted text="Print speed" translation_tag="Print speed"/>
+<text_muted text="Print speed"/>
 ```
 
 **Inline text is translatable by default.** The literal string is used as the
 translation key (and as the fallback when no translation exists), and the label
 re-resolves on language change -- same behavior as the `label=`/`label_tag=`
 pairs on setting rows. `make translation-sync` extracts inline text
-automatically. Use `text="..."` instead when a string must stay untranslated
-(versions, IPs, device names).
+automatically. A literal `text=` is translatable the same way (its value is
+the implied tag); `translation_tag=""` keeps a string untranslated.
 
 Rules:
 

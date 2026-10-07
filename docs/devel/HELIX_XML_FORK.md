@@ -201,6 +201,7 @@ gap that actively costs us something today.
 | `<if cond=>` / `<else/>` structural conditionals | Builds only the matching branch |
 | `parts="main,indicator,knob"` on style binds | One line instead of three |
 | `hidden_if_prop_eq` / `hidden_if_not_eq` / `hidden_if_empty` | Prop-driven visibility without a subject |
+| A literal `text=` implying its own `translation_tag`, and `X=` its component's `X_tag` prop | ~1,660 redundant tag attributes gone from `ui_xml/`; each copy was heap in a view definition |
 | Inline PCDATA text auto-synthesizing `translation_tag` | `<text_muted>Foo</text_muted>`; whitespace collapsed to stay byte-identical with `scripts/translations/extractor.py` |
 | `float` and `color` subjects | Upstream Pro docs, July 2026: *"Currently, only integer and string types are supported."* |
 | `bind_src` accepting STRING subjects | Upstream only accepted POINTER |
