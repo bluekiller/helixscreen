@@ -76,7 +76,9 @@
           <ui_button name="change_btn" variant="outline" flex_grow="1" text="Change" translation_tag="Change">
             <event_cb trigger="clicked" callback="on_spoolman_change_clicked"/>
           </ui_button>
-          <ui_button name="remove_btn" variant="outline" flex_grow="1" text="Remove" translation_tag="Remove">
+          <ui_button name="remove_btn"
+                     variant="outline" style_border_color="#danger" style_text_color="#danger" flex_grow="1"
+                     text="Remove" translation_tag="Remove">
             <event_cb trigger="clicked" callback="on_spoolman_remove_clicked"/>
           </ui_button>
         </lv_obj>

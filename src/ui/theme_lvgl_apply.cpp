@@ -35,6 +35,7 @@ static lv_style_t checkbox_indicator_style;
 static lv_style_t switch_track_style;
 static lv_style_t switch_indicator_style;
 static lv_style_t switch_knob_style;
+static lv_style_t switch_knob_checked_style;
 static lv_style_t slider_track_style;
 static lv_style_t slider_indicator_style;
 static lv_style_t slider_knob_style;
@@ -119,8 +120,10 @@ static void update_handle_styles(const theme_palette_t* palette, int border_radi
     else if (hc == "tertiary")
         knob_color = palette->tertiary;
 
-    // Switch knob: handle_color applies, but always round (no bar style)
-    lv_style_set_bg_color(&switch_knob_style, knob_color);
+    // Switch knob: handle_color marks ON; OFF is muted so position is not the only cue.
+    // Always round (no bar style).
+    lv_style_set_bg_color(&switch_knob_style, palette->text_muted);
+    lv_style_set_bg_color(&switch_knob_checked_style, knob_color);
 
     // Slider track/indicator colors
     lv_style_set_bg_color(&slider_track_style, palette->border);
@@ -223,6 +226,7 @@ static void init_extra_styles(const theme_palette_t* palette, int border_radius)
     lv_style_init(&switch_knob_style);
     lv_style_set_bg_opa(&switch_knob_style, LV_OPA_COVER);
     lv_style_set_radius(&switch_knob_style, LV_RADIUS_CIRCLE);
+    lv_style_init(&switch_knob_checked_style);
 
     // Slider styles
     lv_style_init(&slider_track_style);
@@ -357,6 +361,7 @@ static void helix_theme_apply(lv_theme_t* theme, lv_obj_t* obj) {
         lv_obj_add_style(obj, &switch_track_style, LV_PART_MAIN);
         lv_obj_add_style(obj, &switch_indicator_style, LV_PART_INDICATOR | LV_STATE_CHECKED);
         lv_obj_add_style(obj, &switch_knob_style, LV_PART_KNOB);
+        lv_obj_add_style(obj, &switch_knob_checked_style, LV_PART_KNOB | LV_STATE_CHECKED);
         lv_obj_add_style(obj, tm.get_style(StyleRole::Focused), LV_STATE_FOCUSED);
     }
 #endif
