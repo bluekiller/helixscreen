@@ -83,8 +83,8 @@
       <bind_flag_if_not_eq subject="bed_mesh_calibrate_state" flag="hidden" ref_value="1"/>
       <!-- Emergency Stop button -->
       <ui_button name="btn_emergency_stop"
-                 height="100%" flex_grow="1" style_radius="0" variant="danger" icon="alert_octagon"
-                 text="EMERGENCY STOP" translation_tag="EMERGENCY STOP">
+                 height="100%" flex_grow="1" style_radius="0" style_border_width="0" variant="danger"
+                 icon="alert_octagon" text="EMERGENCY STOP" translation_tag="EMERGENCY STOP">
         <event_cb trigger="clicked" callback="on_bed_mesh_emergency_stop"/>
       </ui_button>
     </lv_obj>
@@ -104,13 +104,16 @@
       <bind_flag_if_not_eq subject="bed_mesh_calibrate_state" flag="hidden" ref_value="2"/>
       <!-- Cancel button -->
       <ui_button name="btn_cancel"
-                 height="100%" variant="secondary" flex_grow="1" style_radius="0" text="Cancel" translation_tag="Cancel">
+                 height="100%" variant="secondary" flex_grow="1" style_radius="0" style_border_width="0" text="Cancel"
+                 translation_tag="Cancel">
         <event_cb trigger="clicked" callback="on_bed_mesh_calibrate_cancel"/>
       </ui_button>
       <!-- Vertical divider -->
       <divider_vertical/>
       <!-- Start button -->
-      <ui_button name="btn_start" height="100%" flex_grow="1" style_radius="0" text="Start" translation_tag="Start">
+      <ui_button name="btn_start"
+                 height="100%" flex_grow="1" style_radius="0" style_border_width="0" text="Start"
+                 translation_tag="Start">
         <event_cb trigger="clicked" callback="on_bed_mesh_calibrate_start"/>
       </ui_button>
     </lv_obj>
@@ -122,7 +125,9 @@
             scrollable="false">
       <bind_flag_if_not_eq subject="bed_mesh_calibrate_state" flag="hidden" ref_value="3"/>
       <!-- Close button -->
-      <ui_button name="btn_close" height="100%" flex_grow="1" style_radius="0" text="Close" translation_tag="Close">
+      <ui_button name="btn_close"
+                 height="100%" flex_grow="1" style_radius="0" style_border_width="0" text="Close"
+                 translation_tag="Close">
         <event_cb trigger="clicked" callback="on_bed_mesh_calibrate_cancel"/>
       </ui_button>
     </lv_obj>
