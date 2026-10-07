@@ -409,10 +409,6 @@ class AmsOperationSidebar {
     static AmsOperationSidebar* get_instance_from_event(lv_event_t* e);
 
     // Static XML callbacks
-    static void on_bypass_toggled_cb(lv_event_t* e);
-    static void on_unload_clicked_cb(lv_event_t* e);
-    static void on_reset_clicked_cb(lv_event_t* e);
-    static void on_check_gates_clicked_cb(lv_event_t* e);
     static void on_settings_clicked_cb(lv_event_t* e);
     static void on_batch_load_clicked_cb(lv_event_t* e);
 };

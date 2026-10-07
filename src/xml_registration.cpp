@@ -559,6 +559,7 @@ void register_xml_components() {
     register_xml("components/picker_option_row.xml");
     register_xml("components/picker_chip.xml");
     register_xml("fan_stack_picker.xml");
+    register_xml("power_device_picker.xml");
     register_xml("tool_switcher_picker.xml");
     register_xml("thermistor_sensor_picker.xml");
     register_xml("thermistor_configure_picker.xml");

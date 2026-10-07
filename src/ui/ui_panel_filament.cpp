@@ -120,39 +120,66 @@ FilamentPanel::FilamentPanel(PrinterState& printer_state, IMoonrakerAPI* api)
 
     // Register XML event callbacks
     register_xml_callbacks({
-        {"filament_manage_slots_cb", on_manage_slots_clicked},
-        {"on_filament_load", on_load_clicked},
-        {"on_filament_unload", on_unload_clicked},
-        {"on_filament_extrude", on_extrude_clicked},
-        {"on_filament_purge", on_purge_clicked},
-        {"on_filament_retract", on_retract_clicked},
+        {"filament_manage_slots_cb",
+         [](lv_event_t*) {
+             spdlog::info("[FilamentPanel] Opening AMS panel overlay");
+             navigate_to_ams_panel();
+         }},
+        {"on_filament_load", [](lv_event_t*) { get_global_filament_panel().handle_load_button(); }},
+        {"on_filament_unload",
+         [](lv_event_t*) { get_global_filament_panel().handle_unload_button(); }},
+        {"on_filament_extrude",
+         [](lv_event_t*) { get_global_filament_panel().handle_extrude_button(); }},
+        {"on_filament_purge",
+         [](lv_event_t*) { get_global_filament_panel().handle_purge_button(); }},
+        {"on_filament_retract",
+         [](lv_event_t*) { get_global_filament_panel().handle_retract_button(); }},
         // Material preset buttons
-        {"on_filament_preset_pla", on_preset_pla_clicked},
-        {"on_filament_preset_petg", on_preset_petg_clicked},
-        {"on_filament_preset_abs", on_preset_abs_clicked},
-        {"on_filament_preset_tpu", on_preset_tpu_clicked},
-        {"on_filament_preset_spool", on_preset_spool_clicked},
+        {"on_filament_preset_pla",
+         [](lv_event_t*) { get_global_filament_panel().handle_preset_button(0); }},
+        {"on_filament_preset_petg",
+         [](lv_event_t*) { get_global_filament_panel().handle_preset_button(1); }},
+        {"on_filament_preset_abs",
+         [](lv_event_t*) { get_global_filament_panel().handle_preset_button(2); }},
+        {"on_filament_preset_tpu",
+         [](lv_event_t*) { get_global_filament_panel().handle_preset_button(3); }},
+        {"on_filament_preset_spool",
+         [](lv_event_t*) { get_global_filament_panel().handle_spool_preset_button(); }},
         // Material preset long-press (opens material picker)
-        {"on_filament_preset_pla_hold", on_preset_pla_hold},
-        {"on_filament_preset_petg_hold", on_preset_petg_hold},
-        {"on_filament_preset_abs_hold", on_preset_abs_hold},
-        {"on_filament_preset_tpu_hold", on_preset_tpu_hold},
+        {"on_filament_preset_pla_hold",
+         [](lv_event_t*) { get_global_filament_panel().handle_preset_longpress(0); }},
+        {"on_filament_preset_petg_hold",
+         [](lv_event_t*) { get_global_filament_panel().handle_preset_longpress(1); }},
+        {"on_filament_preset_abs_hold",
+         [](lv_event_t*) { get_global_filament_panel().handle_preset_longpress(2); }},
+        {"on_filament_preset_tpu_hold",
+         [](lv_event_t*) { get_global_filament_panel().handle_preset_longpress(3); }},
         // Temperature tap targets
-        {"on_filament_nozzle_target_tap", on_nozzle_target_tap_clicked},
-        {"on_filament_bed_target_tap", on_bed_target_tap_clicked},
-        {"on_filament_chamber_target_tap", on_filament_chamber_target_tap},
+        {"on_filament_nozzle_target_tap",
+         [](lv_event_t*) { get_global_filament_panel().handle_nozzle_temp_tap(); }},
+        {"on_filament_bed_target_tap",
+         [](lv_event_t*) { get_global_filament_panel().handle_bed_temp_tap(); }},
+        {"on_filament_chamber_target_tap",
+         [](lv_event_t*) { get_global_filament_panel().handle_chamber_temp_tap(); }},
         // Extrude length buttons
-        {"on_filament_extrude_length_5mm", on_extrude_length_5mm_clicked},
-        {"on_filament_extrude_length_10mm", on_extrude_length_10mm_clicked},
-        {"on_filament_extrude_length_25mm", on_extrude_length_25mm_clicked},
+        {"on_filament_extrude_length_5mm",
+         [](lv_event_t*) { get_global_filament_panel().handle_extrude_length_select(5); }},
+        {"on_filament_extrude_length_10mm",
+         [](lv_event_t*) { get_global_filament_panel().handle_extrude_length_select(10); }},
+        {"on_filament_extrude_length_25mm",
+         [](lv_event_t*) { get_global_filament_panel().handle_extrude_length_select(25); }},
         // Cooldown button
-        {"on_filament_cooldown", on_cooldown_clicked},
+        {"on_filament_cooldown",
+         [](lv_event_t*) { get_global_filament_panel().handle_cooldown(); }},
         // Extruder selector dropdown
-        {"on_extruder_dropdown_changed", on_extruder_dropdown_changed},
+        {"on_extruder_dropdown_changed",
+         [](lv_event_t*) { get_global_filament_panel().handle_extruder_changed(); }},
         // External spool edit
-        {"on_external_spool_edit", on_external_spool_edit_clicked},
+        {"on_external_spool_edit",
+         [](lv_event_t*) { get_global_filament_panel().show_external_spool_edit_modal(); }},
         // Strip graph button (portrait, when the graph card is a spacer)
-        {"filament_temp_graph_cb", on_temp_graph_clicked},
+        {"filament_temp_graph_cb",
+         [](lv_event_t*) { get_global_filament_panel().open_temp_graph_overlay(); }},
     });
 
     // Subscribe to PrinterState temperatures using bundle pattern. Each handler caches its value
@@ -698,10 +725,6 @@ void FilamentPanel::setup_temp_graph() {
 
 void FilamentPanel::open_temp_graph_overlay() {
     get_global_temp_graph_overlay().open(TempGraphOverlay::Mode::GraphOnly, parent_screen_);
-}
-
-void FilamentPanel::on_temp_graph_clicked(lv_event_t* /*e*/) {
-    get_global_filament_panel().open_temp_graph_overlay();
 }
 
 void FilamentPanel::setup_orientation_rewire_observer() {
@@ -1954,10 +1977,6 @@ void FilamentPanel::show_external_spool_edit_modal() {
         });
 }
 
-void FilamentPanel::on_external_spool_edit_clicked(lv_event_t* /*e*/) {
-    get_global_filament_panel().show_external_spool_edit_modal();
-}
-
 void FilamentPanel::populate_extruder_dropdown() {
     if (!extruder_dropdown_)
         return;
@@ -2168,125 +2187,6 @@ void FilamentPanel::handle_extruder_changed() {
         }));
 }
 
-void FilamentPanel::on_extruder_dropdown_changed(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[FilamentPanel] on_extruder_dropdown_changed");
-    LV_UNUSED(e);
-    get_global_filament_panel().handle_extruder_changed();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-// ============================================================================
-// STATIC TRAMPOLINES
-// ============================================================================
-
-void FilamentPanel::on_manage_slots_clicked(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[FilamentPanel] on_manage_slots_clicked");
-    LV_UNUSED(e);
-
-    spdlog::info("[FilamentPanel] Opening AMS panel overlay");
-    navigate_to_ams_panel();
-
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void FilamentPanel::on_load_clicked(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[FilamentPanel] on_load_clicked");
-    LV_UNUSED(e);
-    get_global_filament_panel().handle_load_button();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void FilamentPanel::on_unload_clicked(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[FilamentPanel] on_unload_clicked");
-    LV_UNUSED(e);
-    get_global_filament_panel().handle_unload_button();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void FilamentPanel::on_extrude_clicked(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[FilamentPanel] on_extrude_clicked");
-    LV_UNUSED(e);
-    get_global_filament_panel().handle_extrude_button();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void FilamentPanel::on_purge_clicked(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[FilamentPanel] on_purge_clicked");
-    LV_UNUSED(e);
-    get_global_filament_panel().handle_purge_button();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void FilamentPanel::on_retract_clicked(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[FilamentPanel] on_retract_clicked");
-    LV_UNUSED(e);
-    get_global_filament_panel().handle_retract_button();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-// Material preset callbacks (XML event_cb - use global singleton)
-void FilamentPanel::on_preset_pla_clicked(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[FilamentPanel] on_preset_pla_clicked");
-    LV_UNUSED(e);
-    get_global_filament_panel().handle_preset_button(0);
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void FilamentPanel::on_preset_petg_clicked(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[FilamentPanel] on_preset_petg_clicked");
-    LV_UNUSED(e);
-    get_global_filament_panel().handle_preset_button(1);
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void FilamentPanel::on_preset_abs_clicked(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[FilamentPanel] on_preset_abs_clicked");
-    LV_UNUSED(e);
-    get_global_filament_panel().handle_preset_button(2);
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void FilamentPanel::on_preset_tpu_clicked(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[FilamentPanel] on_preset_tpu_clicked");
-    LV_UNUSED(e);
-    get_global_filament_panel().handle_preset_button(3);
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void FilamentPanel::on_preset_pla_hold(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[FilamentPanel] on_preset_pla_hold");
-    LV_UNUSED(e);
-    get_global_filament_panel().handle_preset_longpress(0);
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void FilamentPanel::on_preset_petg_hold(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[FilamentPanel] on_preset_petg_hold");
-    LV_UNUSED(e);
-    get_global_filament_panel().handle_preset_longpress(1);
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void FilamentPanel::on_preset_abs_hold(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[FilamentPanel] on_preset_abs_hold");
-    LV_UNUSED(e);
-    get_global_filament_panel().handle_preset_longpress(2);
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void FilamentPanel::on_preset_tpu_hold(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[FilamentPanel] on_preset_tpu_hold");
-    LV_UNUSED(e);
-    get_global_filament_panel().handle_preset_longpress(3);
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void FilamentPanel::on_preset_spool_clicked(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[FilamentPanel] on_preset_spool_clicked");
-    get_global_filament_panel().handle_spool_preset_button();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
 void FilamentPanel::handle_spool_preset_button() {
     if (!cached_active_material_.has_value())
         return;
@@ -2393,59 +2293,6 @@ void FilamentPanel::custom_bed_keypad_cb(float value, void* user_data) {
     if (self) {
         self->handle_custom_bed_confirmed(value);
     }
-}
-
-void FilamentPanel::on_nozzle_target_tap_clicked(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[FilamentPanel] on_nozzle_target_tap_clicked");
-    LV_UNUSED(e);
-    spdlog::debug("[FilamentPanel] on_nozzle_target_tap_clicked TRIGGERED");
-    get_global_filament_panel().handle_nozzle_temp_tap();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void FilamentPanel::on_bed_target_tap_clicked(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[FilamentPanel] on_bed_target_tap_clicked");
-    LV_UNUSED(e);
-    spdlog::debug("[FilamentPanel] on_bed_target_tap_clicked TRIGGERED");
-    get_global_filament_panel().handle_bed_temp_tap();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void FilamentPanel::on_filament_chamber_target_tap(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[FilamentPanel] on_filament_chamber_target_tap");
-    LV_UNUSED(e);
-    spdlog::debug("[FilamentPanel] on_filament_chamber_target_tap TRIGGERED");
-    get_global_filament_panel().handle_chamber_temp_tap();
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-// Extrude length callbacks (XML event_cb - use global singleton)
-void FilamentPanel::on_extrude_length_5mm_clicked(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[FilamentPanel] on_extrude_length_5mm_clicked");
-    LV_UNUSED(e);
-    get_global_filament_panel().handle_extrude_length_select(5);
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void FilamentPanel::on_extrude_length_10mm_clicked(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[FilamentPanel] on_extrude_length_10mm_clicked");
-    LV_UNUSED(e);
-    get_global_filament_panel().handle_extrude_length_select(10);
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void FilamentPanel::on_extrude_length_25mm_clicked(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[FilamentPanel] on_extrude_length_25mm_clicked");
-    LV_UNUSED(e);
-    get_global_filament_panel().handle_extrude_length_select(25);
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void FilamentPanel::on_cooldown_clicked(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[FilamentPanel] on_cooldown_clicked");
-    LV_UNUSED(e);
-    get_global_filament_panel().handle_cooldown();
-    LVGL_SAFE_EVENT_CB_END();
 }
 
 void FilamentPanel::handle_cooldown() {
