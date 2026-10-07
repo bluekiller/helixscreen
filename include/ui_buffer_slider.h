@@ -18,8 +18,9 @@ namespace helix::ui {
  * A housing on the filament strand with a block riding it: loose is up, tight
  * is down. A dashed window marks the target and faint zones mark both end
  * stops; only the block moves, in buffer_status_token() of its severity. The
- * layout is buffer_slider_geometry(); this class only paints it into objects
- * XML authored and sized.
+ * trace draws inside its own object, which XML gives the panel background.
+ * The layout is buffer_slider_geometry(); this class only paints it into
+ * objects XML authored and sized.
  */
 class UiBufferSlider {
   public:

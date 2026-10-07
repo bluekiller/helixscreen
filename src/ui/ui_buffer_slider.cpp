@@ -13,6 +13,8 @@
 
 #include <spdlog/spdlog.h>
 
+#include <algorithm>
+
 namespace helix::ui {
 
 namespace {
@@ -20,6 +22,11 @@ constexpr uint32_t kTraceRedrawMs = 1000;
 
 lv_point_precise_t point(int32_t x, int32_t y) {
     return {static_cast<lv_value_precise_t>(x), static_cast<lv_value_precise_t>(y)};
+}
+
+/// @p b, in the slider's own pixels, placed in the content area @p a.
+lv_area_t area(const lv_area_t& a, const BufferBox& b) {
+    return {a.x1 + b.x, a.y1 + b.y, a.x1 + b.x + b.w - 1, a.y1 + b.y + b.h - 1};
 }
 } // namespace
 
@@ -75,8 +82,10 @@ UiBufferSlider::~UiBufferSlider() {
 void UiBufferSlider::set_reading(float bias, ClogMeterStatus status) {
     bias_ = bias;
     status_ = status;
-    if (slider_obj_) {
-        lv_obj_invalidate(slider_obj_);
+    for (lv_obj_t* obj : {slider_obj_, trace_obj_}) {
+        if (obj) {
+            lv_obj_invalidate(obj);
+        }
     }
 }
 
@@ -125,50 +134,74 @@ void UiBufferSlider::draw_slider(lv_layer_t* layer) const {
     if (w <= 0 || h <= 0) {
         return;
     }
-    const BufferSliderGeometry g = buffer_slider_geometry(bias_, h);
+    const BufferSliderGeometry g = buffer_slider_geometry(bias_, w, h);
+    const lv_color_t ground = theme_manager_get_color("screen_bg");
     const lv_color_t muted = theme_manager_get_color("text_muted");
-    const int32_t radius = theme_manager_get_spacing("space_xxs");
-    const int32_t cx = a.x1 + w / 2;
 
     lv_draw_fill_dsc_t fill;
     lv_draw_fill_dsc_init(&fill);
+    fill.color = ground;
+    fill.opa = LV_OPA_COVER;
+    fill.radius = g.housing_radius;
+    const lv_area_t housing = area(a, g.housing);
+    lv_draw_fill(layer, &fill, &housing);
+
     fill.color = theme_manager_get_color("danger");
     fill.opa = LV_OPA_20;
-    const lv_area_t loose_stop = {a.x1, a.y1, a.x2, a.y1 + g.danger_top_h - 1};
-    const lv_area_t tight_stop = {a.x1, a.y1 + g.danger_bottom_y, a.x2, a.y2};
-    lv_draw_fill(layer, &fill, &loose_stop);
-    lv_draw_fill(layer, &fill, &tight_stop);
-
-    lv_draw_border_dsc_t housing;
-    lv_draw_border_dsc_init(&housing);
-    housing.color = muted;
-    housing.width = 1;
-    housing.radius = radius;
-    lv_draw_border(layer, &housing, &a);
+    fill.radius = g.radius;
+    for (const BufferBox& stop : {g.danger_top, g.danger_bottom}) {
+        const lv_area_t zone = area(a, stop);
+        lv_draw_fill(layer, &fill, &zone);
+    }
 
     lv_draw_line_dsc_t line;
     lv_draw_line_dsc_init(&line);
     line.color = muted;
-    line.width = 2;
-    line.p1 = point(cx, a.y1);
-    line.p2 = point(cx, a.y2);
-    lv_draw_line(layer, &line);
-
     line.width = 1;
     line.dash_width = 3;
-    line.dash_gap = 3;
-    for (int32_t y : {a.y1 + g.target_y, a.y1 + g.target_y + g.target_h}) {
-        line.p1 = point(a.x1, y);
-        line.p2 = point(a.x2, y);
+    line.dash_gap = 2;
+    const lv_area_t window = area(a, g.target);
+    const lv_point_precise_t corners[] = {point(window.x1, window.y1), point(window.x2, window.y1),
+                                          point(window.x2, window.y2), point(window.x1, window.y2)};
+    for (int i = 0; i < 4; ++i) {
+        line.p1 = corners[i];
+        line.p2 = corners[(i + 1) % 4];
         lv_draw_line(layer, &line);
     }
 
+    lv_draw_border_dsc_t stroke;
+    lv_draw_border_dsc_init(&stroke);
+    stroke.color = theme_manager_get_color("text_subtle");
+    stroke.width = 1;
+    stroke.radius = g.housing_radius;
+    lv_draw_border(layer, &stroke, &housing);
+
+    lv_draw_line_dsc_t strand;
+    lv_draw_line_dsc_init(&strand);
+    strand.color = theme_manager_get_color("secondary");
+    strand.width = g.strand_w;
+    strand.p1 = point(a.x1 + g.strand_x, a.y1);
+    strand.p2 = point(a.x1 + g.strand_x, a.y2);
+    lv_draw_line(layer, &strand);
+
     fill.color = theme_manager_get_color(buffer_status_token(status_));
     fill.opa = LV_OPA_COVER;
-    fill.radius = radius;
-    const lv_area_t block = {a.x1 + 2, a.y1 + g.block_y, a.x2 - 2,
-                             a.y1 + g.block_y + g.block_h - 1};
+    const lv_area_t block = area(a, g.block);
     lv_draw_fill(layer, &fill, &block);
+    stroke.color = ground;
+    stroke.radius = g.radius;
+    lv_draw_border(layer, &stroke, &block);
+
+    lv_draw_line_dsc_t grip;
+    lv_draw_line_dsc_init(&grip);
+    grip.color = ground;
+    grip.opa = LV_OPA_40;
+    grip.width = 1;
+    for (int i = 0; i < g.grip_count; ++i) {
+        grip.p1 = point(a.x1 + g.grip_x1, a.y1 + g.grip_y[i]);
+        grip.p2 = point(a.x1 + g.grip_x2, a.y1 + g.grip_y[i]);
+        lv_draw_line(layer, &grip);
+    }
 }
 
 void UiBufferSlider::draw_trace(lv_layer_t* layer) const {
@@ -181,32 +214,39 @@ void UiBufferSlider::draw_trace(lv_layer_t* layer) const {
     }
     const lv_color_t muted = theme_manager_get_color("text_muted");
 
-    // The target window carries on across the trace, so a reading reads
-    // against it the way the block does.
-    const BufferSliderGeometry g = buffer_slider_geometry(0.0f, h);
-    lv_draw_line_dsc_t line;
-    lv_draw_line_dsc_init(&line);
-    line.color = muted;
-    line.width = 1;
-    line.dash_width = 3;
-    line.dash_gap = 3;
-    for (int32_t y : {a.y1 + g.target_y, a.y1 + g.target_y + g.target_h}) {
-        line.p1 = point(a.x1, y);
-        line.p2 = point(a.x2, y);
-        lv_draw_line(layer, &line);
-    }
+    // The band the block's target window stands for, shaded across the trace.
+    const float warning = kPressureWarningPct / 100.0f;
+    lv_draw_fill_dsc_t fill;
+    lv_draw_fill_dsc_init(&fill);
+    fill.color = muted;
+    fill.opa = LV_OPA_10;
+    const lv_area_t band = {a.x1, a.y1 + buffer_trace_y(warning, h), a.x2,
+                            a.y1 + buffer_trace_y(-warning, h)};
+    lv_draw_fill(layer, &fill, &band);
 
     const int64_t now = buffer_clock_ms();
     const auto window = AmsState::instance().buffer_trace(trace_unit_).window(now);
 
-    // The part of the minute with no history yet is a faint dotted baseline at
-    // the target level, so the area always spans the full window.
+    // The target line is dashed where the minute is recorded and dotted where
+    // it is not yet, so the area always spans the full window.
     const int32_t unrecorded_x = buffer_trace_unrecorded_x(window, now, w);
+    const int32_t target_y = a.y1 + buffer_trace_y(0.0f, h);
+    lv_draw_line_dsc_t line;
+    lv_draw_line_dsc_init(&line);
+    line.color = theme_manager_get_color("text_subtle");
+    line.width = 1;
+    line.dash_width = 4;
+    line.dash_gap = 3;
+    if (unrecorded_x > 0) {
+        line.p1 = point(a.x1, target_y);
+        line.p2 = point(a.x1 + unrecorded_x, target_y);
+        lv_draw_line(layer, &line);
+    }
     if (unrecorded_x < w) {
-        line.opa = LV_OPA_50;
-        const int32_t y = a.y1 + buffer_slider_y(0.0f, h);
-        line.p1 = point(a.x1 + unrecorded_x, y);
-        line.p2 = point(a.x2, y);
+        line.dash_width = 1;
+        line.dash_gap = 3;
+        line.p1 = point(a.x1 + unrecorded_x, target_y);
+        line.p2 = point(a.x2, target_y);
         lv_draw_line(layer, &line);
     }
 
@@ -223,6 +263,17 @@ void UiBufferSlider::draw_trace(lv_layer_t* layer) const {
             trace.p2 = point(a.x1 + run[i].x, a.y1 + run[i].y);
             lv_draw_line(layer, &trace);
         }
+    }
+
+    // The newest reading, in the block's colour, where the trace leaves "now".
+    if (!lines.empty() && lines.front().front().x == 0) {
+        const int32_t r = std::max<int32_t>(2, theme_manager_get_spacing("space_xxs"));
+        const int32_t y = a.y1 + lines.front().front().y;
+        fill.color = theme_manager_get_color(buffer_status_token(status_));
+        fill.opa = LV_OPA_COVER;
+        fill.radius = LV_RADIUS_CIRCLE;
+        const lv_area_t dot = {a.x1 - r, y - r, a.x1 + r, y + r};
+        lv_draw_fill(layer, &fill, &dot);
     }
 }
 
