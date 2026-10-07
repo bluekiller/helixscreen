@@ -173,6 +173,23 @@ make && .venv/bin/python -m pytest tests/ui --ignore=tests/ui/test_screens.py -q
 - If it fails → STOP: "UI tests failed — fix before releasing." Show the failing test.
 - A missing `.venv` is `make venv-setup`, not a reason to skip the suite.
 
+### Release-only builds
+
+Per-push CI links splash and watchdog for x86 only; the Release workflow cross-compiles
+every platform with `HELIX_PACKAGING=1`. A break that only those builds see (a MIPS32
+link needing libatomic, a packaged binary still carrying mocks or the ctl server) shows
+up first on the tag otherwise.
+
+```bash
+make release-gate TIERS=heavy                              # unified MIPS, the default
+make release-gate TIERS=heavy RELEASE_GATE_TARGETS="mips pi32 k2"   # more targets
+```
+
+It runs the packaged docker cross build, `make release-<target>`, and the splash,
+watchdog and mock-symbol checks, under a `heavy:release-gate` claim, and prints a
+PASS/FAIL table. Any FAIL row → STOP: "Release gate failed for {target}." Show the
+table and the tail of the failing step's log (`build/release-gate/<step>.log`).
+
 ### Regenerate the XML linter schema
 
 `tools/xml-linter/schema/schema.json` is a committed snapshot of every constant and
@@ -273,6 +290,16 @@ Write `NEW_VERSION` (just the version string, with trailing newline) to `VERSION
 
 ### Show summary
 Run `git diff` and show a brief summary of what changed.
+
+### Release gate, fast tier
+
+```bash
+make release-gate TIERS=fast
+```
+
+Checks that `VERSION.txt` has a `## [X.Y.Z] - date` heading and a `[X.Y.Z]:` compare
+link in `CHANGELOG.md`, that the tag does not exist yet, and that the installer bundles
+build. Any FAIL row → STOP and fix it before committing.
 
 ---
 
@@ -388,6 +415,7 @@ Show: "Undone. Commit removed (changes preserved as staged), tag deleted."
 | Behind origin | STOP with message, do not offer to pull |
 | Quality checks fail | STOP with the `❌` output — do not release on a red branch |
 | Tests fail | STOP with failure output |
+| Release gate fails | STOP with the PASS/FAIL table and the failing step's log tail |
 | Version not greater | STOP: "v{NEW_VERSION} is not greater than v{LAST_TAG}" |
 | User aborts at any checkpoint | STOP cleanly, no partial state |
 | Push fails | Show error, commit+tag remain local for manual retry |

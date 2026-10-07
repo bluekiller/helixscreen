@@ -327,3 +327,11 @@ regen-lvgl-event-codes:
 
 check-lvgl-event-codes:
 	$(Q)python3 scripts/gen_lvgl_event_codes.py --check
+
+# What a tag push builds and per-push CI does not, run before tagging: version and
+# changelog sanity, the installer bundles, then packaged docker cross builds of
+# RELEASE_GATE_TARGETS (default mips). TIERS=fast skips the cross builds. It lives
+# here because in mk/cross.mk a release-<name> target means a packaged platform.
+.PHONY: release-gate
+release-gate:
+	@RELEASE_GATE_TARGETS="$(RELEASE_GATE_TARGETS)" scripts/release-gate.sh $(TIERS)

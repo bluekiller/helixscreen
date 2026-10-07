@@ -20,6 +20,7 @@ what each script is for; the script's own header carries the reasoning behind it
 ### Release & Packaging
 | Script | Purpose |
 |--------|---------|
+| `release-gate.sh` | `make release-gate`: what a tag push builds and per-push CI does not, run before tagging. `fast`: VERSION.txt has a CHANGELOG entry and no tag yet, installer bundles build. `heavy`: per `RELEASE_GATE_TARGETS` (default `mips`), the `HELIX_PACKAGING=1` docker cross build under a `heavy:release-gate` claim, `make release-<target>`, splash/watchdog present, no mock symbols in the `.sym`. Prints a PASS/FAIL table; logs in `build/release-gate/`. Tests: `tests/shell/test_release_gate.bats` |
 | `dev-release.sh` | Local dev release workflow (build + package + upload) |
 | `generate-manifest.sh` | Generates `manifest.json` from release archives. Used by CI and dev-release |
 | `esp32_package_release.sh` | Bundles a built K-Touch firmware into `helixscreen-esp32-ktouch-<tag>.zip`: merged factory image, `flash_args` and its images, README. Refuses an image that would reach the `cfg` settings partition. Run inside the `espressif/idf` image by `.github/workflows/esp32-build.yml` when `release.yml` calls it. Tests: `tests/shell/test_esp32_package_release.bats` |
