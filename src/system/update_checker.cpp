@@ -950,7 +950,17 @@ std::string UpdateChecker::install_failure_detail(const std::vector<std::string>
     std::string bracket_error, error, warning;
     for (const auto& raw : lines) {
         const std::string line = strip_ansi_codes(raw);
-        if (line.find("[ERROR]") != std::string::npos) {
+        // A step that completed outlived whatever it logged: errors from
+        // best-effort steps before it are not why the install stopped.
+        if (line.find(" ... ok") != std::string::npos) {
+            bracket_error.clear();
+            error.clear();
+            warning.clear();
+            continue;
+        }
+        // run_logged's "<command> failed (exit N):" carries no [ERROR] tag.
+        if (line.find("[ERROR]") != std::string::npos ||
+            line.find(" failed (exit ") != std::string::npos) {
             bracket_error = line;
         }
         if (line.find("ERROR") != std::string::npos || line.find("FAILED") != std::string::npos) {
@@ -2141,7 +2151,9 @@ void UpdateChecker::do_install(const std::string& tarball_path) {
             flog_error("[UpdateChecker] Could not read install log {}: {}", install_log,
                        strerror(errno));
         }
-        // Log persists at /var/log/helixscreen-install.log for post-update debugging
+        // install_log keeps what install.sh printed: step, warning and error
+        // lines. The installer's full log is printer_data/logs/
+        // helixscreen-install.log, or logs/ under its state root.
     }
 
     // Clean up tarball and extracted installer regardless of result

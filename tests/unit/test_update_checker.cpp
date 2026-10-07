@@ -784,6 +784,38 @@ TEST_CASE("UpdateChecker install_failure_detail names the cause, not the step",
         REQUIRE(UC::install_failure_detail(lines) == "[2/6] Downloaded ... FAILED (interrupted)");
     }
 
+    SECTION("an error before a completed step is not the cause") {
+        const std::vector<std::string> lines = {
+            "      [ERROR] Could not seed settings",
+            "[5/6] Connected to Moonraker ... ok (update manager)",
+            "      systemctl enable helixscreen failed (exit 1):",
+            "        Failed to enable unit: Unit file helixscreen.service is masked.",
+            "[6/6] Starting HelixScreen ... FAILED",
+        };
+        REQUIRE(UC::install_failure_detail(lines) ==
+                "systemctl enable helixscreen failed (exit 1):");
+    }
+
+    SECTION("a completed step clears earlier errors and warnings") {
+        const std::vector<std::string> lines = {
+            "[ERROR] stale",
+            "WARNING: stale",
+            "[4/6] Set up service ... ok",
+            "[5/6] Connecting to Moonraker ... FAILED (interrupted)",
+        };
+        REQUIRE(UC::install_failure_detail(lines) ==
+                "[5/6] Connecting to Moonraker ... FAILED (interrupted)");
+    }
+
+    SECTION("a failed command outranks a later FAILED step line") {
+        const std::vector<std::string> lines = {
+            "      apt-get install -y unzip failed (exit 100):",
+            "        E: Unable to locate package unzip",
+            "[2/7] Installing libraries ... FAILED",
+        };
+        REQUIRE(UC::install_failure_detail(lines) == "apt-get install -y unzip failed (exit 100):");
+    }
+
     SECTION("a WARNING line only when nothing failed louder") {
         const std::vector<std::string> lines = {"ok", "WARNING: low disk"};
         REQUIRE(UC::install_failure_detail(lines) == "WARNING: low disk");
