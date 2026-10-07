@@ -892,11 +892,29 @@ main() {
     apply_install
 }
 
+# The Installing libraries step: done with what apt added, hidden when nothing
+# was missing, failed when apt could not install a package. The install goes
+# on either way; verify_binary_deps stops it if a library it needs is missing.
+install_libraries_step() {
+    local libs ok=true
+    libs=$(plan_missing_libs)
+    step "Installing libraries" "Installed libraries"
+    install_missing_unzip || ok=false
+    install_runtime_deps "$platform" || ok=false
+    if [ "$ok" != true ]; then
+        step_fail "continuing; see above"
+    elif [ -n "$libs" ]; then
+        step_done "$libs"
+    else
+        step_skip
+    fi
+}
+
 # Everything after the confirm point, as the steps plan_count_steps counted:
 # a step with nothing to do is skipped only under the same conditions that
 # left it out of the count, or the [n/N] numbering is wrong.
 apply_install() {
-    local libs uis seed_pid detail
+    local uis seed_pid detail
 
     # The machine changes from here on.
     if [ "$platform" = "ad5m" ]; then
@@ -908,11 +926,7 @@ apply_install() {
         check_disk_space "$platform"
     fi
 
-    libs=$(plan_missing_libs)
-    step "Installing libraries" "Installed libraries"
-    install_missing_unzip
-    install_runtime_deps "$platform"
-    if [ -n "$libs" ]; then step_done "$libs"; else step_skip; fi
+    install_libraries_step
 
     # Download/stage the release archive BEFORE any step that modifies the
     # running printer (stock-UI disable, competing-UI shutdown, old-install
@@ -1042,8 +1056,13 @@ apply_install() {
     step_done "$(moonraker_step_detail)"
 
     # Everything left prepares the first start, and its step resolves when
-    # the UI starts. A payload install's UI starts from the mod at boot.
-    step "Starting HelixScreen" "Started HelixScreen"
+    # the UI starts. A payload install's UI starts from the mod at boot, so
+    # its step only finishes the setup.
+    if plan_starts_ui; then
+        step "Starting HelixScreen" "Started HelixScreen"
+    else
+        step "Finishing setup" "Finished setup"
+    fi
 
     # K2: replace the stock proprietary WebRTC camera (which HelixScreen and
     # fluidd can't consume) with a static ustreamer MJPEG server and point both
@@ -1100,7 +1119,7 @@ apply_install() {
     # hook. No-op off K2; non-fatal on the same || contract.
     start_k2_webserver_backend "$platform" ||
         log_warn "Web-server carve-out not started; the UI install itself is fine"
-    if plan_starts_ui; then step_done; else step_skip; fi
+    step_done
     # Past here only cleanup runs: the new install is in place,
     # so a failure report has no rollback state to describe.
     INSTALL_COMPLETE=1

@@ -641,3 +641,90 @@ _fn_body() {
     done
     [ "$ran" -eq 1 ] || skip "neither dash nor BusyBox ash is installed"
 }
+
+@test "detect_missing_runtime_deps under NoNewPrivileges plans no libraries and says what to install" {
+    _has_no_new_privs() { return 0; }
+    run detect_missing_runtime_deps pi
+    contains "sudo apt-get install libdrm2" "$output"
+    detect_missing_runtime_deps pi 2>/dev/null
+    [ -z "$MISSING_RUNTIME_DEPS" ]
+    MISSING_UNZIP_PKG="" COMPETING_UIS_FOUND=""
+    plan_count_steps
+    [ "$STEP_TOTAL" -eq 6 ]
+}
+
+@test "install_runtime_deps returns non-zero when apt cannot install the libraries" {
+    _has_no_new_privs() { return 1; }
+    MISSING_RUNTIME_DEPS="libdrm2"
+    stub apt-get 'exit 1'
+    run install_runtime_deps pi
+    [ "$status" -ne 0 ]
+}
+
+@test "the libraries step fails, and the install continues, when apt cannot install them" {
+    _has_no_new_privs() { return 1; }
+    platform=pi UI_TTY=0 MISSING_UNZIP_PKG="" MISSING_RUNTIME_DEPS="libdrm2"
+    stub apt-get 'exit 1'
+    run install_libraries_step
+    [ "$status" -eq 0 ]
+    contains "Installing libraries ... FAILED (continuing; see above)" "$output"
+    lacks "Installed libraries" "$output"
+}
+
+@test "the libraries step fails when apt cannot install unzip, though python can unzip" {
+    _has_no_new_privs() { return 1; }
+    _py_has_module() { return 0; }
+    platform=x86 UI_TTY=0 MISSING_UNZIP_PKG=unzip MISSING_RUNTIME_DEPS=""
+    stub apt-get 'exit 1'
+    run install_libraries_step
+    [ "$status" -eq 0 ]
+    contains "Installing libraries ... FAILED" "$output"
+}
+
+@test "the libraries step names what apt installed" {
+    _has_no_new_privs() { return 1; }
+    platform=pi UI_TTY=0 MISSING_UNZIP_PKG="" MISSING_RUNTIME_DEPS="libdrm2"
+    stub apt-get 'exit 0'
+    run install_libraries_step
+    [ "$status" -eq 0 ]
+    contains "Installed libraries ... ok (libdrm2)" "$output"
+}
+
+@test "the plan's sudo row lists libraries only when some are missing" {
+    _cp_setup
+    _has_no_new_privs() { return 1; }
+    DRY_RUN=true SUDO=sudo
+    run confirm_point pi v1.2.3
+    contains "  sudo       needed for: service, udev and polkit rules" "$output"
+    MISSING_RUNTIME_DEPS="libdrm2"
+    run confirm_point pi v1.2.3
+    contains "  sudo       needed for: service, libraries, udev and polkit rules" "$output"
+}
+
+@test "the plan has no sudo row under NoNewPrivileges, where sudo cannot run" {
+    _cp_setup
+    _has_no_new_privs() { return 0; }
+    DRY_RUN=true SUDO=sudo
+    run confirm_point pi v1.2.3
+    [ "$status" -eq 0 ]
+    lacks "  sudo " "$output"
+}
+
+@test "check_klipper_ecosystem never asks on --update" {
+    _klipper_down
+    update_mode=true
+    run check_klipper_ecosystem k1 < /dev/null
+    [ "$status" -eq 0 ]
+    lacks "Continue anyway?" "$output"
+    contains "Klipper does not appear to be running" "$output"
+}
+
+@test "a payload install counts the step it always opens after Moonraker" {
+    MISSING_RUNTIME_DEPS="" MISSING_UNZIP_PKG="" COMPETING_UIS_FOUND=""
+    HOST_SERVICE_MECHANISM=mod-managed
+    plan_count_steps
+    [ "$STEP_TOTAL" -eq 6 ]
+    if _fn_body apply_install "$LIB/main.sh" | grep -q 'plan_starts_ui; then step_done; else step_skip'; then
+        fail "the payload path skips a step the count includes"
+    fi
+}

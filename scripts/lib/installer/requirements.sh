@@ -78,15 +78,16 @@ detect_missing_unzip() {
 # impossible afterwards.
 install_missing_unzip() {
     [ -n "${MISSING_UNZIP_PKG:-}" ] || return 0
+    local rc=0
     log_info "Installing missing dependency: $MISSING_UNZIP_PKG"
     _apt_update_once
-    run_logged $SUDO apt-get install -y --no-install-recommends "$MISSING_UNZIP_PKG" || true
+    run_logged $SUDO apt-get install -y --no-install-recommends "$MISSING_UNZIP_PKG" || rc=1
     if ! command -v unzip >/dev/null 2>&1 && ! _py_has_module zipfile zlib; then
         log_error "Missing required commands: unzip"
         log_error "Please install them and try again."
         exit 1
     fi
-    return 0
+    return "$rc"
 }
 
 # Runtime libraries the Pi build needs that are not installed yet. Read-only:
@@ -134,11 +135,19 @@ detect_missing_runtime_deps() {
         fi
     done
 
+    # Under NoNewPrivileges (self-update from the running app) sudo is
+    # blocked, so the install cannot add them. The binary may still run, and
+    # verify_binary_deps stops the install if a library it needs is missing.
+    if [ -n "$MISSING_RUNTIME_DEPS" ] && _has_no_new_privs; then
+        log_warn "Missing runtime libraries (cannot install under self-update): $MISSING_RUNTIME_DEPS"
+        log_warn "Install them manually: sudo apt-get install $MISSING_RUNTIME_DEPS"
+        MISSING_RUNTIME_DEPS=""
+    fi
     return 0
 }
 
 # Install what detect_missing_runtime_deps found, detecting first when it has
-# not run.
+# not run. Returns non-zero when apt could not install them.
 install_runtime_deps() {
     [ -n "${MISSING_RUNTIME_DEPS+x}" ] || detect_missing_runtime_deps "$1"
     local missing="${MISSING_RUNTIME_DEPS:-}"
@@ -149,20 +158,13 @@ install_runtime_deps() {
     fi
 
     if [ -n "$missing" ]; then
-        # Under NoNewPrivileges (self-update from the running app), sudo is blocked.
-        # Warn about missing deps but don't fail — the binary may still work, and
-        # verify_binary_deps() will catch truly fatal missing libraries later.
-        if _has_no_new_privs; then
-            log_warn "Missing runtime libraries (cannot install under self-update): $missing"
-            log_warn "Install manually after update: sudo apt-get install $missing"
-            return 0
-        fi
         log_info "Installing missing libraries: $missing"
         _apt_update_once
         # shellcheck disable=SC2086
         if ! run_logged $SUDO apt-get install -y --no-install-recommends $missing; then
             log_warn "Failed to install some runtime libraries: $missing"
-            log_warn "The update will continue. Install manually: sudo apt-get install $missing"
+            log_warn "The install will continue. Install manually: sudo apt-get install $missing"
+            return 1
         else
             log_success "Runtime libraries installed"
         fi
@@ -462,8 +464,9 @@ Moonraker is running but not responding on http://127.0.0.1:7125."
     log_warn "HelixScreen requires Klipper and Moonraker to function."
     log_warn "It will install but won't work until these services are available."
 
-    # A dry run never asks; tty_confirm answers yes itself under --yes.
-    if [ "${DRY_RUN:-false}" = true ]; then
+    # A dry run and --update never ask; tty_confirm answers yes itself under
+    # --yes.
+    if [ "${DRY_RUN:-false}" = true ] || [ "${update_mode:-false}" = true ]; then
         log_warn "Continuing without them."
         return 0
     fi

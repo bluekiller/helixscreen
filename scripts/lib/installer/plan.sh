@@ -25,7 +25,6 @@ plan_count_steps() {
     STEP_TOTAL=6
     [ -n "$(plan_missing_libs)" ] && STEP_TOTAL=$((STEP_TOTAL + 1))
     [ -n "${COMPETING_UIS_FOUND:-}" ] && STEP_TOTAL=$((STEP_TOTAL + 1))
-    plan_starts_ui || STEP_TOTAL=$((STEP_TOTAL - 1))
     return 0
 }
 
@@ -99,7 +98,10 @@ confirm_point() { # platform version
     [ -n "${COMPETING_UIS_FOUND:-}" ] && plan_set Disable "$COMPETING_UIS_FOUND"
     [ -n "$_cp_add" ] && plan_set Add "$_cp_add"
     [ -n "${DISK_CHECK_DEFERRED:-}" ] && plan_set Disk "would check after sudo"
-    [ -n "${SUDO:-}" ] && plan_set sudo "needed for: service, libraries, udev and polkit rules"
+    # Under NoNewPrivileges sudo cannot run, and the steps that need it skip.
+    if [ -n "${SUDO:-}" ] && ! _has_no_new_privs; then
+        plan_set sudo "needed for: service, ${_cp_libs:+libraries, }udev and polkit rules"
+    fi
 
     print_banner "$2" "${R2_CHANNEL:-stable}"
     print_plan
