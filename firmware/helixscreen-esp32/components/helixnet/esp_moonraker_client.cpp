@@ -5,13 +5,13 @@
 
 #include "esp_heap_caps.h"
 #include "esp_log.h"
-#include "esp_pthread.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "helix_version.h" // HELIX_VERSION for server.connection.identify
 #include "http_lane_queue.h"
 #include "json_utils.h"
+#include "psram_thread_stack.h"
 
 #include <spdlog/spdlog.h>
 
@@ -239,21 +239,11 @@ void EspMoonrakerClient::post_transport_job(const char* what, std::function<void
         pthread_attr_t attr;
         pthread_attr_init(&attr);
         pthread_attr_setstacksize(&attr, TRANSPORT_WORKER_STACK_BYTES);
-        esp_pthread_cfg_t saved{};
-        const bool had_cfg = esp_pthread_get_cfg(&saved) == ESP_OK;
-        esp_pthread_cfg_t cfg = had_cfg ? saved : esp_pthread_get_default_config();
-        cfg.stack_size = TRANSPORT_WORKER_STACK_BYTES;
-        cfg.stack_alloc_caps = MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT;
-        cfg.inherit_cfg = false;
-        cfg.thread_name = "ws_transport";
-        esp_pthread_set_cfg(&cfg);
-        const int rc = pthread_create(&transport_worker_, &attr,
-                                      &EspMoonrakerClient::transport_worker_main, this);
-        if (had_cfg) {
-            esp_pthread_set_cfg(&saved);
-        } else {
-            const esp_pthread_cfg_t def = esp_pthread_get_default_config();
-            esp_pthread_set_cfg(&def);
+        int rc;
+        {
+            PsramThreadStackScope psram_stack("ws_transport", TRANSPORT_WORKER_STACK_BYTES);
+            rc = pthread_create(&transport_worker_, &attr,
+                                &EspMoonrakerClient::transport_worker_main, this);
         }
         pthread_attr_destroy(&attr);
         if (rc != 0) {
