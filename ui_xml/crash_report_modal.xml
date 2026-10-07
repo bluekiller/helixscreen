@@ -48,21 +48,9 @@
         </ui_card>
       </lv_obj>
     </lv_obj>
-    <!-- Divider -->
-    <divider_horizontal/>
-    <!-- Button row -->
-    <lv_obj width="100%" height="#button_height" style_pad_all="0" style_pad_gap="0" flex_flow="row">
-      <ui_button name="modal_cancel_btn"
-                 height="100%" variant="secondary" text="Dismiss" translation_tag="Dismiss" flex_grow="1"
-                 style_radius="0" style_border_width="0">
-        <event_cb trigger="clicked" callback="on_crash_report_dismiss"/>
-      </ui_button>
-      <divider_vertical/>
-      <ui_button name="modal_send_btn"
-                 height="100%" text="Send Report" translation_tag="Send Report" flex_grow="1" style_radius="0"
-                 style_border_width="0" variant="primary">
-        <event_cb trigger="clicked" callback="on_crash_report_send"/>
-      </ui_button>
-    </lv_obj>
+    <modal_button_row secondary_name="modal_cancel_btn"
+                      secondary_text="Dismiss" secondary_tag="Dismiss" secondary_callback="on_crash_report_dismiss"
+                      primary_name="modal_send_btn" primary_text="Send Report" primary_tag="Send Report"
+                      primary_callback="on_crash_report_send"/>
   </view>
 </component>

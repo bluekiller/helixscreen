@@ -72,22 +72,14 @@
                   width="100%" bind_text="bed_mesh_error_message" text="An error occurred during calibration."
                   translation_tag="An error occurred during calibration." long_mode="wrap" style_text_align="center"/>
     </lv_obj>
-    <!-- Horizontal divider above buttons -->
-    <divider_horizontal/>
-    <!-- ============================================================ -->
-    <!-- Button row: PROBING state (state=1) - Cancel only -->
-    <!-- ============================================================ -->
-    <lv_obj name="probing_button_row"
-            width="100%" height="#button_height" style_pad_all="0" style_pad_gap="0" flex_flow="row" hidden="true"
-            scrollable="false">
+    <!-- Button rows, one per state; each carries its own top divider. -->
+    <!-- PROBING state (state=1): Emergency Stop only -->
+    <modal_button_row name="probing_button_row"
+                      hidden="true" hide_secondary="true" primary_name="btn_emergency_stop" primary_variant="danger"
+                      primary_icon="alert_octagon" primary_text="EMERGENCY STOP" primary_tag="EMERGENCY STOP"
+                      primary_callback="on_bed_mesh_emergency_stop">
       <bind_flag_if_not_eq subject="bed_mesh_calibrate_state" flag="hidden" ref_value="1"/>
-      <!-- Emergency Stop button -->
-      <ui_button name="btn_emergency_stop"
-                 height="100%" flex_grow="1" style_radius="0" style_border_width="0" variant="danger"
-                 icon="alert_octagon" text="EMERGENCY STOP" translation_tag="EMERGENCY STOP">
-        <event_cb trigger="clicked" callback="on_bed_mesh_emergency_stop"/>
-      </ui_button>
-    </lv_obj>
+    </modal_button_row>
     <!-- Warning text about emergency stop (probing state only) -->
     <text_small width="100%"
                 text="Stops all motion. Requires firmware restart."
@@ -95,41 +87,18 @@
                 style_pad_top="#space_sm" style_pad_bottom="#space_sm" hidden="true">
       <bind_flag_if_not_eq subject="bed_mesh_calibrate_state" flag="hidden" ref_value="1"/>
     </text_small>
-    <!-- ============================================================ -->
-    <!-- Button row: NAMING state (state=2) - Cancel | Start -->
-    <!-- ============================================================ -->
-    <lv_obj name="naming_button_row"
-            width="100%" height="#button_height" style_pad_all="0" style_pad_gap="0" flex_flow="row" hidden="true"
-            scrollable="false">
+    <!-- NAMING state (state=2): Cancel | Start -->
+    <modal_button_row name="naming_button_row"
+                      hidden="true" secondary_name="btn_cancel" secondary_text="Cancel" secondary_tag="Cancel"
+                      secondary_callback="on_bed_mesh_calibrate_cancel" primary_name="btn_start" primary_text="Start"
+                      primary_tag="Start" primary_callback="on_bed_mesh_calibrate_start">
       <bind_flag_if_not_eq subject="bed_mesh_calibrate_state" flag="hidden" ref_value="2"/>
-      <!-- Cancel button -->
-      <ui_button name="btn_cancel"
-                 height="100%" variant="secondary" flex_grow="1" style_radius="0" style_border_width="0" text="Cancel"
-                 translation_tag="Cancel">
-        <event_cb trigger="clicked" callback="on_bed_mesh_calibrate_cancel"/>
-      </ui_button>
-      <!-- Vertical divider -->
-      <divider_vertical/>
-      <!-- Start button -->
-      <ui_button name="btn_start"
-                 height="100%" flex_grow="1" style_radius="0" style_border_width="0" text="Start"
-                 translation_tag="Start">
-        <event_cb trigger="clicked" callback="on_bed_mesh_calibrate_start"/>
-      </ui_button>
-    </lv_obj>
-    <!-- ============================================================ -->
-    <!-- Button row: ERROR state (state=3) - Close only -->
-    <!-- ============================================================ -->
-    <lv_obj name="error_button_row"
-            width="100%" height="#button_height" style_pad_all="0" style_pad_gap="0" flex_flow="row" hidden="true"
-            scrollable="false">
+    </modal_button_row>
+    <!-- ERROR state (state=3): Close only -->
+    <modal_button_row name="error_button_row"
+                      hidden="true" hide_secondary="true" primary_name="btn_close" primary_text="Close"
+                      primary_tag="Close" primary_callback="on_bed_mesh_calibrate_cancel">
       <bind_flag_if_not_eq subject="bed_mesh_calibrate_state" flag="hidden" ref_value="3"/>
-      <!-- Close button -->
-      <ui_button name="btn_close"
-                 height="100%" flex_grow="1" style_radius="0" style_border_width="0" text="Close"
-                 translation_tag="Close">
-        <event_cb trigger="clicked" callback="on_bed_mesh_calibrate_cancel"/>
-      </ui_button>
-    </lv_obj>
+    </modal_button_row>
   </view>
 </component>

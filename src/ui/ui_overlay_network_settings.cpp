@@ -186,6 +186,9 @@ void NetworkSettingsOverlay::init_subjects() {
     UI_MANAGED_SUBJECT_STRING(wifi_password_modal_ssid_, password_modal_ssid_buffer_, "",
                               "wifi_password_modal_ssid", subjects_);
 
+    // Hidden-network modal subject
+    UI_MANAGED_SUBJECT_INT(hidden_connecting_, 0, "hidden_connecting", subjects_);
+
     subjects_initialized_ = true;
     spdlog::debug("[NetworkSettingsOverlay] Subjects initialized");
 }
@@ -217,8 +220,6 @@ void NetworkSettingsOverlay::register_callbacks() {
          [](lv_event_t*) { get_network_settings_overlay().handle_hidden_cancel_clicked(); }},
         {"on_hidden_connect_clicked",
          [](lv_event_t*) { get_network_settings_overlay().handle_hidden_connect_clicked(); }},
-        {"on_security_changed",
-         [](lv_event_t* e) { get_network_settings_overlay().handle_security_changed(e); }},
         // Password modal
         {"on_network_settings_password_cancel",
          [](lv_event_t*) { get_network_settings_overlay().handle_password_cancel_clicked(); }},
@@ -1143,6 +1144,7 @@ void NetworkSettingsOverlay::handle_add_other_clicked() {
 
     // Create modal if not already created
     if (!hidden_network_modal_) {
+        lv_subject_set_int(&hidden_connecting_, 0);
         hidden_network_modal_ = helix::ui::modal_show("hidden_network_modal");
         if (!hidden_network_modal_) {
             spdlog::error("[NetworkSettingsOverlay] Failed to show hidden network modal");
@@ -1196,6 +1198,7 @@ void NetworkSettingsOverlay::handle_hidden_cancel_clicked() {
         helix::ui::modal_hide(hidden_network_modal_);
         hidden_network_modal_ = nullptr;
     }
+    lv_subject_set_int(&hidden_connecting_, 0);
 }
 
 void NetworkSettingsOverlay::handle_hidden_connect_clicked() {
@@ -1260,10 +1263,7 @@ void NetworkSettingsOverlay::handle_hidden_connect_clicked() {
     spdlog::info("[NetworkSettingsOverlay] Connecting to hidden network: {} (security: {})",
                  helix::redact::ssid(ssid), security_idx);
 
-    lv_subject_t* connecting_subject = lv_xml_get_subject(nullptr, "hidden_connecting");
-    if (connecting_subject) {
-        lv_subject_set_int(connecting_subject, 1);
-    }
+    lv_subject_set_int(&hidden_connecting_, 1);
 
     std::string ssid_str(ssid);
     ++status_generation_;
@@ -1275,10 +1275,7 @@ void NetworkSettingsOverlay::handle_hidden_connect_clicked() {
             if (token.expired())
                 return;
             token.defer([this, success, ssid_str, error, result]() {
-                lv_subject_t* subj = lv_xml_get_subject(nullptr, "hidden_connecting");
-                if (subj) {
-                    lv_subject_set_int(subj, 0);
-                }
+                lv_subject_set_int(&hidden_connecting_, 0);
 
                 if (success) {
                     spdlog::info("[NetworkSettingsOverlay] Connected to hidden network: {}",
@@ -1320,22 +1317,6 @@ void NetworkSettingsOverlay::handle_hidden_connect_clicked() {
         // The SSID was typed, not picked from the scan list: the backend must
         // not match it against a scan cache.
         /*is_hidden=*/true);
-}
-
-void NetworkSettingsOverlay::handle_security_changed(lv_event_t* e) {
-    lv_obj_t* dropdown = static_cast<lv_obj_t*>(lv_event_get_target(e));
-    if (!dropdown) {
-        return;
-    }
-
-    uint32_t selected = lv_dropdown_get_selected(dropdown);
-    spdlog::debug("[NetworkSettingsOverlay] Security changed to index: {}", selected);
-
-    // Update hidden_security subject (0=None hides password field)
-    lv_subject_t* security_subject = lv_xml_get_subject(nullptr, "hidden_security");
-    if (security_subject) {
-        lv_subject_set_int(security_subject, static_cast<int>(selected));
-    }
 }
 
 void NetworkSettingsOverlay::handle_network_item_clicked(lv_event_t* e) {
