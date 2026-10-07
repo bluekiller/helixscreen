@@ -272,6 +272,10 @@ bool pressed_scale_allowed(PlatformTier tier) {
     return tier == PlatformTier::STANDARD;
 }
 
+bool scrolled_scrollbar_style_allowed(PlatformTier tier) {
+    return tier == PlatformTier::STANDARD;
+}
+
 std::string platform_tier_to_string(PlatformTier tier) {
     switch (tier) {
     case PlatformTier::EMBEDDED:

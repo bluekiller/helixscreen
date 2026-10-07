@@ -185,6 +185,15 @@ CpuInfo parse_cpuinfo(const std::string& content);
 bool pressed_scale_allowed(PlatformTier tier);
 
 /**
+ * @brief Whether a scroller's scrollbar may restyle while it is being scrolled
+ *
+ * The restyle redraws the whole scroller when a drag starts, on every step of
+ * its transition, and again when the drag stops. The limited tiers keep the
+ * resting scrollbar instead.
+ */
+bool scrolled_scrollbar_style_allowed(PlatformTier tier);
+
+/**
  * @brief Convert PlatformTier to string representation
  *
  * @param tier Platform tier
