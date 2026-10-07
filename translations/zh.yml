@@ -1194,6 +1194,7 @@ translations:
   Feeders: 送料器
   Feeding filament forward: 正在向前送料
   Filament: 耗材
+  Filament Buffer: '耗材缓冲区'
   Filament Control: 耗材控制
   Filament Detected: 检测到耗材
   Filament Grade Mismatch: 耗材等级不匹配
@@ -1207,6 +1208,7 @@ translations:
   Filament Used: 已用耗材
   Filament already exists: 耗材已存在
   Filament buffer failure during feed: 送料时耗材缓冲器故障
+  Filament buffer position against its target: '耗材缓冲区相对目标的位置'
   Filament buffer stopped moving: 耗材缓冲器停止移动
   Filament by Type: 按类型分类的耗材
   ? Filament can't be loaded below the minimum extrude temperature. Set a hotend target (e.g. 220°C for PLA, 240°C for PETG), wait for it to reach temperature, then try again
@@ -2530,6 +2532,7 @@ translations:
   Requires Moonraker-Timelapse plugin: 需要 Moonraker-Timelapse 插件
   Requires Multi-Filament System or MMU hardware: '需要多耗材系统或 MMU 硬件'
   Requires a filament system with bypass: 需要支持旁路的耗材系统
+  Requires a filament pressure sensor or sync feedback: '需要耗材压力传感器或同步反馈'
   Requires clog detection hardware: '需要堵塞检测硬件'
   Resend write failed at chunk {}: 区块 {} 重发写入失败
   Reset: 重置

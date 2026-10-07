@@ -1269,6 +1269,7 @@ translations:
   Feeders: Фидеры
   Feeding filament forward: Подача филамента вперёд
   Filament: Филамент
+  Filament Buffer: 'Буфер филамента'
   Filament Control: Управление филаментом
   Filament Detected: Филамент обнаружен
   Filament Grade Mismatch: Несоответствие марки филамента
@@ -1282,6 +1283,7 @@ translations:
   Filament Used: Использовано филамента
   Filament already exists: Такой филамент уже существует
   Filament buffer failure during feed: Сбой буфера филамента при подаче
+  Filament buffer position against its target: 'Положение буфера филамента относительно цели'
   Filament buffer stopped moving: Буфер филамента перестал двигаться
   Filament by Type: Филамент по типу
   ? Filament can't be loaded below the minimum extrude temperature. Set a hotend target (e.g. 220°C for PLA, 240°C for PETG), wait for it to reach temperature, then try again
@@ -2676,6 +2678,7 @@ translations:
   Requires Moonraker-Timelapse plugin: Требуется плагин Moonraker-Timelapse
   Requires Multi-Filament System or MMU hardware: 'Требуется мультифиламентная система или оборудование MMU'
   Requires a filament system with bypass: Требуется система филамента с байпасом
+  Requires a filament pressure sensor or sync feedback: 'Требуется датчик давления филамента или обратная связь синхронизации'
   Requires clog detection hardware: 'Требуется оборудование для обнаружения засора'
   Resend write failed at chunk {}: Не удалось повторно отправить запись в блоке {}
   Reset: Сброс

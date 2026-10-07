@@ -2140,6 +2140,8 @@ class AmsState {
     char buffer_value_text_buf_[48]{};
     lv_subject_t buffer_short_text_{}; // "32%", "-45%": the number alone, for narrow surfaces
     char buffer_short_text_buf_[16]{};
+    lv_subject_t buffer_lean_text_{}; // "Running tight" / "Running loose" / "Balanced"
+    char buffer_lean_text_buf_[48]{};
 
     lv_subject_t clog_meter_mode_{};  // ClogMeterMode: 0=none, 1=encoder, 2=flowguard, 3=afc_buffer
     lv_subject_t clog_meter_value_{}; // 0-100 (encoder/afc) or -100..+100 (flowguard)

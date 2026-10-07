@@ -341,6 +341,7 @@ src/ui/panel_widgets/clog_detection_widget.cpp
 src/ui/panel_widgets/control_buttons_widget.cpp
 src/ui/panel_widgets/fan_stack_widget.cpp
 src/ui/panel_widgets/fan_widget.cpp
+src/ui/panel_widgets/filament_buffer_widget.cpp
 src/ui/panel_widgets/filament_sensor_widget.cpp
 src/ui/panel_widgets/gcode_console_widget.cpp
 src/ui/panel_widgets/heater_temp_widget.cpp

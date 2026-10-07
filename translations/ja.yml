@@ -1198,6 +1198,7 @@ translations:
   Feeders: フィーダー
   Feeding filament forward: フィラメントを前方に送り出し中
   Filament: フィラメント
+  Filament Buffer: 'フィラメントバッファー'
   Filament Control: フィラメント制御
   Filament Detected: フィラメント検出
   Filament Grade Mismatch: フィラメントグレード不一致
@@ -1211,6 +1212,7 @@ translations:
   Filament Used: 使用済みフィラメント
   Filament already exists: フィラメントはすでに存在します
   Filament buffer failure during feed: 送り出し中にフィラメントバッファーが異常になりました
+  Filament buffer position against its target: '目標に対するフィラメントバッファーの位置'
   Filament buffer stopped moving: フィラメントバッファーが動かなくなりました
   Filament by Type: 種類別フィラメント
   ? Filament can't be loaded below the minimum extrude temperature. Set a hotend target (e.g. 220°C for PLA, 240°C for PETG), wait for it to reach temperature, then try again
@@ -2539,6 +2541,7 @@ translations:
   Requires Moonraker-Timelapse plugin: Moonraker-Timelapse プラグインが必要です
   Requires Multi-Filament System or MMU hardware: 'マルチフィラメントシステムまたはMMUハードウェアが必要です'
   Requires a filament system with bypass: バイパスに対応したフィラメントシステムが必要です
+  Requires a filament pressure sensor or sync feedback: 'フィラメント圧力センサーまたは同期フィードバックが必要です'
   Requires clog detection hardware: '詰まり検出ハードウェアが必要です'
   Resend write failed at chunk {}: チャンク {} で再送信の書き込みに失敗しました
   Reset: リセット

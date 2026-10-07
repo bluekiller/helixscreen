@@ -36,6 +36,7 @@ void AmsState::publish_buffer_reading(const BufferReading& r) {
     copy_string_if_changed(&buffer_label_, buffer_label(r));
     copy_string_if_changed(&buffer_value_text_, buffer_value_text(r).c_str());
     copy_string_if_changed(&buffer_short_text_, buffer_short_text(r).c_str());
+    copy_string_if_changed(&buffer_lean_text_, buffer_lean_text(r));
 }
 
 const BufferTrace& AmsState::buffer_trace(int unit) const {

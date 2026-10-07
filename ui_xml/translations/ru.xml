@@ -1160,6 +1160,7 @@
   <translation tag="Feeders" ru="Фидеры"/>
   <translation tag="Feeding filament forward" ru="Подача филамента вперёд"/>
   <translation tag="Filament" ru="Филамент"/>
+  <translation tag="Filament Buffer" ru="Буфер филамента"/>
   <translation tag="Filament Control" ru="Управление филаментом"/>
   <translation tag="Filament Detected" ru="Филамент обнаружен"/>
   <translation tag="Filament Grade Mismatch" ru="Несоответствие марки филамента"/>
@@ -1173,6 +1174,7 @@
   <translation tag="Filament Used" ru="Использовано филамента"/>
   <translation tag="Filament already exists" ru="Такой филамент уже существует"/>
   <translation tag="Filament buffer failure during feed" ru="Сбой буфера филамента при подаче"/>
+  <translation tag="Filament buffer position against its target" ru="Положение буфера филамента относительно цели"/>
   <translation tag="Filament buffer stopped moving" ru="Буфер филамента перестал двигаться"/>
   <translation tag="Filament by Type" ru="Филамент по типу"/>
   <translation tag="Filament can&apos;t be loaded below the minimum extrude temperature. Set a hotend target (e.g. 220°C for PLA, 240°C for PETG), wait for it to reach temperature, then try again" ru="Филамент нельзя загрузить ниже минимальной температуры экструзии. Задайте целевую температуру хотэнда (например, 220 °C для PLA, 240 °C для PETG), дождитесь нагрева и повторите"/>
@@ -2440,6 +2442,7 @@
   <translation tag="Requires Moonraker power device" ru="Требуется устройство питания Moonraker"/>
   <translation tag="Requires Moonraker-Timelapse plugin" ru="Требуется плагин Moonraker-Timelapse"/>
   <translation tag="Requires Multi-Filament System or MMU hardware" ru="Требуется мультифиламентная система или оборудование MMU"/>
+  <translation tag="Requires a filament pressure sensor or sync feedback" ru="Требуется датчик давления филамента или обратная связь синхронизации"/>
   <translation tag="Requires a filament system with bypass" ru="Требуется система филамента с байпасом"/>
   <translation tag="Requires clog detection hardware" ru="Требуется оборудование для обнаружения засора"/>
   <translation tag="Resend write failed at chunk {}" ru="Не удалось повторно отправить запись в блоке {}"/>

@@ -1160,6 +1160,7 @@
   <translation tag="Feeders" fr="Alimentateurs"/>
   <translation tag="Feeding filament forward" fr="Avancement du filament"/>
   <translation tag="Filament" fr="Filament"/>
+  <translation tag="Filament Buffer" fr="Tampon de filament"/>
   <translation tag="Filament Control" fr="Contrôle du filament"/>
   <translation tag="Filament Detected" fr="Filament détecté"/>
   <translation tag="Filament Grade Mismatch" fr="Grade de filament incompatible"/>
@@ -1173,6 +1174,7 @@
   <translation tag="Filament Used" fr="Filament utilisé"/>
   <translation tag="Filament already exists" fr="Ce filament existe déjà"/>
   <translation tag="Filament buffer failure during feed" fr="Défaillance du tampon de filament pendant l&apos;alimentation"/>
+  <translation tag="Filament buffer position against its target" fr="Position du tampon de filament par rapport à la cible"/>
   <translation tag="Filament buffer stopped moving" fr="Le tampon de filament ne bouge plus"/>
   <translation tag="Filament by Type" fr="Filament par type"/>
   <translation tag="Filament can&apos;t be loaded below the minimum extrude temperature. Set a hotend target (e.g. 220°C for PLA, 240°C for PETG), wait for it to reach temperature, then try again" fr="Impossible de charger du filament en dessous de la température minimale d&apos;extrusion. Définissez une consigne de hotend (par ex. 220 °C pour le PLA, 240 °C pour le PETG), attendez qu&apos;elle soit atteinte, puis réessayez"/>
@@ -2440,6 +2442,7 @@
   <translation tag="Requires Moonraker power device" fr="Nécessite un périphérique d&apos;alimentation Moonraker"/>
   <translation tag="Requires Moonraker-Timelapse plugin" fr="Nécessite le plugin Moonraker-Timelapse"/>
   <translation tag="Requires Multi-Filament System or MMU hardware" fr="Nécessite un système multi-filament ou du matériel MMU"/>
+  <translation tag="Requires a filament pressure sensor or sync feedback" fr="Nécessite un capteur de pression de filament ou un retour de synchronisation"/>
   <translation tag="Requires a filament system with bypass" fr="Nécessite un système de filament avec bypass"/>
   <translation tag="Requires clog detection hardware" fr="Nécessite du matériel de détection de bourrage"/>
   <translation tag="Resend write failed at chunk {}" fr="Échec du renvoi de l&apos;écriture au bloc {}"/>

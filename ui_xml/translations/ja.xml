@@ -1160,6 +1160,7 @@
   <translation tag="Feeders" ja="フィーダー"/>
   <translation tag="Feeding filament forward" ja="フィラメントを前方に送り出し中"/>
   <translation tag="Filament" ja="フィラメント"/>
+  <translation tag="Filament Buffer" ja="フィラメントバッファー"/>
   <translation tag="Filament Control" ja="フィラメント制御"/>
   <translation tag="Filament Detected" ja="フィラメント検出"/>
   <translation tag="Filament Grade Mismatch" ja="フィラメントグレード不一致"/>
@@ -1173,6 +1174,7 @@
   <translation tag="Filament Used" ja="使用済みフィラメント"/>
   <translation tag="Filament already exists" ja="フィラメントはすでに存在します"/>
   <translation tag="Filament buffer failure during feed" ja="送り出し中にフィラメントバッファーが異常になりました"/>
+  <translation tag="Filament buffer position against its target" ja="目標に対するフィラメントバッファーの位置"/>
   <translation tag="Filament buffer stopped moving" ja="フィラメントバッファーが動かなくなりました"/>
   <translation tag="Filament by Type" ja="種類別フィラメント"/>
   <translation tag="Filament can&apos;t be loaded below the minimum extrude temperature. Set a hotend target (e.g. 220°C for PLA, 240°C for PETG), wait for it to reach temperature, then try again" ja="最低押し出し温度を下回るとフィラメントをロードできません。ホットエンドの目標温度を設定し（PLA は 220°C、PETG は 240°C など）、到達を待ってから再試行してください"/>
@@ -2440,6 +2442,7 @@
   <translation tag="Requires Moonraker power device" ja="Moonraker電源デバイスが必要です"/>
   <translation tag="Requires Moonraker-Timelapse plugin" ja="Moonraker-Timelapse プラグインが必要です"/>
   <translation tag="Requires Multi-Filament System or MMU hardware" ja="マルチフィラメントシステムまたはMMUハードウェアが必要です"/>
+  <translation tag="Requires a filament pressure sensor or sync feedback" ja="フィラメント圧力センサーまたは同期フィードバックが必要です"/>
   <translation tag="Requires a filament system with bypass" ja="バイパスに対応したフィラメントシステムが必要です"/>
   <translation tag="Requires clog detection hardware" ja="詰まり検出ハードウェアが必要です"/>
   <translation tag="Resend write failed at chunk {}" ja="チャンク {} で再送信の書き込みに失敗しました"/>

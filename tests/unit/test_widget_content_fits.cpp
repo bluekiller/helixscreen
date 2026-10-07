@@ -41,9 +41,12 @@
 #include "ui_update_queue.h"
 
 #include "../lvgl_ui_test_fixture.h"
+#include "../test_helpers/ams_state_test_access.h"
+#include "../test_helpers/buffer_infos.h"
 #include "../test_helpers/panel_widget_size_harness.h"
 #include "../test_helpers/tips_manager_test_access.h"
 #include "../test_helpers/update_queue_test_access.h"
+#include "ams_state.h"
 #include "display_metrics.h"
 #include "grid_layout.h"
 #include "panel_widget_manager.h"
@@ -57,8 +60,10 @@
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
+#include <optional>
 #include <set>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "../catch_amalgamated.hpp"
@@ -288,6 +293,22 @@ void seed_printer_topology(PrinterState& state) {
     state.temperature_state().init_extruders({"extruder"});
     helix::ui::UpdateQueueTestAccess::drain(helix::ui::UpdateQueue::instance());
 }
+
+/// The filament buffer tile binds to AmsState subjects, so it only has content
+/// to lay out while a pressure reading with a set point is published. Scoped to
+/// that tile: registering the AmsState subjects for the whole sweep would also
+/// change what clog_detection binds to.
+struct BufferReadingSeed {
+    BufferReadingSeed() {
+        AmsState::instance().init_subjects(true);
+        AmsStateTestAccess::sync_buffer(AmsState::instance(), test::fps_units({0.71f}), 0);
+    }
+    ~BufferReadingSeed() {
+        AmsStateTestAccess::sync_buffer(AmsState::instance(), AmsSystemInfo{}, 0);
+        AmsStateTestAccess::clear_buffer_traces(AmsState::instance());
+        AmsState::instance().deinit_subjects();
+    }
+};
 
 struct Rendered {
     bool built = false;
@@ -603,6 +624,9 @@ TEST_CASE_METHOD(ContentFitsFixture,
 
             const int w_px = static_cast<int>(grid_track_extent(m.cell_w, m.gutter, min_c));
             const int h_px = static_cast<int>(grid_track_extent(m.cell_h, m.gutter, min_r));
+            std::optional<BufferReadingSeed> buffer_seed;
+            if (std::string_view(def.id) == "filament_buffer")
+                buffer_seed.emplace();
             const Rendered rendered = render_at(test_screen(), def, m, min_c, min_r);
             if (!rendered.built) {
                 spdlog::warn("[content_fits] {} @ {}: component would not build", def.id, g.name);

@@ -270,6 +270,7 @@ void AmsState::init_subjects(bool register_xml) {
     INIT_SUBJECT_STRING(buffer_value_text, "", subjects_,
                         register_xml); // SUBJECT_OK: the 2x1 widget and the modal bind it
     INIT_SUBJECT_STRING(buffer_short_text, "", subjects_, register_xml);
+    INIT_SUBJECT_STRING(buffer_lean_text, "", subjects_, register_xml);
 
     // Per-slot subjects (dynamic names require manual init)
     char name_buf[32];
@@ -674,6 +675,7 @@ void AmsState::register_xml_subject_names() {
         "buffer_value_text",
         &buffer_value_text_); // SUBJECT_OK: the 2x1 widget and the modal bind it
     helix::xml::register_subject_in_current_scope("buffer_short_text", &buffer_short_text_);
+    helix::xml::register_subject_in_current_scope("buffer_lean_text", &buffer_lean_text_);
 
     // Per-slot subjects (snprintf'd names)
     char name_buf[48];

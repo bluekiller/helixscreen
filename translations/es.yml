@@ -1284,6 +1284,7 @@ translations:
   Feeders: Alimentadores
   Feeding filament forward: Avanzando filamento
   Filament: Filamento
+  Filament Buffer: 'Búfer de filamento'
   Filament Control: Control de filamento
   Filament Detected: Filamento Detectado
   Filament Grade Mismatch: El grado del filamento no coincide
@@ -1297,6 +1298,7 @@ translations:
   Filament Used: Filamento Usado
   Filament already exists: El filamento ya existe
   Filament buffer failure during feed: Fallo del búfer de filamento durante la alimentación
+  Filament buffer position against its target: 'Posición del búfer de filamento respecto al objetivo'
   Filament buffer stopped moving: El búfer de filamento dejó de moverse
   Filament by Type: Filamento por Tipo
   ? Filament can't be loaded below the minimum extrude temperature. Set a hotend target (e.g. 220°C for PLA, 240°C for PETG), wait for it to reach temperature, then try again
@@ -2700,6 +2702,7 @@ translations:
   Requires Moonraker-Timelapse plugin: Requiere plugin Moonraker-Timelapse
   Requires Multi-Filament System or MMU hardware: 'Requiere sistema multi-filamento o hardware MMU'
   Requires a filament system with bypass: Requiere un sistema de filamento con bypass
+  Requires a filament pressure sensor or sync feedback: 'Requiere un sensor de presión de filamento o retroalimentación de sincronización'
   Requires clog detection hardware: 'Requiere hardware de detección de atascos'
   Resend write failed at chunk {}: Error al reenviar la escritura en el fragmento
     {}

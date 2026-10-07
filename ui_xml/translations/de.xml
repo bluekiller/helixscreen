@@ -1160,6 +1160,7 @@
   <translation tag="Feeders" de="Zuführungen"/>
   <translation tag="Feeding filament forward" de="Filament wird vorwärts geführt"/>
   <translation tag="Filament" de="Filament"/>
+  <translation tag="Filament Buffer" de="Filamentpuffer"/>
   <translation tag="Filament Control" de="Filamentsteuerung"/>
   <translation tag="Filament Detected" de="Filament erkannt"/>
   <translation tag="Filament Grade Mismatch" de="Filamentklassenabweichung"/>
@@ -1173,6 +1174,7 @@
   <translation tag="Filament Used" de="Filament verwendet"/>
   <translation tag="Filament already exists" de="Filament bereits vorhanden"/>
   <translation tag="Filament buffer failure during feed" de="Filamentpuffer-Fehler beim Zuführen"/>
+  <translation tag="Filament buffer position against its target" de="Position des Filamentpuffers zum Ziel"/>
   <translation tag="Filament buffer stopped moving" de="Filamentpuffer bewegt sich nicht mehr"/>
   <translation tag="Filament by Type" de="Filament nach Typ"/>
   <translation tag="Filament can&apos;t be loaded below the minimum extrude temperature. Set a hotend target (e.g. 220°C for PLA, 240°C for PETG), wait for it to reach temperature, then try again" de="Unterhalb der minimalen Extrusionstemperatur lässt sich kein Filament laden. Hotend-Zieltemperatur setzen (z. B. 220 °C für PLA, 240 °C für PETG), aufheizen lassen und erneut versuchen"/>
@@ -2440,6 +2442,7 @@
   <translation tag="Requires Moonraker power device" de="Erfordert ein Moonraker-Stromgerät"/>
   <translation tag="Requires Moonraker-Timelapse plugin" de="Erfordert Moonraker-Timelapse-Plugin"/>
   <translation tag="Requires Multi-Filament System or MMU hardware" de="Erfordert ein Multi-Filament-System oder MMU-Hardware"/>
+  <translation tag="Requires a filament pressure sensor or sync feedback" de="Erfordert einen Filament-Drucksensor oder Sync-Feedback"/>
   <translation tag="Requires a filament system with bypass" de="Erfordert ein Filamentsystem mit Bypass"/>
   <translation tag="Requires clog detection hardware" de="Erfordert Hardware zur Verstopfungserkennung"/>
   <translation tag="Resend write failed at chunk {}" de="Erneuter Schreibvorgang bei Block {} fehlgeschlagen"/>

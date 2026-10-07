@@ -1160,6 +1160,7 @@
   <translation tag="Feeders" en="Feeders"/>
   <translation tag="Feeding filament forward" en="Feeding filament forward"/>
   <translation tag="Filament" en="Filament"/>
+  <translation tag="Filament Buffer" en="Filament Buffer"/>
   <translation tag="Filament Control" en="Filament Control"/>
   <translation tag="Filament Detected" en="Filament Detected"/>
   <translation tag="Filament Grade Mismatch" en="Filament Grade Mismatch"/>
@@ -1173,6 +1174,7 @@
   <translation tag="Filament Used" en="Filament Used"/>
   <translation tag="Filament already exists" en="Filament already exists"/>
   <translation tag="Filament buffer failure during feed" en="Filament buffer failure during feed"/>
+  <translation tag="Filament buffer position against its target" en="Filament buffer position against its target"/>
   <translation tag="Filament buffer stopped moving" en="Filament buffer stopped moving"/>
   <translation tag="Filament by Type" en="Filament by Type"/>
   <translation tag="Filament can&apos;t be loaded below the minimum extrude temperature. Set a hotend target (e.g. 220°C for PLA, 240°C for PETG), wait for it to reach temperature, then try again" en="Filament can&apos;t be loaded below the minimum extrude temperature. Set a hotend target (e.g. 220°C for PLA, 240°C for PETG), wait for it to reach temperature, then try again"/>
@@ -2440,6 +2442,7 @@
   <translation tag="Requires Moonraker power device" en="Requires Moonraker power device"/>
   <translation tag="Requires Moonraker-Timelapse plugin" en="Requires Moonraker-Timelapse plugin"/>
   <translation tag="Requires Multi-Filament System or MMU hardware" en="Requires Multi-Filament System or MMU hardware"/>
+  <translation tag="Requires a filament pressure sensor or sync feedback" en="Requires a filament pressure sensor or sync feedback"/>
   <translation tag="Requires a filament system with bypass" en="Requires a filament system with bypass"/>
   <translation tag="Requires clog detection hardware" en="Requires clog detection hardware"/>
   <translation tag="Resend write failed at chunk {}" en="Resend write failed at chunk {}"/>
