@@ -505,6 +505,8 @@ void ExcludeObjectMapView::draw_first_layer_outlines() {
         name_to_index[defined[i]] = i;
     }
 
+    const auto& excluded = state_->get_excluded_objects();
+
     // Draw polygon outlines on canvas
     lv_layer_t layer;
     lv_canvas_init_layer(canvas_, &layer);
@@ -532,7 +534,7 @@ void ExcludeObjectMapView::draw_first_layer_outlines() {
             dsc.p1.y = static_cast<lv_value_precise_t>(py1);
             dsc.p2.x = static_cast<lv_value_precise_t>(px2);
             dsc.p2.y = static_cast<lv_value_precise_t>(py2);
-            dsc.opa = LV_OPA_COVER;
+            dsc.opa = object_badge_opa(excluded.count(obj_name) > 0);
             dsc.round_start = 1;
             dsc.round_end = 1;
 

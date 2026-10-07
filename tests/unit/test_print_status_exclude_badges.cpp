@@ -133,3 +133,15 @@ TEST_CASE_METHOD(ExcludeObjectPanelFixture,
     REQUIRE(count != nullptr);
     CHECK(lv_obj_has_flag(count, LV_OBJ_FLAG_HIDDEN));
 }
+
+TEST_CASE_METHOD(PrintStatusPanelFixture,
+                 "The objects button stays hidden on a printer without [exclude_object]",
+                 "[exclude_button][print_status][pre_start_exclude]") {
+    lv_obj_t* btn = lv_obj_find_by_name(root_, "btn_objects");
+    REQUIRE(btn != nullptr);
+    REQUIRE_FALSE(state().get_discovery().has_exclude_object());
+
+    state().excluded_objects_state().set_defined_objects({"A", "B"});
+    UpdateQueue::instance().drain();
+    CHECK(lv_obj_has_flag(btn, LV_OBJ_FLAG_HIDDEN));
+}

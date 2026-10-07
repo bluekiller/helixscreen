@@ -50,6 +50,7 @@
 
 #include <cstdlib>
 #include <filesystem>
+#include <fstream>
 #include <map>
 #include <memory>
 #include <set>
@@ -1292,6 +1293,13 @@ TEST_CASE_METHOD(LVGLUITestFixture, "More-below subject tracks the options scrol
 // Pre-start object picks
 // ============================================================================
 
+class PrintSelectDetailViewTestAccess {
+  public:
+    static void begin_viewer_load(helix::ui::PrintSelectDetailView& view, const std::string& path) {
+        view.begin_viewer_load(path);
+    }
+};
+
 namespace {
 
 const char* kThreeParts =
@@ -1527,6 +1535,9 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     REQUIRE(card != nullptr);
     process_lvgl(20);
     CHECK_FALSE(lv_obj_has_flag(btn, LV_OBJ_FLAG_HIDDEN));
+    // The row around the button leaves taps in its gaps to the preview.
+    CHECK_FALSE(
+        lv_obj_has_flag(lv_obj_find_by_name(root, "detail_top_left_row"), LV_OBJ_FLAG_CLICKABLE));
 
     lv_obj_update_layout(root);
     lv_area_t b, c;
@@ -1651,13 +1662,44 @@ TEST_CASE_METHOD(LVGLUITestFixture, "Re-showing the open view for its file lists
                  "[print_select][detail_view][pre_start_exclude]") {
     ExcludeObjectHardware hw(true);
     OpenDetail d(test_screen(), "parts.gcode", kThreeParts);
-    d.view.toggle_exclude_pick("Cube_id_1");
 
     d.view.show("parts.gcode", "", "PLA");
     OpenDetail::settle();
 
     CHECK(d.view.exclude_objects().get_defined_objects().size() == 3);
     CHECK(OpenDetail::subject_int("detail_exclude_available") == 1);
-    CHECK(d.view.exclude_picks().empty());
-    CHECK(OpenDetail::subject_int("detail_exclude_pick_count") == 0);
+}
+
+TEST_CASE_METHOD(LVGLUITestFixture,
+                 "An open view shown for another file does not list the previous file's parse",
+                 "[print_select][detail_view][pre_start_exclude]") {
+    ExcludeObjectHardware hw(true);
+    OpenDetail d(test_screen(), "parts.gcode", kThreeParts);
+
+    // The viewer parses parts.gcode and finds an object past the scan window.
+    const auto path = std::filesystem::path(d.cache.dir) / "parts_full.gcode";
+    {
+        std::ofstream out(path);
+        out << kThreeParts << "EXCLUDE_OBJECT_DEFINE NAME=Late_part CENTER=10,10\n"
+            << "G1 Z0.2 F600\nEXCLUDE_OBJECT_START NAME=Late_part\n"
+            << "G1 X10 Y10 E1 F1200\nG1 X20 Y10 E2\nEXCLUDE_OBJECT_END NAME=Late_part\n";
+    }
+    PrintSelectDetailViewTestAccess::begin_viewer_load(d.view, path.string());
+    REQUIRE(wait_until(
+        [&] {
+            OpenDetail::settle();
+            return d.view.exclude_objects().get_defined_objects().size() == 4;
+        },
+        60000));
+
+    helix::gcode::ScanResult scan;
+    scan.objects = helix::gcode::collect_exclude_object_defines(
+        "EXCLUDE_OBJECT_DEFINE NAME=Left CENTER=1,1\n"
+        "EXCLUDE_OBJECT_DEFINE NAME=Right CENTER=9,9\n");
+    d.view.get_prep_manager()->set_cached_scan_result(scan, "other.gcode");
+    d.view.show("other.gcode", "", "PLA");
+    OpenDetail::settle();
+
+    CHECK(d.view.exclude_objects().get_defined_objects() ==
+          std::vector<std::string>{"Left", "Right"});
 }

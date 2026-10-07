@@ -335,6 +335,28 @@ class ExcludeObjectMapViewTestAccess {
         }
         return nullptr;
     }
+    /// Strongest outline alpha drawn within 2px of the bed point (x_mm, y_mm).
+    static int outline_alpha_near(const ExcludeObjectMapView& view, float x_mm, float y_mm) {
+        lv_obj_t* canvas = view.canvas_;
+        if (!canvas || !view.mapper_) {
+            return -1;
+        }
+        const auto [px, py] = view.mapper_->mm_to_px(x_mm, y_mm);
+        const int32_t w = lv_obj_get_width(canvas);
+        const int32_t h = lv_obj_get_height(canvas);
+        int best = 0;
+        for (int32_t dy = -2; dy <= 2; ++dy) {
+            for (int32_t dx = -2; dx <= 2; ++dx) {
+                const int32_t x = static_cast<int32_t>(px) + dx;
+                const int32_t y = static_cast<int32_t>(py) + dy;
+                if (x < 0 || y < 0 || x >= w || y >= h) {
+                    continue;
+                }
+                best = std::max(best, static_cast<int>(lv_canvas_get_px(canvas, x, y).alpha));
+            }
+        }
+        return best;
+    }
 };
 
 TEST_CASE_METHOD(
@@ -417,4 +439,34 @@ TEST_CASE_METHOD(XMLTestFixture, "Each open map view's close button closes only 
         second.destroy();
         process_lvgl(20);
     }
+}
+
+TEST_CASE_METHOD(XMLTestFixture, "A picked object's outline fades on the map like an excluded one",
+                 "[exclude_map][pre_start_exclude]") {
+    REQUIRE(register_component("components/exclude_object_map"));
+    auto& st = state().excluded_objects_state();
+    seed_objects(st);
+
+    ExcludeObjectMapView view;
+    view.create(test_screen(), &st, 235.0f, 235.0f, {}, ExcludeTapMode::Toggle, nullptr);
+    process_lvgl(50);
+
+    // Midpoint of OBJ_1's bottom edge, (60,60)-(90,60).
+    const int unpicked = ExcludeObjectMapViewTestAccess::outline_alpha_near(view, 75.0f, 60.0f);
+    REQUIRE(unpicked > 0);
+
+    st.set_excluded_objects({"OBJ_1"});
+    helix::ui::UpdateQueue::instance().drain();
+    process_lvgl(20);
+
+    const int picked = ExcludeObjectMapViewTestAccess::outline_alpha_near(view, 75.0f, 60.0f);
+    CHECK(picked > 0);
+    CHECK(picked <= static_cast<int>(helix::ui::object_badge_opa(true)));
+    // Its neighbour keeps a full-strength outline, and the picked rect stays tappable.
+    CHECK(ExcludeObjectMapViewTestAccess::outline_alpha_near(view, 115.0f, 100.0f) == unpicked);
+    CHECK(lv_obj_has_flag(ExcludeObjectMapViewTestAccess::rect_for(view, "OBJ_1"),
+                          LV_OBJ_FLAG_CLICKABLE));
+
+    view.destroy();
+    process_lvgl(20);
 }

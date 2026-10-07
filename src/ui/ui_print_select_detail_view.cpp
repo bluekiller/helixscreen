@@ -1871,7 +1871,10 @@ void PrintSelectDetailView::refresh_exclude_objects() {
     if (prep_manager_ && prep_manager_->has_scan_result_for(current_filename_)) {
         scanned = prep_manager_->get_scan_result()->objects;
     }
-    const auto* parsed = gcode_viewer_ ? ui_gcode_viewer_get_parsed_file(gcode_viewer_) : nullptr;
+    // An open view shown for another file still holds the previous file's parse.
+    const auto* parsed = gcode_viewer_ && viewer_file_ == current_filename_
+                             ? ui_gcode_viewer_get_parsed_file(gcode_viewer_)
+                             : nullptr;
     exclude_objects_.set_defined_objects_with_geometry(
         helix::ui::object_infos_from(helix::ui::merge_defined_objects(scanned, parsed)));
 
@@ -1951,15 +1954,15 @@ void PrintSelectDetailView::toggle_exclude_mode() {
 }
 
 void PrintSelectDetailView::publish_exclude_picks() {
-    const auto& picks = exclude_objects_.get_excluded_objects();
-    // Counts what Print will send, so the badge and the list never disagree.
-    const int count = static_cast<int>(exclude_picks().size());
+    // What Print will send: the badge, the list and the render all show this.
+    const auto picks = exclude_picks();
+    const int count = static_cast<int>(picks.size());
     lv_subject_set_int(&detail_exclude_pick_count_, count);
     std::snprintf(detail_exclude_pick_count_text_buf_, sizeof(detail_exclude_pick_count_text_buf_),
                   "%d", count);
     lv_subject_copy_string(&detail_exclude_pick_count_text_, detail_exclude_pick_count_text_buf_);
     if (gcode_viewer_) {
-        ui_gcode_viewer_set_excluded_objects(gcode_viewer_, picks);
+        ui_gcode_viewer_set_excluded_objects(gcode_viewer_, {picks.begin(), picks.end()});
     }
 }
 
@@ -2489,6 +2492,7 @@ void PrintSelectDetailView::load_gcode_for_preview() {
 }
 
 void PrintSelectDetailView::begin_viewer_load(const std::string& path) {
+    viewer_file_ = current_filename_;
     // Set up the (single) load callback, then load the file. The body was
     // identical in the former cached-file and post-download paths.
     ui_gcode_viewer_set_load_callback(

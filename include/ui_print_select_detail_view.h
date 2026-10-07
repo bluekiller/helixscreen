@@ -30,6 +30,8 @@
 
 // Forward declarations
 class IMoonrakerAPI;
+class PrintSelectDetailViewTestAccess; // NAMESPACE_OK: test seam befriended below, defined in the
+                                       // unit test
 namespace helix {
 class PrinterState;
 }
@@ -669,6 +671,8 @@ class PrintSelectDetailView : public OverlayBase {
     void on_ui_destroyed() override;
 
   private:
+    friend class ::PrintSelectDetailViewTestAccess;
+
     // === Dependencies ===
     IMoonrakerAPI* api_ = nullptr;
     PrinterState* printer_state_ = nullptr;
@@ -761,6 +765,8 @@ class PrintSelectDetailView : public OverlayBase {
     void publish_exclude_picks();
     std::string temp_gcode_path_; // Cached downloaded gcode file path
     bool gcode_loaded_ = false;   // Whether gcode file has been loaded into viewer
+    /// The file whose G-code the viewer was last given; its parse belongs to it.
+    std::string viewer_file_;
     // Pending print-attempt (or other) callback registered via run_when_loaded()
     // while a parse was still in flight. Fired once from the load callback after
     // preflight_result_ is fresh, then cleared. Reset on show().
