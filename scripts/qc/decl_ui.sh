@@ -192,23 +192,6 @@ fi
 echo ""
 
 SECTION_START=$(date +%s)
-echo -n "🖼️  Checking printer image cache invalidation..."
-# Only src/system/ may delete a printer image cache: every entry a UI refresh
-# deletes costs a decode, resize and flash write to rebuild.
-if python3 scripts/check_printer_image_invalidation.py >/tmp/printer_image_inval.out 2>&1; then
-  section_time $SECTION_START
-  echo ""
-  tail -1 /tmp/printer_image_inval.out
-else
-  section_time $SECTION_START
-  echo ""
-  cat /tmp/printer_image_inval.out
-  EXIT_CODE=1
-fi
-
-echo ""
-
-SECTION_START=$(date +%s)
 echo -n "⏱️  Checking timer destructor cancels..."
 
 # Ratcheting baseline. A raw lv_timer_t* cancelled only in cleanup()/stop_*()

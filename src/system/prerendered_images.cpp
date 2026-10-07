@@ -566,34 +566,4 @@ void prune_printer_image_cache(int max_files, int max_keep) {
     spdlog::info("[PrinterCache] Pruned {} old cache entries", to_remove);
 }
 
-int invalidate_printer_image_cache(const std::string& source_image_path) {
-    std::string basename = extract_source_basename(source_image_path);
-    if (basename.empty()) {
-        return 0;
-    }
-
-    std::string cache_dir = get_printer_image_cache_dir();
-    int removed = 0;
-
-    // An absent cache dir leaves nothing to invalidate.
-    if (const auto listing = helix::fs::list_dir(cache_dir)) {
-        for (const auto& entry : *listing) {
-            if (!entry.is_regular)
-                continue;
-            const std::string& filename = entry.name;
-            if (printer_cache_entry_matches(filename, source_image_path)) {
-                if (helix::fs::remove(entry.path) || errno == ENOENT) {
-                    ++removed;
-                    spdlog::debug("[PrinterCache] Invalidated cache: {}", filename);
-                }
-            }
-        }
-    }
-
-    if (removed > 0) {
-        spdlog::info("[PrinterCache] Invalidated {} cache entries for '{}'", removed, basename);
-    }
-    return removed;
-}
-
 } // namespace helix
