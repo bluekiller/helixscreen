@@ -136,8 +136,13 @@
 /*Using matrix for transformations.
  *Requirements:
     `LV_USE_MATRIX = 1`.
-    The rendering engine needs to support 3x3 matrix transformations.*/
-#define LV_DRAW_TRANSFORM_USE_MATRIX            1
+    The rendering engine needs to support 3x3 matrix transformations.
+ *lv_draw_sw does not: it ignores the matrix, so a transform_scale style is
+ *silently dropped, and every invalidation is padded by 5 px for the matrix's
+ *rounding. That pad pushes an overlay's redraw past its own edge, which fails
+ *the cover check and redraws everything underneath it. Off, transformed
+ *widgets render through a TRANSFORM layer, allocated with lv_malloc (PSRAM).*/
+#define LV_DRAW_TRANSFORM_USE_MATRIX            0
 
 /* If a widget has `style_opa < 255` (not `bg_opa`, `text_opa` etc) or not NORMAL blend mode
  * it is buffered into a "simple" layer before rendering. The widget can be buffered in smaller chunks.

@@ -100,8 +100,13 @@ struct ThemePalette {
 };
 
 namespace helix {
+enum class PlatformTier;
+
 /// Style configure function type - applies palette colors to a style.
 using StyleConfigureFn = void (*)(lv_style_t* style, const ThemePalette& palette);
+
+/// Pressed-state scale-down, applied only where pressed_scale_allowed(tier).
+void configure_pressed_for_tier(lv_style_t* style, PlatformTier tier);
 
 /**
  * @brief Breakpoint suffix for the nav_width token, e.g. "_small".

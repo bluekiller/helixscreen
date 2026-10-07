@@ -760,7 +760,7 @@ install_camera_k2() {
     log_info "Registering ustreamer webcam (${reg_desc}) in Moonraker..."
     local migrate_out
     if migrate_out="$(_moonraker_migrate_webcams "$stream_url" "$snap_url")"; then
-        log_success "Moonraker webcam configured for HelixScreen + fluidd"
+        log_note "Moonraker webcam configured for HelixScreen + fluidd"
         case "$migrate_out" in
             *CONFIG_DEFAULT_LEFT*)
                 log_warn "A stock 'Default' webcam is defined in your Moonraker *config* (e.g. the K2-Camera hack) — it can't be removed via the API."

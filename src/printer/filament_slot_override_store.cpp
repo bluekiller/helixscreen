@@ -1261,10 +1261,10 @@ std::unordered_map<int, FilamentSlotOverride> FilamentSlotOverrideStore::load_bl
 
 namespace {
 
-/// Moonraker answers a namespace nothing has written yet with 404 "Namespace
-/// <ns> not found". That is an empty namespace, not an unreachable database.
+/// A namespace nothing has written yet answers not-found. That is an empty
+/// namespace, not an unreachable database.
 bool is_absent_namespace(const MoonrakerError& err) {
-    return err.code == 404;
+    return err.is_not_found();
 }
 
 } // namespace

@@ -167,6 +167,25 @@ run_copied_uninstaller() {
     [ -x "$MOCK_ROOT/etc/init.d/S99start_app" ]
 }
 
+@test "uninstaller at default verbosity says what it removed" {
+    build_mock_k1
+    write_start_app 755
+    INSTALL_DIR="$MOCK_ROOT/usr/data/helixscreen"
+    found_any=false
+    stop_k1_stock_competing_uis
+    link_ledger_into_payload
+
+    unset HELIX_INSTALL_VERBOSE
+    run_copied_uninstaller
+    [ "$status" -eq 0 ]
+    [ "$(grep -c '^HelixScreen uninstaller$' <<< "$output")" -eq 1 ] \
+        || fail "no single uninstaller header: $output"
+    contains "    Removed $MOCK_ROOT/usr/data/helixscreen" "$output"
+    contains "    HelixScreen has been removed." "$output"
+    lacks "[INFO]" "$output"
+    lacks "=====" "$output"
+}
+
 @test "uninstaller output matches the fleet report when nothing re-enables S99start_app" {
     # With no ledger entry the uninstaller completes "successfully" and
     # reports no UI found — the silence is the trap. The inherited-disable
