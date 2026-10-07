@@ -6,14 +6,27 @@
 
 namespace helix {
 
-void configure_pressed_for_tier(lv_style_t* s, PlatformTier tier) {
+void configure_pressed_for_tier(lv_style_t* s, PlatformTier tier, const ThemePalette* ring) {
     if (!pressed_scale_allowed(tier)) {
+        // A scale renders through a TRANSFORM layer. An outline draws in place
+        // and moves no layout. It sits outside the widget because it is drawn
+        // before the children, which cover a full-bleed card's inside edge.
+        if (ring) {
+            lv_style_set_outline_color(s, ring->primary);
+            lv_style_set_outline_width(s, 3);
+            lv_style_set_outline_pad(s, 0);
+            lv_style_set_outline_opa(s, LV_OPA_COVER);
+        }
         return;
     }
     lv_style_set_transform_scale_x(s, 245); // 96% scale
     lv_style_set_transform_scale_y(s, 245);
     lv_style_set_transform_pivot_x(s, LV_PCT(50)); // Scale from center
     lv_style_set_transform_pivot_y(s, LV_PCT(50));
+}
+
+void configure_card_pressed(lv_style_t* s, const ThemePalette& p) {
+    configure_pressed_for_tier(s, PlatformCapabilities::detect().tier, &p);
 }
 
 } // namespace helix
