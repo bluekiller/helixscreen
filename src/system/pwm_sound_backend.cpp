@@ -83,7 +83,11 @@ static void default_wait_until(int64_t deadline_ns, const std::function<int64_t(
 }
 
 PWMSoundBackend::PWMSoundBackend(const std::string& base_path, int chip, int channel)
-    : base_path_(base_path), chip_(chip), channel_(channel) {}
+    : base_path_(base_path), chip_(chip), channel_(channel) {
+#ifdef HELIX_PWM_AUTO_EXPORT
+    auto_export_ = true;
+#endif
+}
 
 PWMSoundBackend::~PWMSoundBackend() {
     shutdown();
@@ -196,11 +200,12 @@ bool PWMSoundBackend::try_export_channel() {
 bool PWMSoundBackend::initialize() {
     std::string path = channel_path();
     if (!std::filesystem::exists(path)) {
-#ifdef HELIX_PWM_AUTO_EXPORT
-        // The stock AD5M kernel ships the beeper channel unexported: nothing
-        // materializes pwm6 until its number is written to pwmchip0/export.
-        try_export_channel();
-#endif
+        // The stock AD5M kernel ships the beeper channel unexported, and a Pi's
+        // pwm-2chan overlay channels stay unexported until something asks:
+        // nothing materializes pwmN until its number is written to export.
+        if (auto_export_) {
+            try_export_channel();
+        }
         if (!std::filesystem::exists(path)) {
             return false;
         }

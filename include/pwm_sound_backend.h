@@ -55,6 +55,12 @@ class PWMSoundBackend : public SoundBackend {
     void set_render_source(std::function<void(float*, size_t, int)> fn) override;
     void clear_render_source() override;
 
+    /// Write the channel to pwmchipN/export when initialize() finds it missing.
+    /// Defaults on for HELIX_PWM_AUTO_EXPORT builds; call before initialize().
+    void set_auto_export(bool on) {
+        auto_export_ = on;
+    }
+
     /// Initialize: verify sysfs paths exist and are writable
     /// @return false if paths don't exist or aren't writable
     bool initialize();
@@ -176,6 +182,7 @@ class PWMSoundBackend : public SoundBackend {
     std::string base_path_;
     int chip_;
     int channel_;
+    bool auto_export_ = false;
     bool enabled_ = false;
     bool initialized_ = false;
     Waveform current_wave_ = Waveform::SQUARE;

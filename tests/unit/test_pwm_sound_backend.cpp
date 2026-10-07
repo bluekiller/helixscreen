@@ -380,6 +380,29 @@ TEST_CASE("initialize writes channel number to export when channel missing", "[s
     cleanup_mock_sysfs(base);
 }
 
+TEST_CASE("set_auto_export(false) leaves a missing channel unexported", "[sound][pwm]") {
+    auto base = create_mock_sysfs_unexported(0);
+    std::ofstream(base + "/pwmchip0/export") << "42";
+
+    PWMSoundBackend backend(base, 0, 6);
+    backend.set_auto_export(false);
+    REQUIRE_FALSE(backend.initialize());
+    REQUIRE(read_sysfs_file(base + "/pwmchip0/export") == "42");
+
+    cleanup_mock_sysfs(base);
+}
+
+TEST_CASE("set_auto_export(true) exports the named channel", "[sound][pwm]") {
+    auto base = create_mock_sysfs_unexported(0);
+
+    PWMSoundBackend backend(base, 0, 0);
+    backend.set_auto_export(true);
+    REQUIRE_FALSE(backend.initialize());
+    REQUIRE(read_sysfs_file(base + "/pwmchip0/export") == "0");
+
+    cleanup_mock_sysfs(base);
+}
+
 TEST_CASE("initialize does not touch export when channel exists", "[sound][pwm]") {
     auto base = create_mock_sysfs(0, 6);
 
