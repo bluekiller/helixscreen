@@ -3675,6 +3675,7 @@ translations:
   '{} and {} are both mapped here': '{} と {} の両方がここに割り当てられています'
   '{} available': '{} が利用可能'
   '{} axis homed': '{} 軸がホーミング済み'
+  '{} cannot be skipped: its name has characters the printer cannot be sent': '{} は除外できません: 名前にプリンターへ送信できない文字が含まれています'
   '{} changed': '変更 {} 件'
   '{} command timed out': '{} コマンドがタイムアウトしました'
   '{} complete': '{} 完了'

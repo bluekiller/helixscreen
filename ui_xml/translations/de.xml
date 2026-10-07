@@ -3505,6 +3505,7 @@
   <translation tag="{} and {} are both mapped here" de="{} und {} sind beide hier zugewiesen"/>
   <translation tag="{} available" de="{} verfügbar"/>
   <translation tag="{} axis homed" de="{}-Achse referenziert"/>
+  <translation tag="{} cannot be skipped: its name has characters the printer cannot be sent" de="{} kann nicht ausgeschlossen werden: Der Name enthält Zeichen, die nicht an den Drucker gesendet werden können"/>
   <translation tag="{} changed" de="{} geändert"/>
   <translation tag="{} command timed out" de="Befehl {} – Zeitüberschreitung"/>
   <translation tag="{} complete" de="{} abgeschlossen"/>

@@ -51,6 +51,7 @@
 #include "memory_monitor.h"
 #include "memory_utils.h"
 #include "observer_factory.h"
+#include "pre_start_exclude.h"
 #include "preprint_predictor.h"
 #include "print_start_checks.h"
 #include "print_status_layout_decision.h"
@@ -365,9 +366,14 @@ PrintStatusPanel::PrintStatusPanel(PrinterState& printer_state, IMoonrakerAPI* a
     exclude_objects_observer_ = observe<int>(
         printer_state_.excluded_objects_state().get_defined_objects_version_subject(), this,
         [](PrintStatusPanel* self, int) {
-            int available =
-                self->printer_state_.excluded_objects_state().get_defined_objects().size() >= 2 ? 1
-                                                                                                : 0;
+            // Klipper reports defined objects only through [exclude_object], and
+            // only from the G-code file it is printing.
+            const int available =
+                helix::ui::pre_start_exclude_available(
+                    true, false,
+                    self->printer_state_.excluded_objects_state().get_defined_objects().size())
+                    ? 1
+                    : 0;
             lv_subject_set_int(&self->exclude_objects_available_subject_, available);
             self->update_objects_text();
             self->update_view_toggle_position(available != 0);

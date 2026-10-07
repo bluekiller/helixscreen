@@ -512,6 +512,7 @@ src/ui/ui_panel_power.cpp
 src/ui/ui_panel_print_select.cpp
 src/ui/ui_panel_print_status.cpp
 src/ui/ui_panel_settings.cpp
+src/ui/pre_start_exclude.cpp
 src/ui/print_select_button_view.cpp
 src/ui/ui_plr_offer_controller.cpp
 src/ui/ui_plr_prompt.cpp

@@ -3813,6 +3813,7 @@ translations:
   '{} and {} are both mapped here': '{} and {} are both mapped here'
   '{} available': '{} available'
   '{} axis homed': '{} axis homed'
+  '{} cannot be skipped: its name has characters the printer cannot be sent': '{} cannot be skipped: its name has characters the printer cannot be sent'
   '{} changed': '{} changed'
   '{} command timed out': '{} command timed out'
   '{} complete': '{} complete'

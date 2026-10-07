@@ -3932,6 +3932,7 @@ translations:
   '{} and {} are both mapped here': '{} y {} están asignados aquí'
   '{} available': '{} disponible'
   '{} axis homed': Eje {} en origen
+  '{} cannot be skipped: its name has characters the printer cannot be sent': '{} no se puede excluir: su nombre tiene caracteres que no se pueden enviar a la impresora'
   '{} changed': '{} cambiado(s)'
   '{} command timed out': Tiempo agotado del comando {}
   '{} complete': '{} completado'

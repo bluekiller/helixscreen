@@ -3665,6 +3665,7 @@ translations:
   '{} and {} are both mapped here': '{} 和 {} 都映射到这里'
   '{} available': '{} 可用'
   '{} axis homed': '{} 轴已归位'
+  '{} cannot be skipped: its name has characters the printer cannot be sent': '无法排除 {}：名称包含无法发送到打印机的字符'
   '{} changed': '{} 个已更改'
   '{} command timed out': '{} 命令超时'
   '{} complete': '{} 完成'

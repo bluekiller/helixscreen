@@ -31,14 +31,18 @@
 #include "../lvgl_ui_test_fixture.h"
 #include "../test_helpers/mock_bypass.h"
 #include "../test_helpers/printer_state_test_access.h"
+#include "../ui_test_utils.h"
 #include "ams_backend_mock.h"
 #include "ams_remap.h"
 #include "ams_state.h"
 #include "ams_types.h"
 #include "app_globals.h"
+#include "gcode_ops_detector.h"
+#include "gcode_parser.h"
 #include "helix-xml/src/xml/lv_xml.h"
 #include "pre_print_option.h"
 #include "preflight_validator.h"
+#include "printer_discovery.h"
 #include "printer_state.h"
 #include "test_helpers/pre_print_option_sets.h"
 #include "tools_used_cache.h"
@@ -1270,4 +1274,220 @@ TEST_CASE_METHOD(LVGLUITestFixture, "More-below subject tracks the options scrol
     lv_obj_send_event(scroll, LV_EVENT_SIZE_CHANGED, nullptr);
     process_lvgl(20);
     CHECK(lv_subject_get_int(more) == 0);
+}
+
+// ============================================================================
+// Pre-start object picks
+// ============================================================================
+
+namespace {
+
+const char* kThreeParts =
+    "EXCLUDE_OBJECT_DEFINE NAME=Cone_id_0 CENTER=25,-4 POLYGON=[[20,-9],[31,-9],[31,1],[20,1]]\n"
+    "EXCLUDE_OBJECT_DEFINE NAME=Cube_id_1 CENTER=-36,6\n"
+    "EXCLUDE_OBJECT_DEFINE NAME=Cylinder_id_2 CENTER=-22,30\n";
+
+/// A printer with or without [exclude_object] configured.
+struct ExcludeObjectHardware {
+    explicit ExcludeObjectHardware(bool configured) {
+        helix::PrinterDiscovery hw;
+        hw.parse_objects(configured ? nlohmann::json{"exclude_object", "extruder"}
+                                    : nlohmann::json{"extruder"});
+        get_printer_state().set_hardware(hw);
+    }
+    ~ExcludeObjectHardware() {
+        get_printer_state().set_hardware(helix::PrinterDiscovery{});
+    }
+};
+
+/// A shown detail view whose scan of @p file found @p defines.
+struct OpenDetail {
+    CacheDirGuard cache;
+    helix::ui::PrintSelectDetailView view;
+
+    OpenDetail(lv_obj_t* screen, const std::string& file, const char* defines) {
+        register_xml_callbacks({
+            {"on_print_select_detail_backdrop", detail_noop_cb},
+            {"on_print_select_print_button", detail_noop_cb},
+            {"on_print_select_delete_button", detail_noop_cb},
+            {"on_print_detail_back_clicked", detail_noop_cb},
+            {"on_toggle_sliced_colors", detail_noop_cb},
+            {"on_print_select_detail_objects", detail_noop_cb},
+        });
+        view.set_dependencies(nullptr, &get_printer_state());
+        view.init_subjects();
+        REQUIRE(view.create(screen) != nullptr);
+        helix::gcode::ScanResult scan;
+        scan.objects = helix::gcode::collect_exclude_object_defines(defines);
+        view.get_prep_manager()->set_cached_scan_result(scan, file);
+        view.show(file, "", "PLA");
+        settle();
+    }
+    ~OpenDetail() {
+        close();
+    }
+    void close() {
+        view.hide();
+        settle();
+        lv_timer_handler(); // the close callback runs on the next tick
+    }
+    static void settle() {
+        helix::ui::UpdateQueue::instance().drain();
+    }
+    static int subject_int(const char* name) {
+        return lv_subject_get_int(lv_xml_get_subject(nullptr, name));
+    }
+};
+
+} // namespace
+
+TEST_CASE_METHOD(LVGLUITestFixture, "Details lists the scanned objects in file order",
+                 "[print_select][detail_view][pre_start_exclude]") {
+    ExcludeObjectHardware hw(true);
+    OpenDetail d(test_screen(), "parts.gcode", kThreeParts);
+
+    const auto& defined = d.view.exclude_objects().get_defined_objects();
+    REQUIRE(defined == std::vector<std::string>{"Cone_id_0", "Cube_id_1", "Cylinder_id_2"});
+    const auto cone = d.view.exclude_objects().get_object_geometry("Cone_id_0");
+    REQUIRE(cone.has_value());
+    CHECK(cone->has_bbox);
+    CHECK(OpenDetail::subject_int("detail_exclude_available") == 1);
+    // The printer's live state is untouched.
+    CHECK(get_printer_state().excluded_objects_state().get_defined_objects().empty());
+}
+
+TEST_CASE_METHOD(LVGLUITestFixture,
+                 "The skip option needs [exclude_object], two objects and G-code",
+                 "[print_select][detail_view][pre_start_exclude]") {
+    SECTION("no [exclude_object]") {
+        ExcludeObjectHardware hw(false);
+        OpenDetail d(test_screen(), "parts.gcode", kThreeParts);
+        CHECK(OpenDetail::subject_int("detail_exclude_available") == 0);
+    }
+    SECTION("one object") {
+        ExcludeObjectHardware hw(true);
+        OpenDetail d(test_screen(), "solo.gcode", "EXCLUDE_OBJECT_DEFINE NAME=Solo CENTER=1,1\n");
+        CHECK(OpenDetail::subject_int("detail_exclude_available") == 0);
+    }
+    // A 3MF is pinned by the pure rule's test: the scan replaces a .3mf's cached
+    // result with an empty one, so a view-level case would pass on the count alone.
+}
+
+TEST_CASE_METHOD(LVGLUITestFixture, "A pick toggles in the private state, matched upper-case",
+                 "[print_select][detail_view][pre_start_exclude]") {
+    ExcludeObjectHardware hw(true);
+    OpenDetail d(test_screen(), "parts.gcode", kThreeParts);
+
+    d.view.toggle_exclude_pick("CUBE_ID_1");
+    OpenDetail::settle();
+    CHECK(d.view.exclude_picks() == std::vector<std::string>{"Cube_id_1"});
+    CHECK(OpenDetail::subject_int("detail_exclude_pick_count") == 1);
+    CHECK(std::string(lv_subject_get_string(
+              lv_xml_get_subject(nullptr, "detail_exclude_pick_count_text"))) == "1");
+    CHECK(get_printer_state().excluded_objects_state().get_excluded_objects().empty());
+
+    d.view.toggle_exclude_pick("cube_id_1");
+    OpenDetail::settle();
+    CHECK(d.view.exclude_picks().empty());
+    CHECK(OpenDetail::subject_int("detail_exclude_pick_count") == 0);
+
+    d.view.toggle_exclude_pick("Not_an_object");
+    CHECK(d.view.exclude_picks().empty());
+}
+
+TEST_CASE_METHOD(LVGLUITestFixture, "A name the printer cannot be sent is refused with a toast",
+                 "[print_select][detail_view][pre_start_exclude]") {
+    std::vector<std::string> warnings;
+    helix::ui::set_test_notification_warning_hook(
+        [&](const std::string& msg) { warnings.push_back(msg); });
+    ExcludeObjectHardware hw(true);
+    OpenDetail d(test_screen(), "names.gcode",
+                 "EXCLUDE_OBJECT_DEFINE NAME='Part 1' CENTER=1,1\n"
+                 "EXCLUDE_OBJECT_DEFINE NAME=Pi\xc3\xa8"
+                 "ce CENTER=5,5\n"
+                 "EXCLUDE_OBJECT_DEFINE NAME=Plain CENTER=9,9\n");
+
+    d.view.toggle_exclude_pick("Part 1");
+    d.view.toggle_exclude_pick("Pi\xc3\xa8"
+                               "ce");
+    d.view.toggle_exclude_pick("Plain");
+    helix::ui::set_test_notification_warning_hook(nullptr);
+
+    CHECK(d.view.exclude_picks() == std::vector<std::string>{"Plain"});
+    REQUIRE(warnings.size() == 2);
+    CHECK(warnings[0].find("Part 1") != std::string::npos);
+}
+
+TEST_CASE_METHOD(LVGLUITestFixture, "Picks clear when the user leaves the file, not on a suspend",
+                 "[print_select][detail_view][pre_start_exclude]") {
+    ExcludeObjectHardware hw(true);
+    OpenDetail d(test_screen(), "parts.gcode", kThreeParts);
+    d.view.toggle_exclude_pick("Cube_id_1");
+
+    d.view.on_deactivating(DeactivateReason::Suspended);
+    CHECK(d.view.exclude_picks() == std::vector<std::string>{"Cube_id_1"});
+
+    d.close();
+    CHECK(d.view.exclude_picks().empty());
+
+    // Re-opening the same file lists its objects again, with no picks.
+    d.view.show("parts.gcode", "", "PLA");
+    OpenDetail::settle();
+    CHECK(d.view.exclude_objects().get_defined_objects().size() == 3);
+    CHECK(d.view.exclude_picks().empty());
+}
+
+TEST_CASE_METHOD(LVGLUITestFixture,
+                 "Picks held for a start survive the hide and a same-file re-show",
+                 "[print_select][detail_view][pre_start_exclude]") {
+    ExcludeObjectHardware hw(true);
+    OpenDetail d(test_screen(), "parts.gcode", kThreeParts);
+    d.view.toggle_exclude_pick("Cube_id_1");
+
+    d.view.hold_picks_for_start(true);
+    CHECK(d.view.picks_held_for_start());
+    d.close();
+    CHECK(d.view.exclude_picks() == std::vector<std::string>{"Cube_id_1"});
+
+    // The start failed: details comes back for the same file with the pick intact.
+    d.view.show("parts.gcode", "", "PLA");
+    OpenDetail::settle();
+    CHECK(d.view.exclude_objects().get_defined_objects().size() == 3);
+    CHECK(d.view.exclude_picks() == std::vector<std::string>{"Cube_id_1"});
+    CHECK(OpenDetail::subject_int("detail_exclude_pick_count") == 1);
+    // The hold is spent by that show; leaving the file now clears.
+    CHECK_FALSE(d.view.picks_held_for_start());
+    d.close();
+    CHECK(d.view.exclude_picks().empty());
+}
+
+TEST_CASE_METHOD(LVGLUITestFixture, "A held pick does not carry over to another file",
+                 "[print_select][detail_view][pre_start_exclude]") {
+    ExcludeObjectHardware hw(true);
+    OpenDetail d(test_screen(), "parts.gcode", kThreeParts);
+    d.view.toggle_exclude_pick("Cube_id_1");
+
+    d.view.hold_picks_for_start(true);
+    d.close();
+    d.view.show("other.gcode", "", "PLA");
+    OpenDetail::settle();
+    CHECK(d.view.exclude_objects().get_excluded_objects().empty());
+    CHECK(OpenDetail::subject_int("detail_exclude_pick_count") == 0);
+    CHECK_FALSE(d.view.picks_held_for_start());
+}
+
+TEST_CASE_METHOD(LVGLUITestFixture, "Every object picked is reported, and dropping picks says so",
+                 "[print_select][detail_view][pre_start_exclude]") {
+    ExcludeObjectHardware hw(true);
+    OpenDetail d(test_screen(), "parts.gcode", kThreeParts);
+    CHECK_FALSE(d.view.drop_exclude_picks());
+
+    d.view.toggle_exclude_pick("Cone_id_0");
+    d.view.toggle_exclude_pick("Cube_id_1");
+    CHECK_FALSE(d.view.all_objects_picked());
+    d.view.toggle_exclude_pick("Cylinder_id_2");
+    CHECK(d.view.all_objects_picked());
+
+    CHECK(d.view.drop_exclude_picks());
+    CHECK(d.view.exclude_picks().empty());
 }

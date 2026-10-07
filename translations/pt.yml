@@ -3936,6 +3936,7 @@ translations:
   '{} and {} are both mapped here': '{} e {} estão ambos atribuídos aqui'
   '{} available': '{} disponível'
   '{} axis homed': Eixo {} referenciado
+  '{} cannot be skipped: its name has characters the printer cannot be sent': '{} não pode ser excluído: o nome tem caracteres que não podem ser enviados à impressora'
   '{} changed': '{} alterado(s)'
   '{} command timed out': Comando {} expirou
   '{} complete': '{} concluído'
