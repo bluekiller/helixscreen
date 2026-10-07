@@ -1732,6 +1732,30 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     CHECK(list.y1 > card.y2);
 }
 
+TEST_CASE_METHOD(LVGLUITestFixture,
+                 "An open details view follows the printer's [exclude_object] as it changes",
+                 "[print_select][detail_view][pre_start_exclude]") {
+    ExcludeObjectHardware hw(true);
+    OpenDetail d(test_screen(), "parts.gcode", kThreeParts);
+    d.view.toggle_exclude_pick("Cube_id_1");
+    OpenDetail::settle();
+    REQUIRE(OpenDetail::subject_int("detail_exclude_available") == 1);
+
+    // A printer switch to a machine without [exclude_object], details left open.
+    get_printer_state().set_hardware(helix::PrinterDiscovery{});
+    OpenDetail::settle();
+    CHECK(OpenDetail::subject_int("detail_exclude_available") == 0);
+    CHECK(d.view.exclude_picks().empty());
+
+    // Back on a printer that has it: the same picks are offered again.
+    helix::PrinterDiscovery with;
+    with.parse_objects(nlohmann::json{"exclude_object", "extruder"});
+    get_printer_state().set_hardware(with);
+    OpenDetail::settle();
+    CHECK(OpenDetail::subject_int("detail_exclude_available") == 1);
+    CHECK(d.view.exclude_picks() == std::vector<std::string>{"Cube_id_1"});
+}
+
 TEST_CASE_METHOD(LVGLUITestFixture, "The pick count counts only picks the file still defines",
                  "[print_select][detail_view][pre_start_exclude]") {
     ExcludeObjectHardware hw(true);

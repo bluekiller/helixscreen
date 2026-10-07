@@ -754,6 +754,7 @@ class PrintSelectDetailView : public OverlayBase {
     /// Exclude mode over this view's preview.
     helix::ui::ExcludeModeController exclude_mode_;
     ObserverGuard exclude_picks_observer_;
+    ObserverGuard exclude_capability_observer_;
     /// See hold_picks_for_start().
     bool picks_held_for_start_ = false;
     /// 1 when the skip button shows (pre_start_exclude_available()).

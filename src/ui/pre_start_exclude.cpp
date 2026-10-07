@@ -19,6 +19,11 @@
 
 namespace helix::ui {
 
+bool printer_has_exclude_object(const PrinterState* printer_state) {
+    return printer_state && lv_subject_get_int(printer_state->capabilities_state().subject(
+                                Capability::HasExcludeObject)) != 0;
+}
+
 bool pre_start_exclude_available(bool printer_has_exclude_object, bool is_3mf,
                                  size_t defined_count) {
     return printer_has_exclude_object && !is_3mf && defined_count >= 2;

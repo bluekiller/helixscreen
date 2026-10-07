@@ -254,6 +254,11 @@ void PrintSelectDetailView::init_subjects() {
         exclude_objects_.get_excluded_objects_version_subject(), this,
         [](PrintSelectDetailView* self, int) { self->publish_exclude_picks(); },
         exclude_objects_.get_subjects_lifetime());
+    // A printer switch can add or drop [exclude_object] while a file is open.
+    exclude_capability_observer_ = observe<int>(
+        get_printer_state().capabilities_state().subject(helix::Capability::HasExcludeObject), this,
+        [](PrintSelectDetailView* self, int) { self->refresh_exclude_objects(); },
+        get_printer_state().get_subjects_lifetime());
 
     subjects_initialized_ = true;
     spdlog::debug("[DetailView] Initialized pre-print option subjects");
@@ -988,6 +993,7 @@ void PrintSelectDetailView::cleanup() {
 
     exclude_mode_.hide();
     exclude_picks_observer_.reset();
+    exclude_capability_observer_.reset();
     exclude_objects_.deinit_subjects();
 
     // Deinitialize subjects to disconnect observers
@@ -1900,11 +1906,9 @@ void PrintSelectDetailView::refresh_exclude_objects() {
     exclude_objects_.set_defined_objects_with_geometry(
         helix::ui::object_infos_from(helix::ui::merge_defined_objects(scanned, parsed)));
 
-    const bool has_exclude_object =
-        printer_state_ && printer_state_->get_discovery().has_exclude_object();
     const bool available = helix::ui::pre_start_exclude_available(
-        has_exclude_object, helix::gcode::is_3mf(current_filename_),
-        exclude_objects_.get_defined_objects().size());
+        helix::ui::printer_has_exclude_object(printer_state_),
+        helix::gcode::is_3mf(current_filename_), exclude_objects_.get_defined_objects().size());
     lv_subject_set_int(&detail_exclude_available_, available ? 1 : 0);
     publish_exclude_picks();
     exclude_mode_.refresh_render_badges();

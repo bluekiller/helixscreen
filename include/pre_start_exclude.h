@@ -11,7 +11,15 @@
 
 class IMoonrakerAPI; // NAMESPACE_OK: forward declaration of the global API interface
 
+namespace helix {
+class PrinterState;
+}
+
 namespace helix::ui {
+
+/// Whether the printer has [exclude_object], read from the capability subject
+/// both hosts observe, so a printer switch reaches them together. False for null.
+bool printer_has_exclude_object(const PrinterState* printer_state);
 
 /// Whether objects can be skipped: the printer has [exclude_object] and the
 /// file is G-code defining at least two objects. Print status asks the same

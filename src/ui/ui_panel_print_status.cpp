@@ -2732,13 +2732,11 @@ void PrintStatusPanel::update_view_toggle_position(bool objects_visible) {
 void PrintStatusPanel::refresh_exclude_objects_available() {
     // Klipper reports defined objects only from the G-code file it is
     // printing, so a print is never a 3MF.
-    const int available =
-        helix::ui::pre_start_exclude_available(
-            lv_subject_get_int(printer_state_.capabilities_state().subject(
-                helix::Capability::HasExcludeObject)) != 0,
-            false, printer_state_.excluded_objects_state().get_defined_objects().size())
-            ? 1
-            : 0;
+    const int available = helix::ui::pre_start_exclude_available(
+                              helix::ui::printer_has_exclude_object(&printer_state_), false,
+                              printer_state_.excluded_objects_state().get_defined_objects().size())
+                              ? 1
+                              : 0;
     lv_subject_set_int(&exclude_objects_available_subject_, available);
     update_objects_text();
     update_view_toggle_position(available != 0);
