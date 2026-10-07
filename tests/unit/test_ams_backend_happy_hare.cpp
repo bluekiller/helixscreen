@@ -6859,3 +6859,22 @@ TEST_CASE("Happy Hare whole-machine drying stops the units it started when one r
                                    "MMU_HEATER DRY=1 TEMP=50 TIMER=60 UNIT=1 GATES=6,7,8,9",
                                    "MMU_HEATER STOP=1 UNIT=0 GATES=0,1,2,3,4,5"});
 }
+
+TEST_CASE("Happy Hare v4 encoder flag holds when the split is unchanged",
+          "[ams][happy_hare][hh_v4]") {
+    QueryCapturingClient client;
+    helix::test::RegisteredBackend<AmsBackendHappyHareTestHelper> helper_reg(nullptr, &client);
+    AmsBackendHappyHareTestHelper& helper = *helper_reg;
+    auto fx = helix::test::load_happy_hare_fixture("happy_hare_v4_single_unit.json");
+    // No display_name: the unit keeps the name "MMU", so the split is unchanged
+    // and only the topologies are refreshed.
+    fx["mmu_machine"]["unit_0"].erase("display_name");
+    fx["mmu_machine"]["unit_0"]["selector_type"] = "LinearSelector";
+    helper.test_parse_mmu_state(fx["mmu_status"]);
+    helper.mark_unit(0, "kept");
+    connect_with_fixture(helper, client, fx);
+    REQUIRE(helper.unit_marker(0) == "kept");
+    const auto info = helper.get_system_info();
+    CHECK(info.units[0].topology == PathTopology::LINEAR);
+    CHECK_FALSE(info.units[0].has_encoder); // no [mmu_unit] encoder configured
+}
