@@ -820,7 +820,19 @@ void AmsBackendHappyHare::apply_gate_binding_locked(const happy_hare::MmuStatusD
 void AmsBackendHappyHare::apply_mmu_telemetry_locked(const happy_hare::MmuTelemetryDelta& t) {
     // === Happy Hare v4 extended status fields ===
 
-    if (t.espooler_active) {
+    // v4's per-gate list wins over the deprecated single value whenever the
+    // install has published it; the selected gate may move without it.
+    if (t.espooler) {
+        espooler_per_gate_ = *t.espooler;
+    }
+    if (!espooler_per_gate_.empty()) {
+        const int gate = system_info_.current_slot;
+        system_info_.espooler_state =
+            (gate >= 0 && gate < static_cast<int>(espooler_per_gate_.size()))
+                ? espooler_per_gate_[gate]
+                : std::string{};
+        espooler_active_ = system_info_.espooler_state;
+    } else if (t.espooler_active) {
         system_info_.espooler_state = *t.espooler_active;
         espooler_active_ = system_info_.espooler_state;
         spdlog::trace("[AMS HappyHare] eSpooler state: {}", system_info_.espooler_state);

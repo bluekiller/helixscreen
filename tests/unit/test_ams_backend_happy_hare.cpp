@@ -6147,3 +6147,56 @@ TEST_CASE("Happy Hare names the unit only where v4 multi-unit requires it",
         CHECK(helper.captured_gcodes == std::vector<std::string>{"MMU_HOME UNIT=ALL"});
     }
 }
+
+TEST_CASE("Happy Hare v4 null telemetry keeps the last real value", "[ams][happy_hare][hh_v4]") {
+    helix::test::RegisteredBackend<AmsBackendHappyHareTestHelper> helper_reg;
+    AmsBackendHappyHareTestHelper& helper = *helper_reg;
+    const auto fx = helix::test::load_happy_hare_fixture("happy_hare_v4_single_unit.json");
+
+    helper.test_parse_mmu_state(fx["mmu_status"]);
+    auto info = helper.get_system_info();
+    CHECK_FALSE(helper.supports_sync_feedback_visualization(info));
+    CHECK(info.sync_feedback_bias == Catch::Approx(-2.0f));
+    CHECK(info.sync_feedback_flow_rate == Catch::Approx(-1.0f));
+    CHECK(info.sync_feedback_state.empty());
+
+    helper.test_parse_mmu_state({{"sync_feedback_bias_modelled", 0.25},
+                                 {"sync_feedback_state", "neutral"},
+                                 {"encoder", {{"flow_rate", 95}, {"headroom", 8.0}}},
+                                 {"flowguard", {{"enabled", true}, {"level", 0.4}}}});
+    helper.test_parse_mmu_state({{"sync_feedback_bias_modelled", nullptr},
+                                 {"sync_feedback_state", nullptr},
+                                 {"encoder", nullptr},
+                                 {"flowguard", nullptr},
+                                 {"tangle_prevention", nullptr}});
+    info = helper.get_system_info();
+    CHECK(info.sync_feedback_bias == Catch::Approx(0.25f));
+    CHECK(info.sync_feedback_state == "neutral");
+    CHECK(info.encoder_info.flow_rate == 95);
+    CHECK(info.encoder_info.headroom == Catch::Approx(8.0f));
+    CHECK(info.flowguard_info.enabled);
+    CHECK(info.flowguard_info.level == Catch::Approx(0.4f));
+}
+
+TEST_CASE("Happy Hare v4 shows the selected gate's eSpooler operation",
+          "[ams][happy_hare][hh_v4]") {
+    helix::test::RegisteredBackend<AmsBackendHappyHareTestHelper> helper_reg;
+    AmsBackendHappyHareTestHelper& helper = *helper_reg;
+    const auto fx = helix::test::load_happy_hare_fixture("happy_hare_v4_two_unit.json");
+
+    // gate 7, list says "assist", deprecated espooler_active says "".
+    helper.test_parse_mmu_state(fx["mmu_status"]);
+    CHECK(helper.get_system_info().espooler_state == "assist");
+
+    // The gate moves without the list being resent.
+    helper.test_parse_mmu_state({{"gate", 9}});
+    CHECK(helper.get_system_info().espooler_state == "rewind");
+    CHECK(HappyHareTestAccess::espooler_active(helper) == "rewind");
+
+    // The deprecated alias no longer speaks once the list has.
+    helper.test_parse_mmu_state({{"espooler_active", "print"}});
+    CHECK(helper.get_system_info().espooler_state == "rewind");
+
+    helper.test_parse_mmu_state({{"gate", -1}});
+    CHECK(helper.get_system_info().espooler_state.empty());
+}

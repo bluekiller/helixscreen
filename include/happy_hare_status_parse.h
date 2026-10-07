@@ -85,7 +85,10 @@ struct FlowguardDelta {
 
 /// The v4 extended status: eSpooler, sync feedback, clog detection, counters.
 struct MmuTelemetryDelta {
-    std::optional<std::string> espooler_active;
+    std::optional<std::string> espooler_active; ///< v3; v4 keeps it as a deprecated alias
+    /// v4 `espooler`: one operation per gate ('', off, rewind, assist, print).
+    /// A non-string entry reads as ''.
+    std::optional<std::vector<std::string>> espooler;
     std::optional<std::string> sync_feedback_state;
     std::optional<float> sync_feedback_bias; ///< sync_feedback_bias_modelled
     std::optional<float> sync_feedback_bias_raw;

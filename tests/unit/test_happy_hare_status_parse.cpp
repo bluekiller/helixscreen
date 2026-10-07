@@ -325,3 +325,43 @@ TEST_CASE("Happy Hare sensors dict reads both per-gate spellings",
     REQUIRE(d.sensors->pre_gate.size() == 2);
     CHECK_FALSE(d.sensors->aggregate_pre_gate);
 }
+
+TEST_CASE("Happy Hare v4 null telemetry reads as no data", "[happy_hare][status_parse][hh_v4]") {
+    const json fx = test::load_happy_hare_fixture("happy_hare_v4_single_unit.json");
+    const auto d = happy_hare::parse_mmu_status(fx["mmu_status"]);
+    CHECK_FALSE(d.telemetry.sync_feedback_state);
+    CHECK_FALSE(d.telemetry.sync_feedback_bias);
+    CHECK_FALSE(d.telemetry.sync_feedback_bias_raw);
+    CHECK_FALSE(d.telemetry.sync_feedback_flow_rate);
+    CHECK_FALSE(d.telemetry.encoder);
+    CHECK_FALSE(d.telemetry.flowguard);
+    CHECK(d.telemetry.clog_detection_enabled == std::nullopt); // false is not an integer
+    CHECK(d.core.has_bypass == true);
+    REQUIRE(d.telemetry.espooler);
+    CHECK(d.telemetry.espooler->size() == 4);
+
+    // Nulls inside the objects and lists v4 sends once a unit has them.
+    const auto inner = happy_hare::parse_telemetry(json{
+        {"encoder", {{"flow_rate", nullptr}, {"headroom", 12.5}, {"detection_length", nullptr}}},
+        {"flowguard",
+         {{"enabled", nullptr},
+          {"active", true},
+          {"trigger", nullptr},
+          {"level", nullptr},
+          {"encoder_mode", nullptr}}},
+        {"espooler", json::array({"assist", nullptr, 3, "rewind"})},
+        {"espooler_active", nullptr}});
+    REQUIRE(inner.encoder);
+    CHECK_FALSE(inner.encoder->flow_rate);
+    CHECK(inner.encoder->headroom == 12.5f);
+    CHECK_FALSE(inner.encoder->detection_length);
+    REQUIRE(inner.flowguard);
+    CHECK_FALSE(inner.flowguard->enabled);
+    CHECK(inner.flowguard->active == true);
+    CHECK_FALSE(inner.flowguard->trigger);
+    CHECK_FALSE(inner.flowguard->level);
+    CHECK_FALSE(inner.flowguard->encoder_mode);
+    CHECK(*inner.espooler == std::vector<std::string>{"assist", "", "", "rewind"});
+    CHECK_FALSE(inner.espooler_active);
+    CHECK_FALSE(happy_hare::parse_telemetry(json{{"espooler", nullptr}}).espooler);
+}

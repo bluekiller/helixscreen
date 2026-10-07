@@ -399,6 +399,14 @@ GateIdentityDelta parse_gate_identity(const nlohmann::json& mmu) {
 MmuTelemetryDelta parse_telemetry(const nlohmann::json& mmu) {
     MmuTelemetryDelta d;
     d.espooler_active = ams::read_field<std::string>(mmu, "espooler_active");
+    if (const auto it = mmu.find("espooler"); it != mmu.end() && it->is_array()) {
+        std::vector<std::string> ops;
+        ops.reserve(it->size());
+        for (const auto& op : *it) {
+            ops.push_back(op.is_string() ? op.get<std::string>() : std::string{});
+        }
+        d.espooler = std::move(ops);
+    }
     d.sync_feedback_state = ams::read_field<std::string>(mmu, "sync_feedback_state");
     d.sync_feedback_bias = ams::read_field<float>(mmu, "sync_feedback_bias_modelled");
     d.sync_feedback_bias_raw = ams::read_field<float>(mmu, "sync_feedback_bias_raw");
