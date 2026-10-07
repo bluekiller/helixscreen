@@ -9,6 +9,7 @@
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
+#include <atomic>
 #include <cerrno>
 #include <cstdint>
 #include <cstring>
@@ -79,6 +80,21 @@ static void default_wait_until(int64_t deadline_ns, const std::function<int64_t(
     }
     while (now() < deadline_ns) {
         // spin — at SCHED_IDLE the scheduler preempts this against any real work
+    }
+}
+
+namespace {
+// enable fd of the initialized backend, for the SIGTERM handler: the kernel
+// keeps a PWM channel running after its writer dies.
+std::atomic<int> s_signal_enable_fd{-1};
+} // namespace
+
+void PWMSoundBackend::silence_signal_safe() {
+    const int fd = s_signal_enable_fd.load(std::memory_order_relaxed);
+    if (fd >= 0) {
+        ::lseek(fd, 0, SEEK_SET);
+        ssize_t n = ::write(fd, "0", 1);
+        (void)n;
     }
 }
 
@@ -237,6 +253,12 @@ bool PWMSoundBackend::initialize() {
     spdlog::debug("[PWMSoundBackend] min note floor: {} ms", min_note_ms_);
 
     initialized_ = true;
+    // The channel may still be sounding from a writer that died mid-note.
+    enabled_ = true;
+    silence();
+    if (fd_enable_ >= 0) {
+        s_signal_enable_fd.store(fd_enable_, std::memory_order_relaxed);
+    }
     return true;
 }
 
@@ -247,6 +269,7 @@ void PWMSoundBackend::shutdown() {
 
     stop_render_thread();
     silence();
+    s_signal_enable_fd.store(-1, std::memory_order_relaxed);
 
     if (fd_duty_ >= 0)
         ::close(fd_duty_);
@@ -294,7 +317,11 @@ void PWMSoundBackend::set_tone(float freq_hz, float amplitude, float /* duty_cyc
 
     amplitude = std::clamp(amplitude, 0.0f, 1.0f);
 
-    if (amplitude == 0.0f || freq_hz <= 0.0f) {
+    // A narrow pulse still rings the transducer near its resonance, so a fade
+    // toward zero duty sounds like a held buzz that stops abruptly. Below
+    // this the note is silent instead.
+    // ponytail: fixed floor, an env knob like HELIX_PWM_MIN_NOTE_MS if a rig needs tuning
+    if (amplitude < kMinAudibleAmplitude || freq_hz <= 0.0f) {
         silence();
         return;
     }
