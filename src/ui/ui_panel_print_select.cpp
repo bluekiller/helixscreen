@@ -1374,7 +1374,6 @@ void PrintSelectPanel::process_metadata_result(size_t i, const std::string& file
 
                     size_t file_idx = d->index;
                     std::string filename_copy = d->filename;
-                    std::string cache_key = d->thumb_path + "_local";
 
                     // A refresh re-runs this for files that already have their .bin, and
                     // re-reading plus re-staging every PNG to rediscover that is wasted IO.
@@ -1385,8 +1384,10 @@ void PrintSelectPanel::process_metadata_result(size_t i, const std::string& file
                     std::vector<uint8_t> png_data =
                         already_prescaled ? std::vector<uint8_t>{} : read_file_bytes(d->thumb_path);
                     std::string cached_png =
-                        png_data.empty() ? std::string()
-                                         : get_thumbnail_cache().save_raw_png(cache_key, png_data);
+                        png_data.empty()
+                            ? std::string()
+                            : get_thumbnail_cache().save_raw_png(helix::ThumbnailSource::LocalFile,
+                                                                 d->thumb_path, png_data);
 
                     if (already_prescaled) {
                         spdlog::trace("[{}] Keeping prescaled local thumbnail for {}",
@@ -1400,7 +1401,8 @@ void PrintSelectPanel::process_metadata_result(size_t i, const std::string& file
                                       self->file_list_[d->index].thumbnail_path);
                     } else {
                         ThumbnailRequest req;
-                        req.key = cache_key;
+                        req.key = d->thumb_path;
+                        req.source = helix::ThumbnailSource::LocalFile;
                         req.target = helix::ThumbnailProcessor::get_target_for_display();
                         req.api = self->api_;
 

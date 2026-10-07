@@ -1574,7 +1574,7 @@ std::string get_cached_thumbnail(const std::string& gcode_path, const std::strin
     // Check if cache exists and is newer than gcode file
     struct stat gcode_stat, cache_stat;
     if (stat(gcode_path.c_str(), &gcode_stat) == 0 && stat(cache_path.c_str(), &cache_stat) == 0) {
-        if (cache_stat.st_mtime >= gcode_stat.st_mtime) {
+        if (helix::is_fresh(cache_stat.st_mtime, gcode_stat.st_mtime)) {
             // The consumer decodes the file as a PNG, so a fresh-looking entry that
             // is not one (e.g. raw JPEG bytes) is as useless as a missing entry.
             const auto head = helix::text_io::read_file(cache_path, 8);

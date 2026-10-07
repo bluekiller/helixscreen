@@ -6,6 +6,7 @@
 #include "i_moonraker_api.h"
 #include "thumbnail_load_context.h"
 #include "thumbnail_processor.h"
+#include "thumbnail_rules.h"
 #include "thumbnail_write_journal.h"
 
 #include <atomic>
@@ -58,10 +59,9 @@
 /**
  * @brief One thumbnail fetch request.
  *
- * `key` is the source-namespaced cache key, NOT necessarily a Moonraker
- * relative path. The existing namespaces ("usb:<file>", "<path>_local",
- * "<path>_extracted", and bare relative paths) are unchanged by this struct —
- * it carries whatever key the caller already used.
+ * `key` is the id within `source`: a Moonraker thumbnail path from the gcodes
+ * root, a USB gcode path, a timelapse video name. The cache files it under
+ * helix::thumbnail_key(source, key, target).
  */
 struct ThumbnailRequest {
     /**
@@ -80,6 +80,7 @@ struct ThumbnailRequest {
     };
 
     std::string key;
+    helix::ThumbnailSource source = helix::ThumbnailSource::Moonraker;
     helix::ThumbnailTarget target;
     time_t source_modified = 0;
     IMoonrakerAPI* api = nullptr;
@@ -146,14 +147,13 @@ class ThumbnailCache {
     }
 
     /**
-     * @brief Compute the local cache path for a relative Moonraker path
+     * @brief The local path of the full PNG cached for a cache id
      *
-     * Uses hash-based filename: `{cache_dir}/{hash}.png`
-     *
-     * @param relative_path Moonraker relative path (e.g., ".thumbnails/file.png")
-     * @return Local filesystem path for the cached file
+     * @param cache_id helix::thumbnail_cache_id(source, id); a Moonraker
+     *        thumbnail path is its own cache id
+     * @return `{cache_dir}/` + helix::thumbnail_file_name(hash, nullptr)
      */
-    [[nodiscard]] std::string get_cache_path(const std::string& relative_path) const;
+    [[nodiscard]] std::string get_cache_path(const std::string& cache_id) const;
 
     /**
      * @brief Get LVGL path if thumbnail is already cached
@@ -244,30 +244,22 @@ class ThumbnailCache {
                ErrorCallback on_error = nullptr);
 
     /**
-     * @brief Save raw PNG data directly to cache
+     * @brief Save thumbnail bytes extracted outside Moonraker straight to the cache
      *
-     * Saves decoded PNG bytes (e.g., from base64-encoded gcode thumbnails)
-     * directly to the cache. The source_identifier is hashed to generate the
-     * cache filename, same as thumbnails downloaded from Moonraker.
-     *
-     * Use this when thumbnail data is extracted from gcode files instead of
-     * downloaded via Moonraker's HTTP API (e.g., USB files where Moonraker
-     * can't write .thumbs directory).
+     * For thumbnails read out of a gcode header (USB files, metadata with no
+     * thumbnails) or a local file, filed under the same key a fetch for
+     * (source, id) looks up. A JPEG is re-encoded as PNG; anything else is
+     * refused (helix::ensure_png).
      *
      * Overwriting a key drops the pre-scaled .bin variants derived from the
      * previous PNG, so a re-slice under the same name cannot be served
      * through stale prescaled artifacts (callers that pass no
      * source_modified have no other freshness check).
      *
-     * @param source_identifier Unique identifier for this thumbnail (typically
-     *        the relative_path that would be used with fetch(), e.g., "usb/file.gcode")
-     * @param png_data Raw PNG bytes (must be valid PNG with magic header)
-     * @return LVGL path ("A:...") to saved file, or empty string on failure
-     *
-     * @note Validates PNG magic bytes before saving
+     * @return LVGL path ("A:...") to the saved file, or empty on failure
      * @note Triggers cache eviction if needed after saving
      */
-    std::string save_raw_png(const std::string& source_identifier,
+    std::string save_raw_png(helix::ThumbnailSource source, const std::string& id,
                              const std::vector<uint8_t>& png_data);
 
     /**
@@ -286,10 +278,11 @@ class ThumbnailCache {
      * Removes PNG and all pre-scaled .bin variants for the given path.
      * Call this when a G-code file is overwritten with new content.
      *
-     * @param relative_path Moonraker relative path (e.g., ".thumbnails/file.png")
+     * @param cache_id helix::thumbnail_cache_id(source, id); a Moonraker
+     *        thumbnail path is its own cache id
      * @return Number of files removed
      */
-    size_t invalidate(const std::string& relative_path);
+    size_t invalidate(const std::string& cache_id);
 
     /**
      * @brief Get the total size of cached thumbnails
@@ -389,11 +382,6 @@ class ThumbnailCache {
     [[nodiscard]] size_t get_stat_count() const {
         return stat_calls_.load(std::memory_order_relaxed);
     }
-
-    /// The cache key for a thumbnail at @p path on the connected printer. The printer is part
-    /// of the key because a same-named file on another printer is a different file. The
-    /// pre-scaled .bin variants are named from the same key.
-    [[nodiscard]] static std::string compute_hash(const std::string& path);
 
   private:
     /**
@@ -719,8 +707,8 @@ constexpr bool gcode_thumbnail_extraction_available() {
  * For files whose metadata record carries no thumbnails — a slicer run without
  * them, a USB mount Moonraker can't write .thumbs to, or a customized Moonraker
  * whose metadata path drops them — downloads the first @p max_header_bytes of
- * @p gcode_path, extracts the largest embedded PNG, caches it under
- * "<gcode_path>_extracted", and feeds it through the prescale pipeline via
+ * @p gcode_path, extracts the largest embedded PNG, caches it as
+ * ThumbnailSource::GcodeExtract, and feeds it through the prescale pipeline via
  * ThumbnailCache::fetch.
  *
  * The parse and the cache write run on the HttpExecutor worker thread; nothing

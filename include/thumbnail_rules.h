@@ -21,6 +21,8 @@
 
 namespace helix {
 
+struct ThumbnailTarget;
+
 /// What a thumbnail byte stream actually is, read from its magic bytes.
 enum class ImageFormat : uint8_t { Unknown, Png, Jpeg, Qoi };
 
@@ -48,5 +50,39 @@ enum class ImageFormat : uint8_t { Unknown, Png, Jpeg, Qoi };
  * renders blank.
  */
 [[nodiscard]] std::vector<uint8_t> ensure_png(std::vector<uint8_t> bytes);
+
+/// Where a cached thumbnail came from. Two sources may share an id (a gcode
+/// path) without sharing a cache entry.
+enum class ThumbnailSource : uint8_t {
+    Moonraker,    ///< id = thumbnail path from the gcodes root
+    LocalFile,    ///< id = local PNG path (mock metadata)
+    GcodeExtract, ///< id = gcode path whose header the PNG was extracted from
+    Usb,          ///< id = gcode path on a USB stick
+    Timelapse,    ///< id = timelapse video filename
+};
+
+/// The string every artifact of (source, id) is hashed from.
+[[nodiscard]] std::string thumbnail_cache_id(ThumbnailSource source, const std::string& id);
+
+/// Hash stem shared by a cache id's PNG and all its pre-scaled variants. The
+/// connected printer is part of it: a same-named file on another printer is a
+/// different file.
+[[nodiscard]] std::string thumbnail_hash(const std::string& cache_id);
+
+/// "{hash}.png" with no target, "{hash}_{w}x{h}_ARGB8888.bin" with one. The
+/// .bin extension is what LVGL's bin decoder accepts.
+[[nodiscard]] std::string thumbnail_file_name(const std::string& hash,
+                                              const ThumbnailTarget* target);
+
+/// The cache file name for (source, id), full PNG or pre-scaled to @p target.
+[[nodiscard]] std::string thumbnail_key(ThumbnailSource source, const std::string& id,
+                                        const ThumbnailTarget* target = nullptr);
+
+/// Whether a file cached at @p cache_mtime still describes a source last
+/// modified at @p source_modified. 0 means the source time is unknown, which
+/// skips the check.
+[[nodiscard]] inline bool is_fresh(time_t cache_mtime, time_t source_modified) {
+    return source_modified <= 0 || cache_mtime >= source_modified;
+}
 
 } // namespace helix

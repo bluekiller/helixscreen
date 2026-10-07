@@ -6,14 +6,8 @@
 #include "text_io.h"
 
 #include <algorithm>
-#include <functional>
 
 namespace helix::timelapse {
-
-std::string cache_key(const std::string& video_filename) {
-    auto hash = std::hash<std::string>{}(video_filename);
-    return "tl_" + std::to_string(hash);
-}
 
 std::string companion_filename(const std::string& video_filename) {
     auto dot = video_filename.rfind('.');

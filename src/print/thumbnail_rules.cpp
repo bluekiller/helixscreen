@@ -3,7 +3,12 @@
 
 #include "thumbnail_rules.h"
 
+#include "http_request_epoch.h"
+#include "thumbnail_processor.h"
+
+#include <cstdio>
 #include <cstring>
+#include <functional>
 #include <memory>
 
 #if !defined(HELIX_PLATFORM_ESP32)
@@ -109,6 +114,41 @@ std::vector<uint8_t> ensure_png(std::vector<uint8_t> bytes) {
     default:
         return {};
     }
+}
+
+std::string thumbnail_cache_id(ThumbnailSource source, const std::string& id) {
+    switch (source) {
+    case ThumbnailSource::Moonraker:
+        return id;
+    case ThumbnailSource::LocalFile:
+        return id + "_local";
+    case ThumbnailSource::GcodeExtract:
+        return id + "_extracted";
+    case ThumbnailSource::Usb:
+        return "usb:" + id;
+    case ThumbnailSource::Timelapse:
+        return "tl_" + std::to_string(std::hash<std::string>{}(id));
+    }
+    return id;
+}
+
+std::string thumbnail_hash(const std::string& cache_id) {
+    const std::string scoped = std::to_string(http_epoch::printer_key()) + '\n' + cache_id;
+    return std::to_string(std::hash<std::string>{}(scoped));
+}
+
+std::string thumbnail_file_name(const std::string& hash, const ThumbnailTarget* target) {
+    if (!target) {
+        return hash + ".png";
+    }
+    char suffix[48];
+    std::snprintf(suffix, sizeof(suffix), "_%dx%d_ARGB8888.bin", target->width, target->height);
+    return hash + suffix;
+}
+
+std::string thumbnail_key(ThumbnailSource source, const std::string& id,
+                          const ThumbnailTarget* target) {
+    return thumbnail_file_name(thumbnail_hash(thumbnail_cache_id(source, id)), target);
 }
 
 } // namespace helix

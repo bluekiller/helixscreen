@@ -7,25 +7,6 @@
 
 using namespace helix::timelapse;
 
-TEST_CASE("Thumbnailer: cache key generation", "[timelapse][thumbnailer]") {
-    SECTION("different videos produce different keys") {
-        auto key1 = cache_key("benchy_20260312.mp4");
-        auto key2 = cache_key("vase_spiral.mp4");
-        REQUIRE(key1 != key2);
-    }
-
-    SECTION("same video produces same key") {
-        auto key1 = cache_key("benchy.mp4");
-        auto key2 = cache_key("benchy.mp4");
-        REQUIRE(key1 == key2);
-    }
-
-    SECTION("key has timelapse prefix") {
-        auto key = cache_key("test.mp4");
-        REQUIRE(key.find("tl_") == 0);
-    }
-}
-
 TEST_CASE("Thumbnailer: companion filename", "[timelapse][thumbnailer]") {
     SECTION("mp4 gets .thumb.jpg companion") {
         REQUIRE(companion_filename("benchy.mp4") == "benchy.thumb.jpg");

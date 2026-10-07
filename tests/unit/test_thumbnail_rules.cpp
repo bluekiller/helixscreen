@@ -8,6 +8,7 @@
 #include "../helix_test_fixture.h"
 #include "../lvgl_test_fixture.h"
 #include "../test_helpers/thumbnail_processor_test_access.h"
+#include "http_request_epoch.h"
 #include "moonraker_api_mock.h"
 #include "moonraker_client_mock.h"
 #include "printer_state.h"
@@ -103,13 +104,14 @@ TEST_CASE("save_raw_png stores a JPEG thumbnail as a real PNG", "[thumbnail][rul
     ThumbnailCache& cache = get_thumbnail_cache();
     const std::string id = "rules_jpeg_" + helix::test::unique_suffix();
 
-    const std::string saved = cache.save_raw_png(id, read_bytes(kJpegAsset));
+    const std::string saved =
+        cache.save_raw_png(helix::ThumbnailSource::Moonraker, id, read_bytes(kJpegAsset));
     REQUIRE_FALSE(saved.empty());
     CHECK(helix::sniff_image_format(read_bytes(saved.substr(2))) == ImageFormat::Png);
     cache.invalidate(id);
 
     const std::string qoi_id = "rules_qoi_" + helix::test::unique_suffix();
-    CHECK(cache.save_raw_png(qoi_id, qoi_bytes()).empty());
+    CHECK(cache.save_raw_png(helix::ThumbnailSource::Moonraker, qoi_id, qoi_bytes()).empty());
     CHECK_FALSE(std::filesystem::exists(cache.get_cache_path(qoi_id)));
 }
 
@@ -151,4 +153,71 @@ TEST_CASE_METHOD(HelixTestFixture, "ThumbnailProcessor pre-scales a JPEG thumbna
     CHECK_FALSE(cut.success);
 
     ThumbnailProcessorTestAccess::destroy(proc);
+}
+
+// ============================================================================
+// Cache keys and freshness
+// ============================================================================
+
+namespace {
+
+// The key formula and the per-source string namespaces caches on disk were
+// written with. thumbnail_key must reproduce them exactly or every existing
+// cache is orphaned on upgrade.
+std::string on_disk_hash(const std::string& namespaced) {
+    const std::string scoped = std::to_string(helix::http_epoch::printer_key()) + '\n' + namespaced;
+    return std::to_string(std::hash<std::string>{}(scoped));
+}
+
+} // namespace
+
+TEST_CASE("thumbnail_key names the files existing caches already hold", "[thumbnail][rules][key]") {
+    using helix::ThumbnailSource;
+    helix::http_epoch::set_base_url("http://10.0.0.7:7125", true);
+    const std::string id = "sub dir/.thumbs/Benchy-300x300.png";
+
+    CHECK(helix::thumbnail_key(ThumbnailSource::Moonraker, id) == on_disk_hash(id) + ".png");
+    CHECK(helix::thumbnail_key(ThumbnailSource::LocalFile, id) ==
+          on_disk_hash(id + "_local") + ".png");
+    CHECK(helix::thumbnail_key(ThumbnailSource::GcodeExtract, id) ==
+          on_disk_hash(id + "_extracted") + ".png");
+    CHECK(helix::thumbnail_key(ThumbnailSource::Usb, id) == on_disk_hash("usb:" + id) + ".png");
+    const std::string video = "benchy_20260310.mp4";
+    CHECK(helix::thumbnail_key(ThumbnailSource::Timelapse, video) ==
+          on_disk_hash("tl_" + std::to_string(std::hash<std::string>{}(video))) + ".png");
+
+    helix::ThumbnailTarget target;
+    target.width = 160;
+    target.height = 120;
+    CHECK(helix::thumbnail_key(ThumbnailSource::Moonraker, id, &target) ==
+          on_disk_hash(id) + "_160x120_ARGB8888.bin");
+    CHECK(helix::thumbnail_key(ThumbnailSource::Usb, id, &target) ==
+          on_disk_hash("usb:" + id) + "_160x120_ARGB8888.bin");
+}
+
+TEST_CASE("is_fresh: a cache older than its source is stale", "[thumbnail][rules][key]") {
+    CHECK(helix::is_fresh(1000, 0)); // source time unknown: no check
+    CHECK(helix::is_fresh(1000, 999));
+    CHECK(helix::is_fresh(1000, 1000));
+    CHECK_FALSE(helix::is_fresh(999, 1000));
+}
+
+TEST_CASE("A cached thumbnail is found only under the source it was saved as",
+          "[thumbnail][rules][key][cache]") {
+    ThumbnailCache& cache = get_thumbnail_cache();
+    const std::string id = "/media/usb0/rules_" + helix::test::unique_suffix() + ".gcode";
+
+    const std::string saved =
+        cache.save_raw_png(helix::ThumbnailSource::Usb, id, read_bytes(kPngAsset));
+    REQUIRE_FALSE(saved.empty());
+
+    ThumbnailRequest req;
+    req.key = id;
+    req.format = ThumbnailRequest::ThumbnailFormat::FullPng;
+    req.source = helix::ThumbnailSource::Usb;
+    CHECK(cache.get_if_cached(req) == saved);
+    req.source = helix::ThumbnailSource::GcodeExtract;
+    CHECK(cache.get_if_cached(req).empty());
+
+    cache.invalidate(helix::thumbnail_cache_id(helix::ThumbnailSource::Usb, id));
 }
