@@ -228,8 +228,9 @@ static void cycle_add_rows(int32_t y1, int32_t y2) {
     }
 }
 
-// A scroll blit moves pixels inside the shadow before LVGL renders the strip
-// it exposed, so the move joins that render's cycle and is presented with it.
+// A scroll blit moves pixels inside the shadow as LVGL starts the refresh that
+// renders the strip it exposed, so the move joins that cycle and is presented
+// with it.
 static bool scroll_claim_rows(int32_t y1, int32_t y2) {
     cycle_add_rows(y1, y2);
     return s_writer_holds;
@@ -531,10 +532,9 @@ static void* ui_thread_main(void* arg) {
     app_boot_set_touch_available(touch_input_init());
 
     // Scrolls move the shadow's pixels and render only what scrolled in. The
-    // band doubles as the copy's bounce buffer: both run under the shadow lock.
-    if (s_band) {
-        app_boot_set_retained_frame(s_shadow, FB_STRIDE, s_band, UI_BAND_BYTES, scroll_claim_rows);
-    }
+    // copy runs row to row: the band is the presenter's, whose fallback copy
+    // can run while a timed-out writer still holds rows.
+    app_boot_set_retained_frame(s_shadow, FB_STRIDE, NULL, 0, scroll_claim_rows);
 
     // Presenter task — the only writer of the panel FB.
     if (xTaskCreate(present_task, "present", PRESENT_STACK_BYTES, NULL, PRESENT_TASK_PRIO, NULL) !=

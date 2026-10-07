@@ -41,8 +41,12 @@ void capture_flush(lv_display_t* disp, const lv_area_t* area, uint8_t* px_map) {
     lv_display_flush_ready(disp);
 }
 
-bool claim_any(int32_t, int32_t) {
-    return true;
+bool g_claim_ok = true;
+int g_claims = 0;
+
+bool claim_rows(int32_t, int32_t) {
+    g_claims++;
+    return g_claim_ok;
 }
 
 lv_obj_t* plain_box(lv_obj_t* parent, int32_t x, int32_t y, int32_t w, int32_t h, uint32_t rgb) {
@@ -95,8 +99,10 @@ class ScrollBlitFixture : public LVGLTestFixture {
         }
         render();
         scroll_blit_install(disp_, RetainedFrame{capture_.frame.data(), capture_.stride, scratch_,
-                                                 sizeof(scratch_), claim_any});
+                                                 sizeof(scratch_), claim_rows});
         scroll_blit_track(list_);
+        g_claim_ok = true;
+        g_claims = 0;
     }
 
     ~ScrollBlitFixture() override {
@@ -300,4 +306,59 @@ TEST_CASE_METHOD(ScrollBlitFixture,
         render();
         REQUIRE(mismatch() == "0 px differ");
     }
+}
+
+TEST_CASE_METHOD(ScrollBlitFixture, "scroll blit edge cases still match a full render",
+                 "[scroll_blit]") {
+    const uint64_t whole = region_px();
+
+    SECTION("an enclosing scroller's scrollbar over an opaque list") {
+        lv_obj_set_style_bg_color(list_, lv_color_hex(0x283038), LV_PART_MAIN);
+        lv_obj_set_style_bg_opa(list_, LV_OPA_COVER, LV_PART_MAIN);
+        lv_obj_set_x(list_, 100); // right edge on the panel's own scrollbar
+        plain_box(panel_, 0, 0, 10, 1000, 0x303848);
+        lv_obj_add_flag(panel_, LV_OBJ_FLAG_SCROLLABLE);
+        lv_obj_set_scrollbar_mode(panel_, LV_SCROLLBAR_MODE_ON);
+        lv_obj_set_style_width(panel_, 6, LV_PART_SCROLLBAR);
+        lv_obj_set_style_bg_color(panel_, lv_color_hex(0xffffff), LV_PART_SCROLLBAR);
+        lv_obj_set_style_bg_opa(panel_, LV_OPA_COVER, LV_PART_SCROLLBAR);
+        render();
+        lv_obj_scroll_by(list_, 0, -40, LV_ANIM_OFF);
+        CHECK(render() < whole / 2);
+    }
+    SECTION("a bordered scroller") {
+        lv_obj_set_style_border_width(list_, 3, LV_PART_MAIN);
+        lv_obj_set_style_border_color(list_, lv_color_hex(0xe0e0e0), LV_PART_MAIN);
+        lv_obj_set_style_border_opa(list_, LV_OPA_COVER, LV_PART_MAIN);
+        render();
+        lv_obj_scroll_by(list_, 0, -40, LV_ANIM_OFF);
+        CHECK(render() < whole / 2);
+    }
+    SECTION("a scroll as tall as the region") {
+        lv_obj_scroll_by(list_, 0, -300, LV_ANIM_OFF);
+        CHECK(render() >= whole);
+    }
+    SECTION("a scroller already waiting for a full redraw") {
+        lv_obj_invalidate(list_);
+        lv_obj_scroll_by(list_, 0, -40, LV_ANIM_OFF);
+        render();
+        CHECK(g_claims == 0);
+    }
+    SECTION("a frame that cannot be taken") {
+        g_claim_ok = false;
+        lv_obj_scroll_by(list_, 0, -40, LV_ANIM_OFF);
+        CHECK(render() >= whole);
+        CHECK(g_claims > 0);
+    }
+    SECTION("more static widgets than are worth tracking") {
+        for (int i = 0; i < 9; i++)
+            plain_box(panel_, 30 + 40 * i, 200, 10, 10, 0xff00ff);
+        lv_obj_update_layout(lv_screen_active());
+        lv_area_t r;
+        CHECK_FALSE(scroll_blit_region(list_, &r));
+        render();
+        lv_obj_scroll_by(list_, 0, -40, LV_ANIM_OFF);
+        CHECK(render() >= whole);
+    }
+    REQUIRE(mismatch() == "0 px differ");
 }

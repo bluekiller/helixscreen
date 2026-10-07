@@ -28,6 +28,15 @@ struct State {
     int32_t pending_dy = 0;
     lv_area_t pending_area{};
     bool in_invalidate = false;
+    // Moves decided since the last refresh, applied when it starts: taking the
+    // frame earlier would hold it from the presenter for a whole frame.
+    struct Shift {
+        lv_area_t region;
+        int32_t dy;
+    };
+    static constexpr int kMaxShifts = 4;
+    Shift shifts[kMaxShifts];
+    int n_shifts = 0;
 };
 
 State s_state;
@@ -62,9 +71,10 @@ struct Statics {
 
     /// False when `o` makes the blit not worth it.
     bool add(lv_obj_t* o, const lv_area_t& r) {
-        if (!is_visible(o))
-            return true;
-        lv_area_t a = paint_area(o);
+        return !is_visible(o) || add_area(paint_area(o), r);
+    }
+
+    bool add_area(lv_area_t a, const lv_area_t& r) {
         if (!lv_area_intersect(&a, &a, &r))
             return true;
         if (n == kMax)
@@ -88,11 +98,11 @@ bool has_draw_handler(lv_obj_t* o) {
     return false;
 }
 
+bool border_reaches(lv_obj_t* o, const lv_area_t& r);
+
 /// Whether `o` paints the same pixels at every row of `r`, so pixels moved
 /// within `r` land on the same background they left.
 bool background_is_uniform(lv_obj_t* o, const lv_area_t& r) {
-    if (has_draw_handler(o))
-        return false;
     if (lv_obj_get_style_bg_opa(o, LV_PART_MAIN) > LV_OPA_TRANSP) {
         if (lv_obj_get_style_bg_grad_dir(o, LV_PART_MAIN) != LV_GRAD_DIR_NONE)
             return false;
@@ -103,20 +113,32 @@ bool background_is_uniform(lv_obj_t* o, const lv_area_t& r) {
     if (lv_obj_get_style_bg_image_src(o, LV_PART_MAIN) != nullptr &&
         lv_obj_get_style_bg_image_opa(o, LV_PART_MAIN) > LV_OPA_TRANSP)
         return false;
+    return !border_reaches(o, r);
+}
+
+/// Whether `o`'s border is drawn inside `r`.
+bool border_reaches(lv_obj_t* o, const lv_area_t& r) {
     int32_t bw = lv_obj_get_style_border_width(o, LV_PART_MAIN);
-    if (bw > 0 && lv_obj_get_style_border_opa(o, LV_PART_MAIN) > LV_OPA_TRANSP &&
-        lv_obj_get_style_border_side(o, LV_PART_MAIN) != LV_BORDER_SIDE_NONE) {
-        lv_area_t inner = o->coords;
-        lv_area_increase(&inner, -bw, -bw);
-        if (!lv_area_is_in(&r, &inner, 0))
-            return false;
-    }
-    // A scrollbar of an enclosing scroller stays put while this one moves.
+    if (bw <= 0 || lv_obj_get_style_border_opa(o, LV_PART_MAIN) == LV_OPA_TRANSP ||
+        lv_obj_get_style_border_side(o, LV_PART_MAIN) == LV_BORDER_SIDE_NONE)
+        return false;
+    lv_area_t inner = o->coords;
+    lv_area_increase(&inner, -bw, -bw);
+    return !lv_area_is_in(&r, &inner, 0);
+}
+
+/// What an enclosing widget draws over its children reaches into `r` and stays
+/// put: its scrollbars become static areas; a post-drawn border or a custom
+/// draw handler, whose extent is unknown, rules the blit out.
+bool overlays_allow_blit(lv_obj_t* o, const lv_area_t& r, Statics& statics) {
+    if (has_draw_handler(o))
+        return false;
+    if (lv_obj_get_style_border_post(o, LV_PART_MAIN) && border_reaches(o, r))
+        return false;
     lv_area_t hor, ver;
     lv_obj_get_scrollbar_area(o, &hor, &ver);
-    if (lv_area_is_on(&hor, &r) || lv_area_is_on(&ver, &r))
-        return false;
-    return true;
+    return (lv_area_get_width(&hor) <= 0 || statics.add_area(hor, r)) &&
+           (lv_area_get_width(&ver) <= 0 || statics.add_area(ver, r));
 }
 
 bool composited(lv_obj_t* o) {
@@ -263,7 +285,8 @@ bool plan_blit(lv_obj_t* obj, lv_area_t* out, Statics& statics) {
 
     // From the scroller up to the cover, everything drawn in `r` besides the
     // scroller's subtree must be a uniform background; above the cover, only
-    // what is drawn later (younger siblings) can reach `r`.
+    // what is drawn later (younger siblings) can reach `r`. Every enclosing
+    // widget, cover or not, draws its scrollbars and overlays after its children.
     bool below_cover = top_is_ancestor;
     for (lv_obj_t* o = obj; o != screen; o = lv_obj_get_parent(o)) {
         lv_obj_t* parent = lv_obj_get_parent(o);
@@ -274,6 +297,8 @@ bool plan_blit(lv_obj_t* obj, lv_area_t* out, Statics& statics) {
                 return false;
         }
         if (below_cover && !background_is_uniform(parent, r))
+            return false;
+        if (!overlays_allow_blit(parent, r, statics))
             return false;
         if (parent == top)
             below_cover = false;
@@ -307,11 +332,9 @@ bool blit(lv_obj_t* obj, int32_t dy, lv_area_t* area) {
             return false;
     }
 
-    if (!s_state.frame.claim_rows || !s_state.frame.claim_rows(r.y1, r.y2))
+    if (!s_state.frame.claim_rows || s_state.n_shifts == State::kMaxShifts)
         return false;
-    shift_rows(s_state.frame.buf, s_state.frame.stride,
-               lv_color_format_get_size(lv_display_get_color_format(disp)), r, dy,
-               s_state.frame.scratch, s_state.frame.scratch_bytes);
+    s_state.shifts[s_state.n_shifts++] = {r, dy};
 
     // Stale pixels already awaiting a redraw moved with the rest.
     for (int32_t i = 0; i < inv_n; i++) {
@@ -376,9 +399,29 @@ void track_dragged_scrollers() {
     }
 }
 
+/// Moves the frame's pixels for this refresh's scrolls. A frame that cannot be
+/// taken leaves those regions to render in full.
+void apply_shifts() {
+    const int n = s_state.n_shifts;
+    s_state.n_shifts = 0;
+    if (n == 0)
+        return;
+    const uint32_t px_bytes = lv_color_format_get_size(lv_display_get_color_format(s_state.disp));
+    for (int i = 0; i < n; i++) {
+        const State::Shift& sh = s_state.shifts[i];
+        if (s_state.frame.claim_rows(sh.region.y1, sh.region.y2)) {
+            shift_rows(s_state.frame.buf, s_state.frame.stride, px_bytes, sh.region, sh.dy,
+                       s_state.frame.scratch, s_state.frame.scratch_bytes);
+        } else {
+            lv_inv_area(s_state.disp, &sh.region);
+        }
+    }
+}
+
 void on_display_event(lv_event_t* e) {
     if (lv_event_get_code(e) == LV_EVENT_REFR_START) {
         s_state.pending_obj = nullptr;
+        apply_shifts();
         return;
     }
     if (s_state.in_invalidate)
