@@ -30,7 +30,7 @@ lv_obj_t* box(lv_obj_t* parent, int w, int h) {
 
 TEST_CASE_METHOD(LVGLTestFixture, "UiBufferSlider redraws its trace once a second",
                  "[buffer][slider]") {
-    AmsState::instance().init_subjects(false);
+    AmsState::instance().init_subjects(true);
     UiBufferSlider slider(box(test_screen(), 24, 120), box(test_screen(), 160, 120), -1);
     lv_timer_set_repeat_count(slider.timer_for_test(), 3);
     process_lvgl(2100);
@@ -47,7 +47,7 @@ TEST_CASE_METHOD(LVGLTestFixture, "UiBufferSlider without a trace runs no timer"
 
 TEST_CASE_METHOD(LVGLTestFixture, "UiBufferSlider outlives the objects it draws into",
                  "[buffer][slider]") {
-    AmsState::instance().init_subjects(false);
+    AmsState::instance().init_subjects(true);
     lv_obj_t* slider_obj = box(test_screen(), 24, 120);
     lv_obj_t* trace_obj = box(test_screen(), 160, 120);
     auto slider = std::make_unique<UiBufferSlider>(slider_obj, trace_obj, -1);
