@@ -13,7 +13,7 @@
 
 #include "ams_state.h"
 #include "app_globals.h" // get_printer_state: the print lifecycle the clear guard reads
-#include "clog_meter_geometry.h"
+#include "buffer_reading.h"
 #include "display_numbering.h"
 #include "filament_op_dispatch.h"      // EXTERNAL_SPOOL_SLOT: the bypass sentinel
 #include "filament_op_slot_resolver.h" // clear_spool_blocked_by_print: the print guard
@@ -615,73 +615,12 @@ void ams_detail_setup_path_canvas(lv_obj_t* canvas, lv_obj_t* slot_grid, int uni
         }
     }
 
-    // Set buffer fault state on hub (AFC TurtleNeck buffer health)
-    // unit_index == -1 means single-unit view (use unit 0)
-    int buffer_fault = 0; // 0=healthy, 1=warning, 2=fault
-    int effective_unit = (unit_index >= 0) ? unit_index : 0;
-    if (effective_unit < static_cast<int>(info.units.size())) {
-        const auto& unit = info.units[effective_unit];
-        if (unit.buffer_health.has_value() && unit.buffer_health->fault_detection_enabled &&
-            unit.buffer_health->distance_to_fault >= 0.0f) {
-            if (unit.buffer_health->distance_to_fault >= 50.0f) {
-                buffer_fault = 2; // At or past fault threshold — red tint
-            } else if (unit.buffer_health->distance_to_fault > 0.0f) {
-                buffer_fault = 1; // Approaching fault — yellow tint
-            }
-        }
-    }
-    // Proportional sync feedback (Happy Hare, or this unit's pressure sensor):
-    // the buffer bands' severity.
-    const float buffer_bias = backend->supports_sync_feedback_visualization(info)
-                                  ? info.buffer_bias(effective_unit)
-                                  : -2.0f; // discrete mode
-    if (buffer_fault == 0 && buffer_bias > -1.5f) {
-        buffer_fault = static_cast<int>(
-            helix::ui::pressure_status(static_cast<int>(std::lround(buffer_bias * 100.0f))));
-    }
-
-    ui_filament_path_canvas_set_buffer_fault_state(canvas, buffer_fault);
-
-    // Determine buffer presence and state for path canvas visualization
-    bool buffer_present = false;
-    int buffer_state = 0; // 0=neutral, 1=compressed, 2=tension
-
-    // AFC: buffer present when buffer_health populated
-    if (effective_unit < static_cast<int>(info.units.size())) {
-        const auto& unit = info.units[effective_unit];
-        if (unit.buffer_health.has_value()) {
-            buffer_present = true;
-            const auto& st = unit.buffer_health->state;
-            if (st == "Advancing")
-                buffer_state = 1; // Compressed/tight
-            else if (st == "Trailing")
-                buffer_state = 2; // Tension/stretched
-        }
-    }
-
-    // HH: sync_feedback_state indicates buffer
-    if (!buffer_present && info.type == helix::AmsType::HAPPY_HARE) {
-        const auto& sf = info.sync_feedback_state;
-        if (!sf.empty() && sf != "disabled") {
-            buffer_present = true;
-            if (sf == "compressed")
-                buffer_state = 1;
-            else if (sf == "tension")
-                buffer_state = 2;
-        }
-    }
-
-    // A buffer that reports pressure is a filament pressure sensor.
-    bool pressure_sensor = false;
-    if (effective_unit < static_cast<int>(info.units.size())) {
-        const auto& health = info.units[effective_unit].buffer_health;
-        pressure_sensor = health.has_value() && health->fps_reported;
-    }
-    // i18n: do not translate - hardware abbreviations
-    ui_filament_path_canvas_set_buffer_info(canvas, buffer_present, buffer_state,
-                                            pressure_sensor ? "FPS" : "BUF");
-
-    ui_filament_path_canvas_set_buffer_bias(canvas, buffer_bias);
+    // The buffer box: AFC buffer health, Happy Hare sync feedback, or a
+    // filament pressure sensor, tinted by the buffer bands.
+    const helix::ui::BufferBoxState box = helix::ui::ams_detail_buffer_box(info, unit_index);
+    ui_filament_path_canvas_set_buffer_fault_state(canvas, box.fault);
+    ui_filament_path_canvas_set_buffer_info(canvas, box.present, box.state, box.label);
+    ui_filament_path_canvas_set_buffer_bias(canvas, box.bias);
 
     // Set external spool color and assignment state. Only while bypass is
     // actually engaged: an assigned external spool is not in the filament path
@@ -731,6 +670,50 @@ void ams_detail_pre_show_env_indicator(AmsDetailWidgets& w, int unit_index) {
 
 namespace helix {
 namespace ui {
+
+BufferBoxState ams_detail_buffer_box(const AmsSystemInfo& info, int unit_index) {
+    BufferBoxState box;
+    // The AFC buffer rows describe one unit; the whole-backend view uses unit 0.
+    const AmsUnit* unit = info.get_unit(unit_index >= 0 ? unit_index : 0);
+    if (unit && unit->buffer_health) {
+        const BufferHealth& h = *unit->buffer_health;
+        box.present = true;
+        if (h.state == "Advancing") {
+            box.state = 1;
+        } else if (h.state == "Trailing") {
+            box.state = 2;
+        }
+        if (h.fault_detection_enabled && h.distance_to_fault >= 0.0f) {
+            if (h.distance_to_fault >= 50.0f) {
+                box.fault = 2; // at or past the fault threshold
+            } else if (h.distance_to_fault > 0.0f) {
+                box.fault = 1; // approaching it
+            }
+        }
+    }
+    if (!box.present && info.type == AmsType::HAPPY_HARE) {
+        const auto& sf = info.sync_feedback_state;
+        if (!sf.empty() && sf != "disabled") {
+            box.present = true;
+            if (sf == "compressed") {
+                box.state = 1;
+            } else if (sf == "tension") {
+                box.state = 2;
+            }
+        }
+    }
+
+    const BufferReading reading = buffer_reading(info, unit_index);
+    if (reading.source == BufferSource::Fps) {
+        box.present = true;
+        box.label = "FPS"; // i18n: do not translate - hardware abbreviation
+    }
+    if (reading.has_slider) {
+        box.bias = reading.bias;
+        box.fault = std::max(box.fault, static_cast<int>(reading.status));
+    }
+    return box;
+}
 
 bool ams_dispatch_backend_action(AmsContextMenu::MenuAction action, int slot,
                                  lv_obj_t* path_canvas) {
