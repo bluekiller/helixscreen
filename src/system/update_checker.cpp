@@ -30,6 +30,7 @@
 #include "helix_install_roots.h"
 #include "helix_thread.h"
 #include "helix_version.h"
+#include "host_identity.h"
 #include "hv/requests.h"
 #include "i_moonraker_api.h"
 #include "i_moonraker_client.h"
@@ -44,6 +45,7 @@
 #include "system/config_trust.h"
 #include "system/helix_paths.h"
 #include "system/log_path_probe.h"
+#include "system/moonraker_local_probe.h"
 #include "system/sha256_util.h"
 #include "system/telemetry_manager.h"
 #include "system/tls_trust.h"
@@ -2816,35 +2818,78 @@ const char* UpdateChecker::moonraker_channel_name(UpdateChannel channel) {
 }
 
 void UpdateChecker::sync_moonraker_channel() {
+    sync_moonraker_channel_for(app_get_install_root());
+}
+
+namespace {
+
+constexpr const char* kMoonrakerConf = "moonraker.conf";
+constexpr const char* kHelixStanza = "update_manager helixscreen";
+
+/// Both name the same directory once `.`, `..`, symlinks and trailing slashes are
+/// resolved. Empty never matches: an unknown directory proves nothing.
+bool same_directory(const std::string& a, const std::string& b) {
+    if (a.empty() || b.empty())
+        return false;
+    namespace fs = std::filesystem;
+    std::error_code ec_a, ec_b;
+    const fs::path pa = fs::weakly_canonical(helix::paths::strip_trailing_slash(a), ec_a);
+    const fs::path pb = fs::weakly_canonical(helix::paths::strip_trailing_slash(b), ec_b);
+    return !ec_a && !ec_b && pa == pb;
+}
+
+} // namespace
+
+void UpdateChecker::sync_moonraker_channel_for(const std::string& install_root) {
     IMoonrakerAPI* api = get_moonraker_api();
     if (!api)
         return;
-    static constexpr const char* kConf = "moonraker.conf";
-    static constexpr const char* kSection = "update_manager helixscreen";
-    const std::string want = moonraker_channel_name(get_channel());
 
-    // Each hop re-checks the API: a printer switch while a transfer is in flight
-    // destroys the one this sync started with.
+    // The stanza belongs to whichever HelixScreen the installer put on that machine.
+    // A remote screen, or a second instance on another channel, would otherwise
+    // impose its channel there, and two of them would restart Moonraker in turn.
+    std::string host;
+    uint16_t port = 7125;
+    if (!helix::diag::split_host_port(api->get_http_base_url(), host, port) ||
+        !helix::is_moonraker_on_same_host(host)) {
+        spdlog::debug("[UpdateChecker] Moonraker is not on this host; leaving its update "
+                      "channel alone");
+        return;
+    }
+
+    const std::string want = moonraker_channel_name(get_channel());
+    // detach() runs on every printer teardown. A new API can reuse the old one's
+    // address, so the generation, not the pointer, says this sync is still current.
+    const uint64_t gen = moonraker_sync_generation_.load();
+
     api->transfers().download_file(
-        "config", kConf,
-        [this, api, want](const std::string& content) {
+        "config", kMoonrakerConf,
+        [this, api, want, gen, install_root](const std::string& content) {
+            const std::string path =
+                helix::MoonrakerConfigManager::get_section_value(content, kHelixStanza, "path");
+            if (!same_directory(path, install_root)) {
+                spdlog::debug("[UpdateChecker] moonraker.conf's helixscreen stanza is for '{}', "
+                              "not this install ({}); leaving it alone",
+                              path, install_root);
+                return;
+            }
             std::string updated = helix::MoonrakerConfigManager::set_existing_value(
-                content, kSection, "channel", want);
+                content, kHelixStanza, "channel", want);
             if (updated == content)
                 return;
-            async_lifetime_.defer("UpdateChecker::sync_moonraker_channel", [this, api, want,
+            async_lifetime_.defer("UpdateChecker::sync_moonraker_channel", [this, api, want, gen,
                                                                             updated]() {
-                if (get_moonraker_api() != api)
+                if (gen != moonraker_sync_generation_.load())
                     return;
                 spdlog::info("[UpdateChecker] Setting moonraker.conf update channel to {}", want);
                 api->transfers().upload_file(
-                    "config", kConf, updated,
-                    [this, api]() {
+                    "config", kMoonrakerConf, updated,
+                    [this, api, gen]() {
                         async_lifetime_.defer("UpdateChecker::sync_moonraker_channel_restart",
-                                              [api]() {
-                                                  if (get_moonraker_api() != api)
+                                              [this, api, gen]() {
+                                                  if (gen != moonraker_sync_generation_.load())
                                                       return;
-                                                  restart_moonraker_for_channel(*api);
+                                                  restart_moonraker_for_channel(*api, gen);
                                               });
                     },
                     [](const MoonrakerError& err) {
@@ -2859,7 +2904,7 @@ void UpdateChecker::sync_moonraker_channel() {
         });
 }
 
-void UpdateChecker::restart_moonraker_for_channel(IMoonrakerAPI& api) {
+void UpdateChecker::restart_moonraker_for_channel(IMoonrakerAPI& api, uint64_t gen) {
     // Restarting Moonraker drops Klipper's API clients mid-job. The file is already
     // written, so Moonraker's next start picks the channel up either way.
     if (job_holds_machine(get_printer_state().print_state().get_print_lifecycle())) {
@@ -2867,15 +2912,45 @@ void UpdateChecker::restart_moonraker_for_channel(IMoonrakerAPI& api) {
                      "(a job holds the machine)");
         return;
     }
-    // The app's websocket drops with it and reconnects on its own; that rediscovery
-    // syncs again, finds the stanza matching, and stops.
-    EmergencyStopOverlay::instance().suppress_recovery_dialog(RecoverySuppression::LONG);
-    api.restart_moonraker(
-        []() { spdlog::info("[UpdateChecker] Restarting Moonraker to apply the update channel"); },
+    // Nor mid-update: right after Moonraker updates this app, "Update All" may still
+    // be updating Klipper or the OS. An unknown state counts as busy.
+    IMoonrakerAPI* api_ptr = &api;
+    api.get_client().send_jsonrpc(
+        "machine.update.status", json::object(),
+        [this, api_ptr, gen](const json& response) {
+            const json* result = helix::json_util::find_member(response, "result");
+            const bool busy = !result || helix::json_util::safe_bool(*result, "busy", /*def=*/true);
+            async_lifetime_.defer("UpdateChecker::restart_moonraker_for_channel", [this, api_ptr,
+                                                                                   gen, busy]() {
+                if (gen != moonraker_sync_generation_.load())
+                    return;
+                if (busy) {
+                    spdlog::info("[UpdateChecker] Update channel takes effect at Moonraker's "
+                                 "next restart (update_manager is busy)");
+                    return;
+                }
+                // The app's websocket drops with it and reconnects on its own; that
+                // rediscovery syncs again, finds the stanza matching, and stops.
+                EmergencyStopOverlay::instance().suppress_recovery_dialog(
+                    RecoverySuppression::LONG);
+                api_ptr->restart_moonraker(
+                    []() {
+                        spdlog::info(
+                            "[UpdateChecker] Restarting Moonraker to apply the update channel");
+                    },
+                    [](const MoonrakerError& err) {
+                        spdlog::warn(
+                            "[UpdateChecker] Moonraker restart for the update channel failed: {}",
+                            err.message);
+                    });
+            });
+        },
         [](const MoonrakerError& err) {
-            spdlog::warn("[UpdateChecker] Moonraker restart for the update channel failed: {}",
+            spdlog::info("[UpdateChecker] Update channel takes effect at Moonraker's next "
+                         "restart (update status unavailable: {})",
                          err.message);
-        });
+        },
+        0, /*silent=*/true);
 }
 
 UpdateChecker::UpdateChannel UpdateChecker::get_channel() const {
@@ -3066,6 +3141,7 @@ void UpdateChecker::on_connected(helix::IMoonrakerClient& client) {
 }
 
 void UpdateChecker::detach(helix::IMoonrakerClient& client) {
+    ++moonraker_sync_generation_;
     client.unregister_method_callback(UPDATE_RESPONSE_METHOD, EXTERNAL_UPDATE_HANDLER);
 }
 

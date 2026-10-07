@@ -1816,6 +1816,31 @@ TEST_CASE("set_existing_value reads and rewrites a CRLF file", "[config_manager]
     const std::string out = set_channel(crlf, "beta");
     CHECK(MoonrakerConfigManager::get_section_value(out, "update_manager helixscreen", "channel") ==
           "beta");
-    CHECK(out.find("type: web\r\n") != std::string::npos);
-    CHECK(out.find("host: 0.0.0.0\r\n") != std::string::npos);
+    CHECK(out == "[server]\r\nhost: 0.0.0.0\r\n[update_manager helixscreen]\r\n"
+                 "type: web\r\nchannel: beta\r\n");
+}
+
+TEST_CASE("set_existing_value adds no newline the file did not end with",
+          "[config_manager][update_channel]") {
+    CHECK(set_channel("[update_manager helixscreen]\nchannel: beta", "stable") ==
+          "[update_manager helixscreen]\nchannel: stable");
+}
+
+TEST_CASE("set_existing_value compares past an inline comment and keeps it",
+          "[config_manager][update_channel]") {
+    const std::string hash = "[update_manager helixscreen]\nchannel: beta  # pinned\n";
+    CHECK(set_channel(hash, "beta") == hash);
+    CHECK(set_channel(hash, "stable") ==
+          "[update_manager helixscreen]\nchannel: stable  # pinned\n");
+
+    const std::string semi = "[update_manager helixscreen]\nchannel: stable ; note\n";
+    CHECK(set_channel(semi, "stable") == semi);
+    CHECK(set_channel(semi, "beta") == "[update_manager helixscreen]\nchannel: beta ; note\n");
+}
+
+TEST_CASE("set_existing_value leaves duplicate stanzas alone", "[config_manager][update_channel]") {
+    const std::string dup = "[update_manager helixscreen]\nchannel: stable\n"
+                            "[server]\nhost: 0.0.0.0\n"
+                            "[update_manager helixscreen]\ntype: web\n";
+    CHECK(set_channel(dup, "beta") == dup);
 }

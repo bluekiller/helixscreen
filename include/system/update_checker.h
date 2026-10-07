@@ -644,9 +644,12 @@ class UpdateChecker {
      */
     void report_result(Status status, std::optional<ReleaseInfo> info, const std::string& error);
 
-    /// Second half of sync_moonraker_channel(): restart Moonraker unless a job holds
-    /// the machine.
-    static void restart_moonraker_for_channel(IMoonrakerAPI& api);
+    /// Last hop of sync_moonraker_channel(): restart Moonraker unless a job holds the
+    /// machine or update_manager is busy. @p gen is the sync's moonraker_sync_generation_.
+    void restart_moonraker_for_channel(IMoonrakerAPI& api, uint64_t gen);
+    /// sync_moonraker_channel() with this install's directory supplied; the stanza's
+    /// `path:` must resolve to it.
+    void sync_moonraker_channel_for(const std::string& install_root);
 
     void init_subjects();
 
@@ -664,6 +667,9 @@ class UpdateChecker {
     std::thread worker_thread_;
     std::atomic<bool> cancelled_{false};
     std::atomic<bool> shutting_down_{false};
+    /// Bumped by detach() so an in-flight moonraker.conf sync abandons the printer
+    /// it started on.
+    std::atomic<uint64_t> moonraker_sync_generation_{0};
     std::atomic<bool> initialized_{false};
     Callback pending_callback_;
 
