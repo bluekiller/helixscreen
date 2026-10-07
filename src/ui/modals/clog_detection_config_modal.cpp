@@ -111,7 +111,6 @@ void ClogDetectionConfigModal::on_show() {
     // Read current state from AmsState backend
     auto& ams = helix::AmsState::instance();
     auto* backend = ams.get_backend();
-    helix::AmsType backend_type = backend ? backend->get_type() : helix::AmsType::NONE;
     if (backend) {
         auto info = backend->get_system_info();
         detection_mode_ = info.encoder_info.detection_mode;
@@ -154,9 +153,9 @@ void ClogDetectionConfigModal::on_show() {
 
     // Push state to subjects — XML bindings react automatically
     lv_subject_set_int(&mode_subject_, detection_mode_);
-    // Mode/length are written with MMU_TEST_CONFIG; hide them on backends that
-    // have no such command rather than let Save emit gcode they cannot run.
-    bool mode_supported = build_detection_mode_gcode(backend_type, 2, 0.0f).has_value();
+    // Hide mode/length on backends with no such setting rather than let Save
+    // emit gcode they cannot run.
+    bool mode_supported = build_detection_mode_gcode(backend, 2, 0.0f).has_value();
     lv_subject_set_int(&mode_supported_subject_, mode_supported ? 1 : 0);
     sync_threshold_text();
     sync_det_length_text();
@@ -241,37 +240,25 @@ void ClogDetectionConfigModal::sync_det_length_text() {
     lv_subject_copy_string(&det_length_text_subject_, det_length_text_buf_);
 }
 
-std::optional<std::string> ClogDetectionConfigModal::build_detection_mode_gcode(helix::AmsType type,
-                                                                                int mode,
-                                                                                float det_length) {
-    // MMU_TEST_CONFIG is a Happy Hare command. AFC, ACE, CFS, QIDI Box and the
-    // tool changers reach this modal too (the clog widget is offered whenever
-    // clog_meter_mode > 0, which includes AFC buffer fault detection), and would
-    // answer with "Unknown command".
-    if (type != helix::AmsType::HAPPY_HARE)
-        return std::nullopt;
-
-    char cmd[96];
-    if (mode == 1 && det_length > 0) {
-        snprintf(cmd, sizeof(cmd), "MMU_TEST_CONFIG clog_detection=%d detection_length=%.1f", mode,
-                 det_length);
-    } else {
-        snprintf(cmd, sizeof(cmd), "MMU_TEST_CONFIG clog_detection=%d", mode);
-    }
-    return std::string(cmd);
+std::optional<std::string>
+ClogDetectionConfigModal::build_detection_mode_gcode(const helix::AmsBackend* backend, int mode,
+                                                     float det_length) {
+    // The clog widget is offered whenever clog_meter_mode > 0, which includes
+    // AFC buffer fault detection, so backends with no detection mode reach this
+    // modal too; they answer nullopt.
+    return backend ? backend->clog_detection_mode_gcode(mode, det_length) : std::nullopt;
 }
 
 void ClogDetectionConfigModal::send_detection_mode_gcode(int mode, float det_length) {
     // Re-read the backend rather than trust what on_show() saw: the UI gate hides
     // these controls, but the send must refuse on its own too.
     auto* backend = helix::AmsState::instance().get_backend();
-    helix::AmsType type = backend ? backend->get_type() : helix::AmsType::NONE;
 
-    auto cmd = build_detection_mode_gcode(type, mode, det_length);
+    auto cmd = build_detection_mode_gcode(backend, mode, det_length);
     if (!cmd) {
-        spdlog::warn("[ClogConfig] Detection mode is Happy Hare only (MMU_TEST_CONFIG); "
-                     "active backend is {} — not sending",
-                     helix::ams_type_to_string(type));
+        spdlog::warn(
+            "[ClogConfig] Active backend {} has no clog detection mode; not sending",
+            helix::ams_type_to_string(backend ? backend->get_type() : helix::AmsType::NONE));
         return;
     }
 

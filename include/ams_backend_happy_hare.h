@@ -338,6 +338,12 @@ class AmsBackendHappyHare : public AmsSubscriptionBackend {
     // highlight on a gate that ran out (gate_status 0) while its filament is
     // still at the toolhead (prestonbrown/helixscreen#1199).
 
+    /// MMU_TEST_CONFIG with v3's clog_detection / detection_length, or v4's
+    /// flowguard_encoder_mode / flowguard_encoder_max_motion on the selected
+    /// unit; nullopt on a v4 unit with no encoder.
+    [[nodiscard]] std::optional<std::string>
+    clog_detection_mode_gcode(int mode, float det_length) const override;
+
     // Device Management
     [[nodiscard]] std::vector<helix::printer::DeviceSection> get_device_sections() const override;
     [[nodiscard]] std::vector<helix::printer::DeviceAction> get_device_actions() const override;

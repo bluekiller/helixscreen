@@ -88,6 +88,7 @@ EncoderDelta read_encoder(const nlohmann::json& encoder) {
     d.detection_length = ams::read_field<float>(encoder, "detection_length");
     d.headroom = ams::read_field<float>(encoder, "headroom");
     d.min_headroom = ams::read_field<float>(encoder, "min_headroom");
+    d.detection_mode = ams::read_integer_field(encoder, "detection_mode");
     return d;
 }
 
@@ -158,7 +159,11 @@ constexpr ParamRow kParams[] = {
     {"selector_move_speed", "selector_move_speed", ParamScope::Unit},
     {"sync_to_extruder", "sync_to_extruder", ParamScope::Unit},
     {"heater_max_temp", "heater_max_temp", ParamScope::Unit},
-    {"clog_detection", "", ParamScope::Unit},
+    // v4's encoder mode keeps v3's clog_detection values: 0 off, 1 static
+    // (manual), 2 automatic. In static mode v4 detects over
+    // flowguard_encoder_max_motion, v3 over the encoder's detection_length.
+    {"clog_detection", "flowguard_encoder_mode", ParamScope::Unit},
+    {"detection_length", "flowguard_encoder_max_motion", ParamScope::Unit},
     {"toolhead_sensor_to_nozzle", "toolhead_sensor_to_nozzle", ParamScope::Toolhead},
     {"toolhead_extruder_to_nozzle", "toolhead_extruder_to_nozzle", ParamScope::Toolhead},
     {"toolhead_entry_to_extruder", "toolhead_entry_to_extruder", ParamScope::Toolhead},

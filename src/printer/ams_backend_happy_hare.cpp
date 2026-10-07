@@ -834,9 +834,19 @@ void AmsBackendHappyHare::apply_mmu_telemetry_locked(const happy_hare::MmuTeleme
         spdlog::trace("[AMS HappyHare] Sync drive: {}", system_info_.sync_drive);
     }
 
-    // clog_detection_enabled: 0=off, 1=manual, 2=auto
-    if (t.clog_detection_enabled) {
-        system_info_.clog_detection = *t.clog_detection_enabled;
+    // Clog detection mode: 0=off, 1=manual, 2=auto. v3 publishes it as
+    // clog_detection_enabled; v4 sends that as a constant false and carries the
+    // same values as flowguard.encoder_mode (units with a buffer) or
+    // encoder.detection_mode.
+    std::optional<int> clog_mode = t.clog_detection_enabled;
+    if (!clog_mode && t.flowguard) {
+        clog_mode = t.flowguard->encoder_mode;
+    }
+    if (!clog_mode && t.encoder) {
+        clog_mode = t.encoder->detection_mode;
+    }
+    if (clog_mode) {
+        system_info_.clog_detection = *clog_mode;
         system_info_.encoder_info.detection_mode = system_info_.clog_detection;
         system_info_.encoder_info.enabled = (system_info_.clog_detection > 0);
         spdlog::trace("[AMS HappyHare] Clog detection: {}", system_info_.clog_detection);
@@ -3340,6 +3350,25 @@ AmsError AmsBackendHappyHare::update_drying(float temp_c, int duration_min, int 
 // Device Management
 // ============================================================================
 
+std::optional<std::string> AmsBackendHappyHare::clog_detection_mode_gcode(int mode,
+                                                                          float det_length) const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    const bool v4 = machine_layout_.v4;
+    const int unit = active_unit_locked();
+    // v4 refuses the encoder mode on a unit with no encoder.
+    if (v4 && unit < static_cast<int>(system_info_.units.size()) &&
+        !system_info_.units[unit].has_encoder) {
+        return std::nullopt;
+    }
+    std::string cmd =
+        fmt::format("MMU_TEST_CONFIG {}={}", happy_hare::param_name("clog_detection", v4), mode);
+    if (mode == 1 && det_length > 0) {
+        cmd +=
+            fmt::format(" {}={:.1f}", happy_hare::param_name("detection_length", v4), det_length);
+    }
+    return cmd + unit_suffix_locked(unit);
+}
+
 std::vector<helix::printer::DeviceSection> AmsBackendHappyHare::get_device_sections() const {
     return helix::printer::hh_default_sections();
 }
@@ -3701,7 +3730,7 @@ AmsError AmsBackendHappyHare::execute_device_action(const std::string& action_id
             mode_int = 1;
         else if (mode_str == "Auto")
             mode_int = 2;
-        auto result = execute_gcode(fmt::format("MMU_TEST_CONFIG CLOG_DETECTION={}", mode_int));
+        auto result = test_config("clog_detection", std::to_string(mode_int));
         if (result.success()) {
             save_override(action_id, mode_int);
         }

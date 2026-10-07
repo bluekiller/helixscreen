@@ -261,9 +261,9 @@ TEST_CASE("Happy Hare layout: each tunable is read from its v4 section",
     CHECK(number("toolhead_sensor_to_nozzle") == 1.0f);
     CHECK(number("toolhead_entry_to_extruder") == 6.0f);
     CHECK(number("toolhead_ooze_reduction") == 0.0f);
-    // A VirtualSelector has no selector speed, and v4 has no clog_detection.
+    // A VirtualSelector has no selector speed. The clog mode is the encoder mode.
     CHECK_FALSE(number("selector_move_speed"));
-    CHECK_FALSE(happy_hare::find_config_param(settings, layout, "clog_detection"));
+    CHECK(number("clog_detection") == 2.0f);
 }
 
 TEST_CASE("Happy Hare layout: v3 reads every tunable from [mmu]",
@@ -291,7 +291,8 @@ TEST_CASE("Happy Hare layout: v4 renames two gear speeds", "[happy_hare][status_
     CHECK(param_name("gear_from_buffer_speed", true) == "gear_from_filament_buffer_speed");
     CHECK(param_name("gear_unload_speed", true) == "gear_unload_speed");
     CHECK(param_name("toolhead_ooze_reduction", true) == "toolhead_ooze_reduction");
-    CHECK(param_name("clog_detection", true).empty());
+    CHECK(param_name("clog_detection", true) == "flowguard_encoder_mode");
+    CHECK(param_name("detection_length", true) == "flowguard_encoder_max_motion");
     CHECK(param_name("gear_from_spool_speed", false) == "gear_from_spool_speed");
     CHECK(param_name("clog_detection", false) == "clog_detection");
 }

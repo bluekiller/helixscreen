@@ -156,6 +156,7 @@ one layout.
 | Per-gate pre-gate sensors | `printer.mmu.sensors.mmu_pre_gate_N` | `filament_switch_sensor mmu_entry_N` objects; `printer.mmu.sensors` covers only the selected gate |
 | eSpooler | `espooler_active` | per-gate `espooler` list, the selected gate's entry shown |
 | Calibrate gates | `MMU_CALIBRATE_GATES` | `MMU_CALIBRATE_GATE ALL=1` |
+| Clog detection mode (0 off, 1 manual, 2 auto) | `clog_detection_enabled`; written as `clog_detection` (+ `detection_length` in manual) | read from `flowguard.encoder_mode`, else `encoder.detection_mode` (`clog_detection_enabled` is a constant false); written as `flowguard_encoder_mode` (+ `flowguard_encoder_max_motion`) on the selected unit, and only on a unit with an encoder |
 
 **`UNIT=` on a multi-unit v4.** v4 refuses its per-unit commands without `UNIT=` once
 `mmu_machine.num_units` is above 1. `unit_suffix_locked()` builds it, and only there:
@@ -177,8 +178,9 @@ on v4 and is never read.
 
 v4 sends `encoder`, `flowguard`, `tangle_prevention` and the `sync_feedback_*` fields as
 JSON null until a unit has them; every parser reads null as absent, so the last real value
-stands. Clog-detection mode moved to `flowguard_encoder_mode` / `MMU_FLOWGUARD` on v4 and is
-not handled here yet. Golden payloads: `tests/fixtures/happy_hare_v4_*.json`.
+stands. The clog config modal asks `AmsBackend::clog_detection_mode_gcode()` for its
+command. `MMU_FLOWGUARD ENABLE=` switches buffer FlowGuard as a whole; no HelixScreen control
+sends it. Golden payloads: `tests/fixtures/happy_hare_v4_*.json`.
 
 ### Reset vs Recover
 

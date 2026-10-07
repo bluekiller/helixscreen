@@ -71,6 +71,7 @@ struct EncoderDelta {
     std::optional<float> detection_length;
     std::optional<float> headroom;
     std::optional<float> min_headroom;
+    std::optional<int> detection_mode; ///< 0 off, 1 static, 2 automatic
 };
 
 struct FlowguardDelta {

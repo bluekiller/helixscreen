@@ -6052,7 +6052,6 @@ TEST_CASE("Happy Hare v4 reapplies persisted overrides under the v4 names",
                          helix::test::load_happy_hare_fixture("happy_hare_v4_single_unit.json"));
     helper.execute_device_action("gear_from_spool_speed", std::any(75.0));
     helper.execute_device_action("sync_to_extruder", std::any(false));
-    // An override v4 has no parameter for stays out of the command.
     HappyHareTestAccess::user_overrides(helper).clog_detection = 2;
     helper.clear_captured_gcodes();
 
@@ -6063,6 +6062,7 @@ TEST_CASE("Happy Hare v4 reapplies persisted overrides under the v4 names",
     CHECK(cmd.find(" GEAR_LOAD_SPEED=75") != std::string::npos);
     CHECK(cmd.find(" SYNC_TO_EXTRUDER=0") != std::string::npos);
     CHECK(cmd.find("GEAR_FROM_SPOOL_SPEED") == std::string::npos);
+    CHECK(cmd.find(" FLOWGUARD_ENCODER_MODE=2") != std::string::npos);
     CHECK(cmd.find("CLOG_DETECTION") == std::string::npos);
 }
 
@@ -6293,4 +6293,57 @@ TEST_CASE("Happy Hare reads every unit's enclosure heaters, not only unit 0's",
     CHECK(zones[0].unit_index == 1);
     CHECK(zones[1].gates == std::vector<int>{8, 9});
     CHECK(helper.get_environment_zones(0).empty());
+}
+
+TEST_CASE("Happy Hare v4 reads clog detection mode from the encoder mode",
+          "[ams][happy_hare][hh_v4][clog]") {
+    helix::test::RegisteredBackend<AmsBackendHappyHareTestHelper> helper_reg;
+    AmsBackendHappyHareTestHelper& helper = *helper_reg;
+    helper.test_parse_mmu_state({{"gate_status", {1, 1}}, {"clog_detection_enabled", false}});
+    CHECK(helper.get_system_info().encoder_info.detection_mode == 0);
+
+    helper.test_parse_mmu_state({{"clog_detection_enabled", false},
+                                 {"flowguard", {{"enabled", true}, {"encoder_mode", 1}}}});
+    auto info = helper.get_system_info();
+    CHECK(info.clog_detection == 1);
+    CHECK(info.encoder_info.detection_mode == 1);
+    CHECK(info.encoder_info.enabled);
+    CHECK(info.flowguard_info.enabled);
+
+    // A unit with an encoder but no buffer publishes flowguard as null.
+    helper.test_parse_mmu_state({{"flowguard", nullptr}, {"encoder", {{"detection_mode", 2}}}});
+    CHECK(helper.get_system_info().encoder_info.detection_mode == 2);
+    helper.test_parse_mmu_state({{"encoder", {{"detection_mode", 0}}}});
+    CHECK_FALSE(helper.get_system_info().encoder_info.enabled);
+
+    // v3's integer wins whenever it is published.
+    helper.test_parse_mmu_state(
+        {{"clog_detection_enabled", 2}, {"flowguard", {{"encoder_mode", 1}}}});
+    CHECK(helper.get_system_info().encoder_info.detection_mode == 2);
+}
+
+TEST_CASE("Happy Hare v4 writes clog detection mode as the selected unit's encoder mode",
+          "[ams][happy_hare][hh_v4][clog]") {
+    QueryCapturingClient client;
+    helix::test::RegisteredBackend<AmsBackendHappyHareTestHelper> helper_reg(nullptr, &client);
+    AmsBackendHappyHareTestHelper& helper = *helper_reg;
+    auto fx = helix::test::load_happy_hare_fixture("happy_hare_v4_two_unit.json");
+    fx["mmu_status"]["unit"] = 0;
+    fx["mmu_status"]["gate"] = 2;
+    helper.test_parse_mmu_state(fx["mmu_status"]);
+    connect_with_fixture(helper, client, fx);
+
+    CHECK(helper.clog_detection_mode_gcode(1, 12.0f) ==
+          std::optional<std::string>(
+              "MMU_TEST_CONFIG flowguard_encoder_mode=1 flowguard_encoder_max_motion=12.0 UNIT=0"));
+    CHECK(helper.clog_detection_mode_gcode(2, 12.0f) ==
+          std::optional<std::string>("MMU_TEST_CONFIG flowguard_encoder_mode=2 UNIT=0"));
+    helper.clear_captured_gcodes();
+    helper.execute_device_action("clog_detection", std::string("Auto"));
+    CHECK(helper.captured_gcodes ==
+          std::vector<std::string>{"MMU_TEST_CONFIG FLOWGUARD_ENCODER_MODE=2 UNIT=0"});
+
+    // The Box Turtle unit has no encoder, so v4 has no mode to set there.
+    helper.test_parse_mmu_state({{"unit", 1}, {"gate", 7}});
+    CHECK_FALSE(helper.clog_detection_mode_gcode(2, 0.0f));
 }
