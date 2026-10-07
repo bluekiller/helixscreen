@@ -162,14 +162,19 @@ TEST_CASE_METHOD(LVGLUITestFixture, "HistoryListPanel - the detail status reads 
     REQUIRE(std::string(lv_tr("Failed")) != "Failed");
 }
 
-TEST_CASE_METHOD(LVGLUITestFixture,
-                 "HistoryListPanel - the detail thumbnail path is relative to the gcodes root",
-                 "[history][subdir]") {
+TEST_CASE_METHOD(
+    LVGLUITestFixture,
+    "HistoryListPanel - the detail thumbnail is the covering size, from the gcodes root",
+    "[history][subdir]") {
     const bool in_subdir = GENERATE(false, true);
     PrintHistoryJob job;
     job.filename = in_subdir ? "sub/dir/DetailThumbProbe.gcode" : "DetailThumbProbe.gcode";
     job.status = PrintJobStatus::COMPLETED;
-    job.thumbnail_path = ".thumbs/DetailThumbProbe.png";
+    // The detail target at 800x480 is 300x300: the smallest thumbnail that
+    // covers it is fetched, not the largest and not the icon.
+    job.thumbnails = {{".thumbs/DetailThumbProbe-32x32.png", 32, 32},
+                      {".thumbs/DetailThumbProbe-600x600.png", 600, 600},
+                      {".thumbs/DetailThumbProbe.png", 300, 300}};
     const std::string key =
         in_subdir ? "sub/dir/.thumbs/DetailThumbProbe.png" : ".thumbs/DetailThumbProbe.png";
 

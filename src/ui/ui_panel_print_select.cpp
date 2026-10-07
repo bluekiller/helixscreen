@@ -1221,15 +1221,11 @@ void PrintSelectPanel::process_metadata_result(size_t i, const std::string& file
     double layer_height = metadata.layer_height;
     std::string uuid = metadata.uuid;
 
-    // Smart thumbnail selection: pick smallest that meets display requirements
-    // This reduces download size while ensuring adequate resolution
     helix::ThumbnailTarget target = helix::ThumbnailProcessor::get_target_for_display();
-    const ThumbnailInfo* best_thumb = metadata.get_best_thumbnail(target.width, target.height);
-    std::string thumb_path =
-        resolve_thumbnail_path(best_thumb ? best_thumb->relative_path : "", current_path_);
-    spdlog::debug("[{}] Metadata thumbnails for {}: count={}, selected='{}' -> '{}'", get_name(),
-                  filename, metadata.thumbnails.size(),
-                  best_thumb ? best_thumb->relative_path : "(none)", thumb_path);
+    std::string thumb_path = helix::select_and_resolve_thumbnail(metadata.thumbnails, current_path_,
+                                                                 target.width, target.height);
+    spdlog::debug("[{}] Metadata thumbnails for {}: count={}, selected '{}'", get_name(), filename,
+                  metadata.thumbnails.size(), thumb_path);
 
     // Format strings on background thread (uses standalone helper functions)
     std::string print_time_str = format_print_time(card_total_minutes(print_time_minutes));

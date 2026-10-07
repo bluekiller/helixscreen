@@ -541,9 +541,26 @@ void ActivePrintMediaManager::load_thumbnail_for_file(const std::string& filenam
                     return;
                 }
 
-                // Get the largest thumbnail available
-                std::string thumbnail_rel_path = metadata.get_largest_thumbnail();
-                if (thumbnail_rel_path.empty()) {
+#if defined(HELIX_PLATFORM_ESP32)
+                // The print-status panel draws its thumbnail in a 377x260 box
+                // (contain) at 800x480 and the home print card in 119x84, so
+                // one image fitted to that box serves both; LVGL scales it
+                // down for the card. Worst case 377x260 RGB565A8 = 294KB.
+                constexpr int ESP32_THUMBNAIL_BOX_W = 377;
+                constexpr int ESP32_THUMBNAIL_BOX_H = 260;
+                const int box_w = ESP32_THUMBNAIL_BOX_W;
+                const int box_h = ESP32_THUMBNAIL_BOX_H;
+#else
+                // Detail-sized (200-400px): serves both the card and the
+                // status panel, since LVGL scales down efficiently.
+                const helix::ThumbnailTarget detail_target =
+                    helix::ThumbnailProcessor::get_target_for_display(helix::ThumbnailSize::Detail);
+                const int box_w = detail_target.width;
+                const int box_h = detail_target.height;
+#endif
+                const std::string resolved_thumb_path = helix::select_and_resolve_thumbnail(
+                    metadata.thumbnails, helix::gcode_dir_of(metadata_filename), box_w, box_h);
+                if (resolved_thumb_path.empty()) {
                     // Metadata record exists but has no thumbnails. Briefly this
                     // can mean Moonraker is still mid-scan, but the common cause
                     // is a file sliced WITHOUT thumbnails — a permanent
@@ -567,9 +584,7 @@ void ActivePrintMediaManager::load_thumbnail_for_file(const std::string& filenam
                     return;
                 }
 
-                spdlog::debug("[ActivePrintMediaManager] Found thumbnail: {}", thumbnail_rel_path);
-                const std::string resolved_thumb_path =
-                    resolve_gcode_thumbnail_path(thumbnail_rel_path, metadata_filename);
+                spdlog::debug("[ActivePrintMediaManager] Found thumbnail: {}", resolved_thumb_path);
 
 #if defined(HELIX_PLATFORM_ESP32)
                 // ESP32 (Task 11 R2): no disk thumbnail cache on this platform
@@ -582,12 +597,6 @@ void ActivePrintMediaManager::load_thumbnail_for_file(const std::string& filenam
                 // real image arrives via print_psram_thumb_gen, whose observer
                 // replaces the placeholder src with the PSRAM descriptor.
                 constexpr size_t ESP32_THUMBNAIL_MAX_BYTES = 512 * 1024;
-                // The print-status panel draws its thumbnail in a 377x260 box
-                // (contain) at 800x480 and the home print card in 119x84, so
-                // one image fitted to that box serves both; LVGL scales it
-                // down for the card. Worst case 377x260 RGB565A8 = 294KB.
-                constexpr int ESP32_THUMBNAIL_BOX_W = 377;
-                constexpr int ESP32_THUMBNAIL_BOX_H = 260;
 
                 // MANDATORY threading: EspHttpLane invokes on_success/on_error
                 // directly on its own worker thread with no marshaling. Both
@@ -683,15 +692,13 @@ void ActivePrintMediaManager::load_thumbnail_for_file(const std::string& filenam
                                   });
                     });
 #else
-                // Detail-sized thumbnails (200-400px) — works for both card and detail
-                // views since LVGL scales down efficiently. The load's own context goes
-                // to the cache, so a result superseded by a newer load is dropped at the
-                // cache boundary; our success callback re-checks it after marshalling
-                // because the cache's guard alone says nothing about `this`.
+                // The load's own context goes to the cache, so a result superseded by
+                // a newer load is dropped at the cache boundary; our success callback
+                // re-checks it after marshalling because the cache's guard alone says
+                // nothing about `this`.
                 ThumbnailRequest req;
                 req.key = resolved_thumb_path;
-                req.target =
-                    helix::ThumbnailProcessor::get_target_for_display(helix::ThumbnailSize::Detail);
+                req.target = detail_target;
                 req.api = api_;
                 // Moonraker's mtime for the gcode file this thumbnail came out
                 // of. Without it the cache serves whatever it rendered the first

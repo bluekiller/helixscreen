@@ -263,6 +263,20 @@ class ThumbnailCache {
                              const std::vector<uint8_t>& png_data);
 
     /**
+     * @brief save_raw_png(), then pre-scale to @p target on the calling thread
+     *
+     * For sources with no fetch to hang the pre-scale off (a USB scan), so
+     * their cards draw a .bin like every other card. Blocks on the decode:
+     * worker threads only.
+     *
+     * @return The .bin path, the PNG path when pre-scaling fails, or empty when
+     *         nothing was saved
+     */
+    std::string save_prescaled(helix::ThumbnailSource source, const std::string& id,
+                               const std::vector<uint8_t>& image_data,
+                               const helix::ThumbnailTarget& target);
+
+    /**
      * @brief Clear all cached thumbnails
      *
      * Removes all files from the cache directory.

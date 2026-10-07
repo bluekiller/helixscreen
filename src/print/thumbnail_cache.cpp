@@ -826,6 +826,26 @@ std::string ThumbnailCache::save_raw_png(ThumbnailSource source, const std::stri
     return to_lvgl_path(cache_path);
 }
 
+std::string ThumbnailCache::save_prescaled(ThumbnailSource source, const std::string& id,
+                                           const std::vector<uint8_t>& image_data,
+                                           const ThumbnailTarget& target) {
+    const std::string png_path = save_raw_png(source, id, image_data);
+#if !defined(HELIX_PLATFORM_ESP32)
+    if (!png_path.empty()) {
+        const ProcessResult result = ThumbnailProcessor::instance().process_sync(
+            image_data, thumbnail_cache_id(source, id), target);
+        if (result.success) {
+            return result.output_path;
+        }
+        spdlog::warn("[ThumbnailCache] Pre-scaling {} failed ({}), keeping the PNG", id,
+                     result.error);
+    }
+#else
+    (void)target;
+#endif
+    return png_path;
+}
+
 size_t ThumbnailCache::clear_cache() {
     // Shares mutex_ with eviction: both unlink from the same directory, and a
     // concurrent eviction scan would otherwise trip over files this removes.

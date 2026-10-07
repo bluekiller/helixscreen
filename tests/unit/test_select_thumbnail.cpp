@@ -86,21 +86,52 @@ TEST_CASE("select_thumbnail: entries with no recorded size still get chosen",
     CHECK(pick(unsized, 100, 100) == "only.png");
 }
 
-TEST_CASE("history parse pre-selects the largest thumbnail, sized or not",
+TEST_CASE("history parse keeps every thumbnail, sized or not",
           "[thumbnail][select_thumbnail][history]") {
     auto job_with = [](nlohmann::json thumbs) {
         return helix::parse_history_job(
             nlohmann::json{{"job_id", "000001"},
-                           {"filename", "a.gcode"},
+                           {"filename", "sub/a.gcode"},
                            {"status", "completed"},
                            {"metadata", {{"thumbnails", std::move(thumbs)}}}});
     };
     const auto sized = job_with(nlohmann::json::array(
         {{{"relative_path", ".thumbs/a-32x32.png"}, {"width", 32}, {"height", 32}},
          {{"relative_path", ".thumbs/a-300x300.png"}, {"width", 300}, {"height", 300}}}));
-    CHECK(sized.thumbnail_path == ".thumbs/a-300x300.png");
+    CHECK(helix::select_and_resolve_thumbnail(sized.thumbnails, helix::gcode_dir_of(sized.filename),
+                                              0, 0) == "sub/.thumbs/a-300x300.png");
 
     // Slicers that omit the dimensions still name a thumbnail worth showing.
     const auto unsized = job_with(nlohmann::json::array({{{"relative_path", ".thumbs/a.png"}}}));
-    CHECK(unsized.thumbnail_path == ".thumbs/a.png");
+    CHECK(helix::select_and_resolve_thumbnail(unsized.thumbnails, "sub", 160, 160) ==
+          "sub/.thumbs/a.png");
+}
+
+// One rule for every consumer: the print-select card, the desktop and ESP32
+// active print, the history detail and the home card all pass their own box.
+TEST_CASE("select_and_resolve_thumbnail: the smallest cover for each consumer's box",
+          "[thumbnail][select_thumbnail]") {
+    const std::vector<ThumbnailInfo> slicer = {
+        thumb(".thumbs/m-32x32.png", 32, 32), thumb(".thumbs/m-512x512.png", 512, 512),
+        thumb(".thumbs/m-160x160.png", 160, 160), thumb(".thumbs/m-400x300.png", 400, 300)};
+    auto pick_in = [&](const std::string& dir, int w, int h) {
+        return helix::select_and_resolve_thumbnail(slicer, dir, w, h);
+    };
+
+    CHECK(pick_in("", 160, 160) == ".thumbs/m-160x160.png"); // card at 800x480
+    CHECK(pick_in("", 300, 300) == ".thumbs/m-400x300.png"); // detail at 800x480
+    CHECK(pick_in("", 400, 400) == ".thumbs/m-512x512.png"); // detail at 1024x600: 300 is short
+    CHECK(pick_in("", 377, 260) == ".thumbs/m-400x300.png"); // ESP32 active-print box
+    CHECK(pick_in("", 0, 0) == ".thumbs/m-512x512.png");     // unmeasured widget
+    CHECK(pick_in("", 600, 600) == ".thumbs/m-512x512.png"); // nothing covers it
+}
+
+TEST_CASE("select_and_resolve_thumbnail: resolved against the gcode's own directory",
+          "[thumbnail][select_thumbnail][subdir]") {
+    const std::vector<ThumbnailInfo> one = {thumb(".thumbs/m.png", 300, 300)};
+    CHECK(helix::select_and_resolve_thumbnail(one, "", 100, 100) == ".thumbs/m.png");
+    CHECK(helix::select_and_resolve_thumbnail(one, helix::gcode_dir_of("a/b c/m.gcode"), 100,
+                                              100) == "a/b c/.thumbs/m.png");
+    CHECK(helix::gcode_dir_of("m.gcode").empty());
+    CHECK(helix::select_and_resolve_thumbnail({}, "a", 100, 100).empty());
 }
