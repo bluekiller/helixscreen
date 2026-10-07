@@ -630,7 +630,9 @@ void PrintStartCollector::check_fallback_completion() {
     // Also recompute on a substantial RISE (e.g. staged heating: probe temp,
     // then print temp), but never on decreases — temporary M104 S0 (nozzle
     // cooldown for probe cleaning) must not remove the heating phase and
-    // cause progress regression.
+    // cause progress regression. A heater whose measured rate departs from the
+    // one the weights used recomputes too: a bed heating at 5.6 s/C against a
+    // 1 s/C size guess otherwise counts down a sixth of its real wait.
     {
         int new_ext = helix::ui::temperature::deci_to_degrees(ext_target);
         int new_bed = helix::ui::temperature::deci_to_degrees(bed_target);
@@ -639,10 +641,23 @@ void PrintStartCollector::check_fallback_completion() {
         bool bed_newly_set = (weights_bed_target_ == 0 && new_bed > 0);
         bool ext_rose = new_ext > weights_ext_target_ + TARGET_RISE_RECOMPUTE_DEGREES;
         bool bed_rose = new_bed > weights_bed_target_ + TARGET_RISE_RECOMPUTE_DEGREES;
-        if (ext_newly_set || bed_newly_set || ext_rose || bed_rose) {
-            spdlog::info("[PrintStartCollector] Heater targets changed "
-                         "(ext: {}→{}°C, bed: {}→{}°C), recomputing weights",
-                         weights_ext_target_, new_ext, weights_bed_target_, new_bed);
+        // A rate within a quarter of the one the weights used is EMA noise.
+        constexpr float RATE_RECOMPUTE_RATIO = 1.25f;
+        const auto rate_moved = [](float used, float now) {
+            return now > used * RATE_RECOMPUTE_RATIO || now * RATE_RECOMPUTE_RATIO < used;
+        };
+        auto& rates = ThermalRateManager::instance();
+        const bool ext_rate_moved =
+            rate_moved(weights_ext_rate_, rates.get_model("extruder").best_rate());
+        const bool bed_rate_moved =
+            rate_moved(weights_bed_rate_, rates.get_model("heater_bed").best_rate());
+        if (ext_newly_set || bed_newly_set || ext_rose || bed_rose || ext_rate_moved ||
+            bed_rate_moved) {
+            spdlog::info("[PrintStartCollector] Heater targets or rates changed "
+                         "(ext: {}→{}°C, bed: {}→{}°C, rate moved ext={} bed={}), "
+                         "recomputing weights",
+                         weights_ext_target_, new_ext, weights_bed_target_, new_bed, ext_rate_moved,
+                         bed_rate_moved);
             compute_predicted_weights();
             // The ETA's inputs changed, not just its noise: release the
             // monotonic anchor so the next publish can report the corrected
@@ -678,7 +693,9 @@ void PrintStartCollector::check_fallback_completion() {
         // warm-up as "Heating Bed". We require a NON-empty, partial homed_axes so
         // that a bed-first-heat macro (homed_axes still "" before G28 starts)
         // correctly shows "Heating Bed", and so the proactive heating unit tests
-        // (which don't set homed_axes) are unaffected.
+        // (which don't set homed_axes) are unaffected. Heaters play no part: a
+        // G28 run cold, before either target is set, is homing all the same,
+        // and an already-homed printer ("xyz") never enters it.
         const char* homed = lv_subject_get_string(state_.motion_state().get_homed_axes_subject());
         bool fully_homed = homed != nullptr && strchr(homed, 'x') != nullptr &&
                            strchr(homed, 'y') != nullptr && strchr(homed, 'z') != nullptr;
@@ -690,7 +707,7 @@ void PrintStartCollector::check_fallback_completion() {
         // bed-first-heat printers — they sit in INITIALIZING with homed_axes ""
         // and never ENTER homing from an empty string alone (the partial-axes
         // entry condition gates that).
-        bool homing_active = homed != nullptr && !fully_homed && (bed_heating || nozzle_heating) &&
+        bool homing_active = homed != nullptr && !fully_homed &&
                              (homed[0] != '\0' || current == PrintStartPhase::HOMING);
         if (homing_active) {
             if (current != PrintStartPhase::HOMING) {
@@ -1924,6 +1941,11 @@ int PrintStartCollector::calculate_progress_locked() const {
             progress += share;
         }
     }
+    for (const auto& [phase, share] : predicted_phase_weights_) {
+        if (phase_skipped_locked(phase)) {
+            progress += share;
+        }
+    }
 
     // Partial progress for current phase
     auto cur_it = predicted_phase_weights_.find(static_cast<int>(current_phase_));
@@ -1990,7 +2012,19 @@ std::set<int> PrintStartCollector::get_completed_phase_ints_locked() const {
             result.insert(p);
         }
     }
+    for (const auto& [phase, _] : predicted_phase_weights_) {
+        if (phase_skipped_locked(phase)) {
+            result.insert(phase);
+        }
+    }
     return result;
+}
+
+bool PrintStartCollector::phase_skipped_locked(int phase) const {
+    const auto p = static_cast<PrintStartPhase>(phase);
+    return phase < static_cast<int>(current_phase_) && p != PrintStartPhase::HEATING_BED &&
+           p != PrintStartPhase::HEATING_NOZZLE &&
+           detected_phases_.find(p) == detected_phases_.end();
 }
 
 int PrintStartCollector::get_current_phase_elapsed_seconds() const {
@@ -2337,9 +2371,11 @@ void PrintStartCollector::compute_predicted_weights() {
             predictor_.has_predictions() ? static_cast<float>(wall_clock_estimate) : durations_sum;
     }
 
-    // Track targets used so we can detect changes and recompute
+    // Track targets and rates used so we can detect changes and recompute
     weights_ext_target_ = ext_target;
     weights_bed_target_ = bed_target;
+    weights_ext_rate_ = mgr.get_model("extruder").best_rate();
+    weights_bed_rate_ = mgr.get_model("heater_bed").best_rate();
 
     spdlog::debug("[PrintStartCollector] Predicted weights: total={:.0f}s, {} phases "
                   "(ext_target={}°C, bed_target={}°C)",
@@ -2546,14 +2582,15 @@ void PrintStartCollector::save_prediction_entry() {
         }
     }
 
-    if (phase_durations.empty()) {
-        spdlog::debug("[PrintStartCollector] No phase timings to save");
-        return;
-    }
-
-    // Use wall-clock elapsed time as total — includes heating phases omitted from phase_durations
+    // Use wall-clock elapsed time as total: it includes heating phases omitted from
+    // phase_durations. A start that only heated has no phase timings, but its total is still what
+    // the next prediction needs, and its heating rates are still real.
     int wall_clock_total = static_cast<int>(
         std::chrono::duration_cast<std::chrono::seconds>(now - start_time).count());
+    if (wall_clock_total <= 0) {
+        spdlog::debug("[PrintStartCollector] No pre-print time to save");
+        return;
+    }
 
     // Cold (1) vs Warm (2) based on bed temp at start
     helix::PreprintEntry entry;

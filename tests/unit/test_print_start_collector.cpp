@@ -5825,3 +5825,237 @@ TEST_CASE_METHOD(PrintStartCollectorHeaterFixture,
         REQUIRE(get_current_phase() == PrintStartPhase::BED_MESH);
     }
 }
+
+/**
+ * @brief Replay a silent Voron V0 PRINT_START through the generic profile
+ *
+ * From a 2026-10 capture: G28 with both heaters off, SET_DISPLAY_TEXT
+ * "Bed: 90c", a move to the bed centre, M190 S90 (30C to 90C in about 5.5
+ * minutes), SET_DISPLAY_TEXT "Hotend: 270c", M109 S270 (32C to 270C in 54s),
+ * SKEW_PROFILE LOAD, a KAMP LINE_PURGE, then layer 1. Nothing is narrated to
+ * the console beyond Klipper's once-a-second heater wait reports, and there is
+ * no bed mesh. Heater readings are linear between the capture's stamps, sent
+ * once a second the way Moonraker forwards them; the collector's timer runs
+ * every 5s. Second 0 is 22:48:15.
+ */
+class SilentVoronReplayFixture : public PrintStartCollectorHeaterFixture {
+  public:
+    struct Snapshot {
+        PrintStartPhase phase{PrintStartPhase::IDLE};
+        int remaining{0};
+        int progress{0};
+    };
+
+    static constexpr int BED_TARGET_S = 15;     // 22:48:30
+    static constexpr int BED_AT_TARGET_S = 350; // 22:54:05
+    static constexpr int EXT_TARGET_S = 352;    // 22:54:07
+    static constexpr int EXT_AT_TARGET_S = 406; // 22:55:01
+    static constexpr int PURGE_START_S = 407;   // 22:55:02
+    static constexpr int FIRST_LAYER_S = 415;   // 22:55:10
+
+    SilentVoronReplayFixture() {
+        ThermalRateManager::instance().reset();
+        // A V0's 120mm bed reads as a small bed to the size guess.
+        ThermalRateManager::instance().apply_archetype_defaults(120.0f, "Voron 0.2");
+    }
+
+    ~SilentVoronReplayFixture() override {
+        ThermalRateManager::instance().reset();
+    }
+
+    void settle() {
+        drain_async_updates();
+        drain_async_updates();
+    }
+
+    int remaining() {
+        return lv_subject_get_int(state().print_state().get_preprint_remaining_subject());
+    }
+
+    void set_homed(const char* axes) {
+        lv_subject_copy_string(state().motion_state().get_homed_axes_subject(), axes);
+        // The homed_axes observer runs the fallback check on every change.
+        tick_fallbacks();
+    }
+
+    void display(const std::string& message) {
+        client().dispatch_status_update({{"display_status", {{"message", message}}}});
+        settle();
+    }
+
+    /// Runs the capture to layer 1 and returns what the panel showed each second.
+    std::vector<Snapshot> replay() {
+        std::vector<Snapshot> shown(FIRST_LAYER_S + 1);
+        const auto lerp = [](int t, int t0, int t1, double v0, double v1) {
+            if (t <= t0) {
+                return v0;
+            }
+            if (t >= t1) {
+                return v1;
+            }
+            return v0 + (v1 - v0) * (t - t0) / static_cast<double>(t1 - t0);
+        };
+
+        lv_subject_copy_string(state().motion_state().get_homed_axes_subject(), "");
+        set_all_temps(300, 0, 320, 0);
+        collector().start();
+        collector().enable_fallbacks();
+        collector().note_current_layer(0);
+        settle();
+
+        for (int t = 0; t <= FIRST_LAYER_S; ++t) {
+            if (t > 0) {
+                clock_.advance(std::chrono::seconds(1));
+            }
+            const double bed = lerp(t, BED_TARGET_S, BED_AT_TARGET_S, 30.0, 90.0);
+            const double ext = lerp(t, EXT_TARGET_S, EXT_AT_TARGET_S, 32.0, 270.0);
+            const int bed_target = t >= BED_TARGET_S ? 90 : 0;
+            const int ext_target = t >= EXT_TARGET_S ? 270 : 0;
+
+            if (t == 3) {
+                set_homed("xy");
+            } else if (t == 5) {
+                set_homed("xyz");
+            } else if (t == 12) {
+                display("Bed: 90c");
+            } else if (t == EXT_TARGET_S - 1) {
+                display("Hotend: 270c");
+            }
+
+            set_all_temps(static_cast<int>(std::lround(bed * 10)), bed_target * 10,
+                          static_cast<int>(std::lround(ext * 10)), ext_target * 10);
+            client().dispatch_status_update(
+                {{"heater_bed", {{"temperature", bed}, {"target", bed_target}}},
+                 {"extruder", {{"temperature", ext}, {"target", ext_target}}}});
+            const bool bed_wait = t >= BED_TARGET_S && t <= BED_AT_TARGET_S;
+            const bool ext_wait = t >= EXT_TARGET_S && t <= EXT_AT_TARGET_S;
+            if (bed_wait || ext_wait) {
+                char report[64];
+                std::snprintf(report, sizeof(report), "B:%.1f /%d.0 T0:%.1f /%d.0", bed, bed_target,
+                              ext, ext_target);
+                send_gcode_response(report);
+            }
+            if (t >= PURGE_START_S && t < FIRST_LAYER_S) {
+                client().dispatch_status_update(
+                    {{"motion_report", {{"live_extruder_velocity", 2.5}}}});
+            } else if (t == FIRST_LAYER_S) {
+                client().dispatch_status_update(
+                    {{"motion_report", {{"live_extruder_velocity", 0.0}}}});
+            }
+            settle();
+
+            // The heater-target observers run the fallback check on a new target.
+            if (t == BED_TARGET_S || t == EXT_TARGET_S) {
+                tick_fallbacks();
+            }
+            if (t % 5 == 0) {
+                PrintStartCollectorTestAccess::run_eta_update(collector());
+                tick_fallbacks();
+            }
+
+            if (t == FIRST_LAYER_S) {
+                collector().note_current_layer(1);
+                collector().complete_from_external_signal("first layer");
+                settle();
+            }
+            shown[t] = {
+                get_current_phase(), remaining(),
+                lv_subject_get_int(state().print_state().get_print_start_progress_subject())};
+        }
+        return shown;
+    }
+
+  protected:
+    // The Voron 0.2 database defaults a first print reads, and no saved history.
+    PreprintConfigScope config_{"Voron 0.2"};
+    helix::sim::SimulatedClock::ManualScope clock_{helix::sim::SimSpeed::of(1.0)};
+};
+
+TEST_CASE_METHOD(SilentVoronReplayFixture,
+                 "PrintStartCollector: silent Voron V0 start shows its steps and learns its length",
+                 "[print][collector][preprint][silent_voron][integration]") {
+    const auto shown = replay();
+
+    // A cold G28 runs before either heater has a target.
+    CHECK(shown[3].phase == PrintStartPhase::HOMING);
+    // SET_DISPLAY_TEXT names the bed heat before M190 sets its target.
+    CHECK(shown[13].phase == PrintStartPhase::HEATING_BED);
+
+    // At 22:51 the bed has about 3 minutes left and the nozzle another minute:
+    // the countdown follows the bed's measured rate, not the size guess.
+    const int actual_remaining_at_165 = FIRST_LAYER_S - 165;
+    CHECK(shown[165].phase == PrintStartPhase::HEATING_BED);
+    CHECK(shown[165].remaining >= actual_remaining_at_165 * 9 / 10);
+    CHECK(shown[165].remaining <= actual_remaining_at_165 * 3 / 2);
+
+    CHECK(shown[EXT_TARGET_S - 1].phase == PrintStartPhase::HEATING_NOZZLE);
+
+    // Once the nozzle is at temperature only the purge is left, and the bar
+    // credits the mesh and cleaning this macro never ran.
+    CHECK(shown[PURGE_START_S + 3].phase == PrintStartPhase::PURGING);
+    CHECK(shown[PURGE_START_S + 3].remaining <= 15);
+    CHECK(shown[PURGE_START_S + 3].progress >= 90);
+
+    REQUIRE(shown[FIRST_LAYER_S].phase == PrintStartPhase::COMPLETE);
+
+    // The finished start is history, and the bed's measured rate is saved.
+    const auto entries = helix::PreprintPredictor::load_entries_from_config();
+    REQUIRE(entries.size() == 1);
+    CHECK(entries[0].total_seconds == FIRST_LAYER_S);
+    helix::Config* cfg = helix::Config::get_instance();
+    CHECK(cfg->get<float>("/thermal/rates/heater_bed/heat_rate", 0.0f) ==
+          Catch::Approx(5.6f).margin(0.6f));
+
+    // The next print opens on that history: about 7 minutes.
+    collector().stop();
+    settle();
+    set_all_temps(300, 0, 320, 0);
+    collector().start();
+    settle();
+    PrintStartCollectorTestAccess::run_eta_update(collector());
+    settle();
+    CHECK(PrintStartCollectorTestAccess::get_predicted_total(collector()) ==
+          Catch::Approx(FIRST_LAYER_S).margin(10));
+    CHECK(remaining() >= 6 * 60);
+}
+
+TEST_CASE_METHOD(SilentVoronReplayFixture,
+                 "PrintStartCollector: a start that only heats saves its length and heating rate",
+                 "[print][collector][preprint][silent_voron][thermal_rate]") {
+    // Already homed, no narration: the bed heat is the only phase seen.
+    lv_subject_copy_string(state().motion_state().get_homed_axes_subject(), "xyz");
+    set_all_temps(300, 900, 320, 0);
+    collector().start();
+    collector().enable_fallbacks();
+    settle();
+    for (int t = 5; t <= 300; t += 5) {
+        clock_.advance(std::chrono::seconds(5));
+        set_all_temps(300 + t * 2, 900, 320, 0); // 5 s/C, at 90C by 300s
+        tick_fallbacks();
+        PrintStartCollectorTestAccess::run_eta_update(collector());
+        settle();
+    }
+    REQUIRE(get_current_phase() == PrintStartPhase::HEATING_BED);
+    collector().complete_from_external_signal("first layer");
+    settle();
+
+    const auto entries = helix::PreprintPredictor::load_entries_from_config();
+    REQUIRE(entries.size() == 1);
+    CHECK(entries[0].total_seconds == 300);
+    CHECK(entries[0].phase_durations.empty());
+    helix::Config* cfg = helix::Config::get_instance();
+    CHECK(cfg->get<float>("/thermal/rates/heater_bed/heat_rate", 0.0f) ==
+          Catch::Approx(5.0f).margin(0.5f));
+}
+
+TEST_CASE_METHOD(SilentVoronReplayFixture,
+                 "PrintStartCollector: an already-homed printer does not show Homing",
+                 "[print][collector][preprint][silent_voron][homing]") {
+    lv_subject_copy_string(state().motion_state().get_homed_axes_subject(), "xyz");
+    set_all_temps(300, 0, 320, 0);
+    collector().start();
+    collector().enable_fallbacks();
+    settle();
+    set_homed("xyz");
+    CHECK(get_current_phase() == PrintStartPhase::INITIALIZING);
+}

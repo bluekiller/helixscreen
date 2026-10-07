@@ -459,6 +459,16 @@ class PrintStartCollector : public std::enable_shared_from_this<PrintStartCollec
     [[nodiscard]] std::set<int> get_completed_phase_ints_locked() const;
 
     /**
+     * @brief Whether the sequence went past a phase without ever showing it
+     *
+     * A non-heating phase that was never detected and is ordered before the
+     * phase on display is one this macro does not run (or ran unseen), so it
+     * owes no time. Heating phases are judged by temperature instead. Caller
+     * must hold state_mutex_.
+     */
+    [[nodiscard]] bool phase_skipped_locked(int phase) const;
+
+    /**
      * @brief Check for PRINT_START start marker
      */
     static bool is_print_start_marker(const std::string& line);
@@ -705,6 +715,11 @@ class PrintStartCollector : public std::enable_shared_from_this<PrintStartCollec
     // and weights need recomputing to include the new heating phase.
     int weights_ext_target_ = 0;
     int weights_bed_target_ = 0;
+    // Heating rates (s/C) the same call used. The first measured rate can be
+    // several times the default a size guess supplies, so a rate that moves
+    // recomputes the weights as a new target does.
+    float weights_ext_rate_ = 0.0f;
+    float weights_bed_rate_ = 0.0f;
 
     /// The highest reading a heater has shown under its current target, in
     /// decidegrees; high is -1 until a fallback tick samples the heater.

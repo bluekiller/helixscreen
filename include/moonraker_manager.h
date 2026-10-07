@@ -410,6 +410,7 @@ class MoonrakerManager {
     SubjectLifetime m_print_bed_target_fallback_lifetime;
     ObserverGuard m_print_bed_target_fallback_observer;
     ObserverGuard m_print_ext_target_fallback_observer;
+    ObserverGuard m_print_homed_axes_fallback_observer;
     /// Toolhead position observers feeding the print-start collector's
     /// silent-window inference (one guard per axis subject; the callback
     /// reads all three coherently).
