@@ -328,6 +328,11 @@ std::vector<ThumbnailCache::CacheEntry> ThumbnailCache::scan_locked(size_t* tota
         return entries;
     }
 
+    constexpr std::int64_t STALE_STAGING_NS = 10LL * 60 * 1000 * 1000 * 1000;
+    const std::int64_t now_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                                    std::chrono::system_clock::now().time_since_epoch())
+                                    .count();
+
     // Every per-entry query is non-throwing. A file that vanishes between
     // readdir and stat - the normal case when another thread is evicting -
     // costs only its own entry; this runs on HttpExecutor worker threads.
@@ -344,6 +349,16 @@ std::vector<ThumbnailCache::CacheEntry> ThumbnailCache::scan_locked(size_t* tota
         if (!mtime) {
             spdlog::debug("[ThumbnailCache] Skipping entry with no mtime {}: {}", path,
                           std::strerror(errno));
+            continue;
+        }
+
+        // Staging files (text_io::write_file_atomic, write_lvgl_bin) are writes
+        // in flight or debris from a crash mid-write: never cached content.
+        // Debris past STALE_STAGING_NS no writer can still own.
+        if (path.size() > 4 && path.compare(path.size() - 4, 4, ".tmp") == 0) {
+            if (now_ns - *mtime > STALE_STAGING_NS && helix::fs::remove(path)) {
+                spdlog::debug("[ThumbnailCache] Removed stale staging file {}", path);
+            }
             continue;
         }
 
