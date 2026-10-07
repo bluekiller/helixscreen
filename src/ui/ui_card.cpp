@@ -38,8 +38,8 @@ static void* ui_card_xml_create(lv_xml_parser_state_t* state, const char** attrs
     // (theme applies ObjBase with LV_SIZE_CONTENT, but remove_style strips it)
     lv_obj_set_size(obj, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
 
-    // Pressed state: the theme's tier rule, so a card presses like a button.
-    lv_obj_add_style(obj, ThemeManager::instance().get_style(StyleRole::Pressed),
+    // Pressed state: the theme's tier rule, shared with buttons.
+    lv_obj_add_style(obj, ThemeManager::instance().get_style(StyleRole::CardPressed),
                      LV_PART_MAIN | LV_STATE_PRESSED);
 
     // Disabled state: 50% opacity for visual feedback
