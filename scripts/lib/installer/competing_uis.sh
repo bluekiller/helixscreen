@@ -691,8 +691,11 @@ _competing_ui_found() {
 }
 
 # What stop_competing_uis would take down, for the plan. Read-only: the same
-# predicates and platform gates, with every stop, disable, chmod and kill left
-# out. Sets COMPETING_UIS_FOUND (space-separated names, empty if none).
+# platform gates, with every stop, disable, chmod and kill left out. A stock
+# UI is listed only while it runs or would start at boot: the stop handlers
+# also re-assert a disable an earlier install made, and that is not a UI the
+# plan or the summary should claim to disable. Sets COMPETING_UIS_FOUND
+# (space-separated names, empty if none).
 detect_competing_uis() {
     local ui initscript bin unit comp dm current_ui proc
     COMPETING_UIS_FOUND=""
@@ -704,23 +707,30 @@ detect_competing_uis() {
         [ -x /etc/init.d/S40xorg ] && _competing_ui_found Xorg
         [ -n "$(_kmod_klipperscreen_pids)" ] && _competing_ui_found KlipperScreen
     fi
-    [ -f /opt/PROGRAM/ffstartup-arm ] && _competing_ui_found FlashForge-UI
+    # disable_stock_firmware_ui comments the start line out of auto_run.sh.
+    if grep -qs '^/opt/PROGRAM/ffstartup-arm' /opt/auto_run.sh \
+        || pidof firmwareExe >/dev/null 2>&1 || pidof ffstartup-arm >/dev/null 2>&1; then
+        _competing_ui_found FlashForge-UI
+    fi
     case "${K1_FIRMWARE:-}" in
         stock_klipper|guilouz)
-            [ -f /etc/init.d/S99start_app ] && _competing_ui_found Creality-UI
+            # The disable is chmod a-x on the init script.
+            [ -x /etc/init.d/S99start_app ] && _competing_ui_found Creality-UI
             for proc in $K1_STOCK_UI_PROCS; do
                 pidof "$proc" >/dev/null 2>&1 && _competing_ui_found Creality-UI
             done
             ;;
     esac
-    if [ -f /home/sovol/printer_data/build/mksclient ] || ls /home/*/printer_data/build/mksclient >/dev/null 2>&1; then
-        _competing_ui_found mksclient
-    fi
+    # Sovol and QIDI binaries are disabled by chmod a-x on the binary itself.
+    for bin in /home/sovol/printer_data/build/mksclient /home/*/printer_data/build/mksclient; do
+        [ -x "$bin" ] && _competing_ui_found mksclient
+    done
+    pidof mksclient >/dev/null 2>&1 && _competing_ui_found mksclient
     for unit in $(_qidi_stock_ui_units); do
-        _competing_ui_found "${unit%.service}"
+        _unit_is_competing "$unit" && _competing_ui_found "${unit%.service}"
     done
     for bin in $QIDI_STOCK_UI_BINS; do
-        [ -f "$bin" ] && _competing_ui_found QIDI-UI
+        [ -x "$bin" ] && _competing_ui_found QIDI-UI
     done
 
     if [ "${platform:-}" = "cc1" ]; then

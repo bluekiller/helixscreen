@@ -121,10 +121,10 @@ From a repo checkout, the modular installer sources modules directly:
 3. **Platform detection** -- `detect_platform()` returns one of `cc1`, `k2`, `ad5m`, `ad5x`, `k1`, `snapmaker-u1`, `m1`, `pi`, `pi32`, `x86`, or `unsupported` (plus zmod/guilouz sub-detectors); `unsupported` exits
 4. **Firmware detection** -- AD5M/AD5X: `detect_mod_flavor`; K1: `detect_k1_firmware`
 5. **Path configuration** -- `set_install_paths()` sets `INSTALL_DIR`, `INIT_SCRIPT_DEST`, `PREVIOUS_UI_SCRIPT`, `TMP_DIR`; `mod_payload_mode_block` settles payload mode
-6. **Permission check** -- Root required on AD5M/K1; sudo on Pi. `--uninstall` branches off here and exits
+6. **Permission check** -- Root required on AD5M/K1; sudo on Pi. `--uninstall` branches off here and exits, so it never reaches the confirm point; `parse_installer_args` refuses `--uninstall --dry-run`
 7. **Pre-flight checks** -- `detect_missing_unzip`, `check_requirements`, `detect_missing_runtime_deps`, `check_disk_space`, `detect_init_system`, `check_klipper_ecosystem`
 8. **Version and release** -- `resolve_update_channel` (update or existing install), then `--local` filename, `--version` or `get_latest_version`; `probe_release` HEADs the archive so the plan only offers a release that exists
-9. **Detection for the plan** -- `detect_competing_uis`, `detect_moonraker_integration`, `detect_kiauh`
+9. **Detection for the plan** -- `detect_competing_uis` (only stock UIs that are running or would start at boot; one an earlier install already disabled is not listed), `detect_moonraker_integration`, `detect_kiauh` (no Add when the extension is already installed)
 
 ### The confirm point
 
@@ -132,20 +132,21 @@ From a repo checkout, the modular installer sources modules directly:
 
 - `--dry-run` prints "Dry run, nothing changed." and exits 0. A check that would stop the install has already exited non-zero before this.
 - A fresh install with a terminal asks `Continue? [Y/n]`, read from `/dev/tty` (`HELIX_TTY_DEVICE` overrides it). EOF means no. `--yes`, no terminal and `--update` do not ask.
-- If sudo is needed it asks for the password once, so later steps do not stall on a prompt.
+- `--clean` always asks, `Continue? [y/N]`, since that answer is the consent to delete what the Remove line lists. With no terminal it refuses unless `--yes` was given, before anything changes.
+- If sudo is needed it asks for the password once, so later steps do not stall on a prompt. The plan's sudo row lists only the reasons that apply, and is left out under NoNewPrivileges, where sudo cannot run.
 - It sets `HELIX_CONFIRMED=1`, counts the steps (`plan_count_steps`), closes the "Checking system" step and opens the log.
 
 ### After the confirm point (`apply_install`)
 
 One numbered step per phase; a step with nothing to do is skipped under the same conditions that left it out of the count.
 
-1. **Installing libraries** -- apt for unzip and runtime deps (libdrm2/libinput10 on Pi)
+1. **Installing libraries** -- apt for unzip and runtime deps (libdrm2/libinput10 on Pi). If apt fails the step reads FAILED and the install continues; `verify_binary_deps` stops it later if a library the binary needs is missing. Under NoNewPrivileges detection plans no libraries and warns which to install by hand
 2. **Downloading** (or **Unpacking local archive**) -- R2 CDN primary (`releases.helixscreen.org`), GitHub Releases fallback. This runs before anything touches the running printer, so a failed download leaves it as it was.
 3. **Stopping the stock screen** -- `configure_platform` (ForgeX: display mode, screen.sh patching, logged wrapper), then `stop_competing_uis` (GuppyScreen, KlipperScreen, Xorg, stock FlashForge UI)
 4. **Installing files** -- `--clean` removal, `stop_service` on update, state migration, then `extract_release`: validates ELF architecture, backs up config, `mv` old to `.old`, re-checks free space when the swap crosses filesystems, rollback on failure
 5. **Setting up service** -- systemd unit or SysV init script (templated with `@@HELIX_USER@@`, etc.), `hooks-{platform}.sh` to `$INSTALL_DIR/platform/hooks.sh`, udev/polkit rules, KIAUH extension (`install_kiauh_extension`, honoring `--skip-kiauh-registration`; see "How the Extension Gets Installed"), K1 extras, `verify_binary_deps`
 6. **Connecting to Moonraker** -- `printer_data/config/helixscreen` symlink for Mainsail/Fluidd, `[update_manager helixscreen]` section, the release info file
-7. **Starting HelixScreen** -- recovery script, install-time printer detection (see [Install-Time Printer Detection](#install-time-printer-detection)), then `start_service`, which waits up to 5 seconds for startup confirmation. Skipped on a payload install, where the mod starts the UI.
+7. **Starting HelixScreen** -- recovery script, install-time printer detection (see [Install-Time Printer Detection](#install-time-printer-detection)), then `start_service`, which waits up to 5 seconds for startup confirmation. On a payload install, where the mod starts the UI at boot, the same step is titled **Finishing setup**.
 
 Then `INSTALL_COMPLETE=1`, the old-install cleanups, `finalize_install_log`, `cleanup_on_success` and `print_summary`.
 

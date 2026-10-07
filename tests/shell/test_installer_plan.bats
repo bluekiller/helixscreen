@@ -728,3 +728,12 @@ _fn_body() {
         fail "the payload path skips a step the count includes"
     fi
 }
+
+@test "detect_kiauh adds nothing when the extension is already installed" {
+    HOME="$BATS_TEST_TMPDIR/home"
+    mkdir -p "$HOME/kiauh/kiauh/extensions/helixscreen"
+    skip_kiauh_registration=false
+    detect_kiauh
+    [ -z "$KIAUH_DIR" ]
+    [ -z "$(plan_adds_line)" ]
+}
