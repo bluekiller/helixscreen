@@ -120,6 +120,23 @@ TEST_CASE("Transport: a second connect queued before the first runs leaks nothin
     CHECK(h.creates == 1);
 }
 
+TEST_CASE("Transport: Add's hand-back then switch, both queued, leave one transport",
+          "[esp32][transport]") {
+    Harness h;
+    h.lc().connect("ws://test-host"); // the Add form's Test, already running
+    h.run_jobs();
+    REQUIRE(h.creates == 1);
+
+    h.lc().connect("ws://saved"); // closing the form hands the client back
+    h.lc().connect("ws://added"); // the switch to the added printer, before either runs
+    h.run_jobs();
+
+    REQUIRE(h.lc().current() != nullptr);
+    CHECK(h.lc().current()->url == "ws://added");
+    CHECK(h.live() == 1);
+    CHECK(h.creates == 2); // the hand-back never opened a transport
+}
+
 TEST_CASE("Transport: a disconnect after a queued connect stays disconnected",
           "[esp32][transport]") {
     Harness h;
