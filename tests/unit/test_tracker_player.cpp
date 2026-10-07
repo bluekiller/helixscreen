@@ -227,12 +227,75 @@ TEST_CASE("TrackerPlayer slow mono backend follows the highest voice, not channe
     }
 }
 
-TEST_CASE("TrackerPlayer fast mono backend arpeggiates the active voices", "[tracker][player]") {
+TEST_CASE("TrackerPlayer fast mono backend arpeggiates one voice per Game Boy frame",
+          "[tracker][player]") {
     const uint8_t bass = 34; // A-2
     const uint8_t lead = 58; // A-4
     const float bass_hz = TrackerModule::note_to_freq(bass);
     const float lead_hz = TrackerModule::note_to_freq(lead);
 
+    auto backend = std::make_shared<TrackerMockBackend>(/*voices=*/1, /*tick_ms=*/16.0f);
+    auto player = make_player(backend);
+
+    auto pat = empty_pattern(2);
+    pat[0] = {bass, 1, 0x00, 0x00};
+    pat[1] = {lead, 1, 0x00, 0x00};
+
+    // Slow tempo: one tracker tick lasts 50 ms, so every step below is the
+    // frame clock, not the tracker's tick.
+    player->load(make_module({0}, {pat}, 2, /*speed=*/6, /*tempo=*/50));
+    player->play();
+
+    std::vector<float> heard{backend->voices[0].freq};
+    for (int i = 0; i < 3; ++i) {
+        player->tick(TrackerPlayer::kArpFrameMs);
+        heard.push_back(backend->voices[0].freq);
+    }
+    REQUIRE(player->is_playing());
+
+    for (size_t i = 0; i < heard.size(); ++i) {
+        const float want = (i % 2 == 0) ? bass_hz : lead_hz;
+        CHECK(heard[i] == Catch::Approx(want).margin(0.1f));
+    }
+    REQUIRE_FALSE(backend->voices[1].active);
+    player->stop();
+}
+
+TEST_CASE("TrackerPlayer arpeggio restarts on a note trigger", "[tracker][player]") {
+    const uint8_t bass = 34;
+    const uint8_t lead = 58;
+    const float bass_hz = TrackerModule::note_to_freq(bass);
+
+    auto backend = std::make_shared<TrackerMockBackend>(/*voices=*/1, /*tick_ms=*/16.0f);
+    auto player = make_player(backend);
+
+    // speed 1: every tracker tick is a new row; row 1 retriggers the bass.
+    auto pat = empty_pattern(2);
+    pat[0] = {bass, 1, 0x00, 0x00};
+    pat[1] = {lead, 1, 0x00, 0x00};
+    pat[4] = {bass, 1, 0x00, 0x00};
+
+    player->load(make_module({0}, {pat}, 2, /*speed=*/1, /*tempo=*/125));
+    player->play();
+
+    player->tick(TrackerPlayer::kArpFrameMs); // frame 1: lead
+    REQUIRE(backend->voices[0].freq != Catch::Approx(bass_hz).margin(0.1f));
+
+    // 20 ms reaches the row-1 trigger; the cycle restarts on the bass, and
+    // the frame clock restarts with it, so nothing steps past it yet.
+    player->tick(20.0f - TrackerPlayer::kArpFrameMs);
+    REQUIRE(player->is_playing());
+    CHECK(backend->voices[0].freq == Catch::Approx(bass_hz).margin(0.1f));
+    player->stop();
+}
+
+TEST_CASE("TrackerPlayer mono backend slower than a frame keeps the lead line",
+          "[tracker][player]") {
+    const uint8_t bass = 34;
+    const uint8_t lead = 58;
+    const float lead_hz = TrackerModule::note_to_freq(lead);
+
+    // The AD5M piezo's 20 ms floor cannot follow a 16.74 ms frame.
     auto backend = std::make_shared<TrackerMockBackend>(/*voices=*/1, /*tick_ms=*/20.0f);
     auto player = make_player(backend);
 
@@ -242,19 +305,10 @@ TEST_CASE("TrackerPlayer fast mono backend arpeggiates the active voices", "[tra
 
     player->load(make_module({0}, {pat}, 2));
     player->play();
-
-    std::vector<float> heard{backend->voices[0].freq};
     for (int i = 0; i < 3; ++i) {
-        fire_one_tick(*player);
-        heard.push_back(backend->voices[0].freq);
+        player->tick(TrackerPlayer::kArpFrameMs);
+        CHECK(backend->voices[0].freq == Catch::Approx(lead_hz).margin(0.1f));
     }
-    REQUIRE(player->is_playing()); // all four samples came from row 0
-
-    for (size_t i = 0; i < heard.size(); ++i) {
-        const float want = (i % 2 == 0) ? bass_hz : lead_hz;
-        CHECK(heard[i] == Catch::Approx(want).margin(0.1f));
-    }
-    REQUIRE_FALSE(backend->voices[1].active);
     player->stop();
 }
 

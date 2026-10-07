@@ -68,6 +68,12 @@ class PWMSoundBackend : public SoundBackend {
         klippy_shares_channel_ = shared;
     }
 
+    /// Default audible floor, before HELIX_PWM_MIN_NOTE_MS overrides it.
+    /// Call before initialize().
+    void set_min_note_ms(float ms) {
+        min_note_ms_ = ms;
+    }
+
     /// Amplitude below which a tone is emitted as silence.
     static constexpr float kMinAudibleAmplitude = 0.08f;
 

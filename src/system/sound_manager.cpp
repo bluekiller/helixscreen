@@ -422,6 +422,8 @@ std::shared_ptr<SoundBackend> SoundManager::create_backend() {
             auto pwm = std::make_shared<PWMSoundBackend>("/sys/class/pwm", chip, channel);
             pwm->set_auto_export(true);
             pwm->set_klippy_shares_channel(false);
+            // Fast enough to step a tracker arpeggio every Game Boy frame.
+            pwm->set_min_note_ms(16.0f);
             if (pwm->initialize()) {
                 spdlog::info("[SoundManager] Using PWM sysfs backend ({}) from HELIX_PWM_SOUND",
                              pwm->channel_path());

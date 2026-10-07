@@ -248,8 +248,8 @@ bool PWMSoundBackend::initialize() {
 
     // Rig-tunable audible floor (see DEFAULT_MIN_NOTE_MS): env_float falls
     // back to the default on unset/empty/non-positive/unparseable values.
-    min_note_ms_ = helix::env_float("HELIX_PWM_MIN_NOTE_MS", DEFAULT_MIN_NOTE_MS,
-                                    MIN_NOTE_MS_CLAMP_LOW, MIN_NOTE_MS_CLAMP_HIGH);
+    min_note_ms_ = helix::env_float("HELIX_PWM_MIN_NOTE_MS", min_note_ms_, MIN_NOTE_MS_CLAMP_LOW,
+                                    MIN_NOTE_MS_CLAMP_HIGH);
     spdlog::debug("[PWMSoundBackend] min note floor: {} ms", min_note_ms_);
 
     initialized_ = true;
