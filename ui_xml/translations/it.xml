@@ -1333,6 +1333,7 @@
   <translation tag="Heated Bed MPC Calibration" it="Calibrazione MPC piano riscaldato"/>
   <translation tag="Heated Bed PID Tuning" it="Regolazione PID piano riscaldato"/>
   <translation tag="Heater" it="Riscaldatore"/>
+  <translation tag="Heater Calibration" it="Calibrazione del riscaldatore"/>
   <translation tag="Heater Power" it="Potenza riscaldatore"/>
   <translation tag="Heater connection lost" it="Connessione al riscaldatore persa"/>
   <translation tag="Heater fault" it="Guasto al riscaldatore"/>

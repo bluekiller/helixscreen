@@ -1333,6 +1333,7 @@
   <translation tag="Heated Bed MPC Calibration" en="Heated Bed MPC Calibration"/>
   <translation tag="Heated Bed PID Tuning" en="Heated Bed PID Tuning"/>
   <translation tag="Heater" en="Heater"/>
+  <translation tag="Heater Calibration" en="Heater Calibration"/>
   <translation tag="Heater Power" en="Heater Power"/>
   <translation tag="Heater connection lost" en="Heater connection lost"/>
   <translation tag="Heater fault" en="Heater fault"/>

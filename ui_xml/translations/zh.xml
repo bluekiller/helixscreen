@@ -1333,6 +1333,7 @@
   <translation tag="Heated Bed MPC Calibration" zh="热床 MPC 校准"/>
   <translation tag="Heated Bed PID Tuning" zh="热床 PID 调优"/>
   <translation tag="Heater" zh="加热器"/>
+  <translation tag="Heater Calibration" zh="加热器校准"/>
   <translation tag="Heater Power" zh="加热器功率"/>
   <translation tag="Heater connection lost" zh="加热器连接丢失"/>
   <translation tag="Heater fault" zh="加热器故障"/>

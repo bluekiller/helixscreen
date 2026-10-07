@@ -278,8 +278,7 @@
         </setting_action_row>
         <!-- PID Tuning -->
         <setting_action_row name="row_pid_tuning"
-                            label="Automatic Heater Control Calibration"
-                            label_tag="Automatic Heater Control Calibration" icon="heater"
+                            label="Heater Calibration" label_tag="Heater Calibration" icon="heater"
                             description="Adjusts individual characteristics of your heaters for optimal control"
                             description_tag="Adjusts individual characteristics of your heaters for optimal control">
           <event_cb trigger="clicked" callback="on_pid_tuning_clicked"/>

@@ -270,20 +270,29 @@ TEST_CASE_METHOD(LVGLTestFixture, "Themed dropdown is an unfilled field with an 
     lv_obj_delete(dd);
 }
 
-TEST_CASE_METHOD(LVGLTestFixture, "Switch knob is muted when off and accented when on",
+TEST_CASE_METHOD(LVGLTestFixture, "Switch knob is neutral when off and accented when on",
                  "[theme-manager][switch-style]") {
-    theme_manager_init(lv_display_get_default(), theme_manager_is_dark_mode());
-    lv_obj_t* sw = lv_switch_create(lv_screen_active());
+    const bool original_dark = theme_manager_is_dark_mode();
+    for (bool dark : {true, false}) {
+        INFO((dark ? "dark" : "light") << " mode");
+        theme_manager_init(lv_display_get_default(), dark);
+        lv_obj_t* sw = lv_switch_create(lv_screen_active());
+        const auto& pal = ThemeManager::instance().current_palette();
 
-    lv_obj_remove_state(sw, LV_STATE_CHECKED);
-    lv_color_t off = lv_obj_get_style_bg_color(sw, LV_PART_KNOB);
-    lv_obj_add_state(sw, LV_STATE_CHECKED);
-    lv_color_t on = lv_obj_get_style_bg_color(sw, LV_PART_KNOB);
+        lv_obj_remove_state(sw, LV_STATE_CHECKED);
+        lv_color_t off = lv_obj_get_style_bg_color(sw, LV_PART_KNOB);
+        int32_t off_border = lv_obj_get_style_border_width(sw, LV_PART_KNOB);
+        lv_obj_add_state(sw, LV_STATE_CHECKED);
+        lv_color_t on = lv_obj_get_style_bg_color(sw, LV_PART_KNOB);
 
-    CHECK(lv_color_eq(off, ThemeManager::instance().current_palette().text_muted));
-    CHECK_FALSE(lv_color_eq(off, on));
+        // Dark: muted grey knob. Light: a card-coloured knob, outlined so it reads on the track.
+        CHECK(lv_color_eq(off, dark ? pal.text_muted : pal.card_bg));
+        CHECK(off_border == (dark ? 0 : 1));
+        CHECK_FALSE(lv_color_eq(off, on));
 
-    lv_obj_delete(sw);
+        lv_obj_delete(sw);
+    }
+    theme_manager_init(lv_display_get_default(), original_dark);
 }
 
 TEST_CASE_METHOD(LVGLTestFixture, "All registered configure functions are called",

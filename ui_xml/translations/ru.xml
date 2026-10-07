@@ -1333,6 +1333,7 @@
   <translation tag="Heated Bed MPC Calibration" ru="Калибровка MPC стола"/>
   <translation tag="Heated Bed PID Tuning" ru="Настройка PID стола"/>
   <translation tag="Heater" ru="Нагреватель"/>
+  <translation tag="Heater Calibration" ru="Калибровка нагревателя"/>
   <translation tag="Heater Power" ru="Мощность нагревателя"/>
   <translation tag="Heater connection lost" ru="Потеряна связь с нагревателем"/>
   <translation tag="Heater fault" ru="Неисправность нагревателя"/>

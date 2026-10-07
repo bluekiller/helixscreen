@@ -44,8 +44,8 @@ static lv_color_t dropdown_accent_color;
 static bool extra_styles_initialized = false;
 
 // Forward declarations for theme infrastructure
-static void init_extra_styles(const theme_palette_t* palette, int border_radius);
-static void update_handle_styles(const theme_palette_t* palette, int border_radius);
+static void init_extra_styles(const theme_palette_t* palette);
+static void update_handle_styles(const theme_palette_t* palette, int border_radius, bool is_dark);
 static void helix_theme_apply(lv_theme_t* theme, lv_obj_t* obj);
 
 /**
@@ -106,7 +106,7 @@ const helix::ModePalette& get_current_mode_palette() {
  * Called on initial setup and on every theme switch to apply handle_style
  * and handle_color from the active theme. Switch knobs always stay round.
  */
-static void update_handle_styles(const theme_palette_t* palette, int border_radius) {
+static void update_handle_styles(const theme_palette_t* palette, int border_radius, bool is_dark) {
     bool bar_knob = (runtime().active_theme.properties.handle_style == "bar");
     int32_t slider_knob_radius = bar_knob ? 2 : LV_RADIUS_CIRCLE;
 
@@ -120,10 +120,13 @@ static void update_handle_styles(const theme_palette_t* palette, int border_radi
     else if (hc == "tertiary")
         knob_color = palette->tertiary;
 
-    // Switch knob: handle_color marks ON; OFF is muted so position is not the only cue.
-    // Always round (no bar style).
-    lv_style_set_bg_color(&switch_knob_style, palette->text_muted);
+    // Switch knob: handle_color marks ON; OFF is neutral so position is not the only cue
+    // (a light outlined knob in light mode, muted grey in dark). Always round (no bar style).
+    lv_style_set_bg_color(&switch_knob_style, is_dark ? palette->text_muted : palette->card_bg);
+    lv_style_set_border_color(&switch_knob_style, palette->text_subtle);
+    lv_style_set_border_width(&switch_knob_style, is_dark ? 0 : 1);
     lv_style_set_bg_color(&switch_knob_checked_style, knob_color);
+    lv_style_set_border_width(&switch_knob_checked_style, 0);
 
     // Slider track/indicator colors
     lv_style_set_bg_color(&slider_track_style, palette->border);
@@ -181,7 +184,7 @@ static void update_handle_styles(const theme_palette_t* palette, int border_radi
  *
  * These are styles for widget parts not covered by the StyleRole enum.
  */
-static void init_extra_styles(const theme_palette_t* palette, int border_radius) {
+static void init_extra_styles(const theme_palette_t* palette) {
     if (extra_styles_initialized)
         return;
 
@@ -242,9 +245,6 @@ static void init_extra_styles(const theme_palette_t* palette, int border_radius)
     lv_style_set_opa(&slider_disabled_style, LV_OPA_50);
 
     extra_styles_initialized = true;
-
-    // Apply theme-dependent handle styles (also called on theme switch)
-    update_handle_styles(palette, border_radius);
 }
 
 /**
@@ -484,7 +484,9 @@ lv_theme_t* theme_init_lvgl(lv_display_t* display, const theme_palette_t* palett
 
     // Initialize widget-specific styles not in StyleRole enum
     const auto& props = runtime().active_theme.properties;
-    init_extra_styles(palette, resolve_border_radius(props));
+    init_extra_styles(palette);
+    // Theme- and mode-dependent handle styles refresh on every init, not only the first.
+    update_handle_styles(palette, resolve_border_radius(props), is_dark);
 
     // Create LVGL default theme as base (we'll layer on top)
     default_theme_backup =
@@ -515,7 +517,7 @@ void theme_update_colors(bool is_dark) {
 
     // Update handle/knob styles from new theme properties and palette
     update_handle_styles(&pair.raw_for(is_dark),
-                         resolve_border_radius(runtime().active_theme.properties));
+                         resolve_border_radius(runtime().active_theme.properties), is_dark);
 
     spdlog::debug("[Theme] Updated colors, dark_mode={}", is_dark);
 }

@@ -409,7 +409,8 @@ void theme_apply_palette_to_widget(lv_obj_t* obj, const helix::ModePalette& pale
     if (lv_obj_check_type(obj, &lv_switch_class)) {
         set_palette_color(obj, LV_STYLE_BG_COLOR, border, LV_PART_MAIN);
         set_palette_color(obj, LV_STYLE_BG_COLOR, secondary, LV_PART_INDICATOR | LV_STATE_CHECKED);
-        set_palette_color(obj, LV_STYLE_BG_COLOR, text_muted, LV_PART_KNOB);
+        const bool dark = theme_manager_is_dark_mode();
+        set_palette_color(obj, LV_STYLE_BG_COLOR, dark ? text_muted : card_bg, LV_PART_KNOB);
         set_palette_color(obj, LV_STYLE_BG_COLOR, knob_color, LV_PART_KNOB | LV_STATE_CHECKED);
         return;
     }

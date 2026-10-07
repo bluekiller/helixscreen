@@ -1333,6 +1333,7 @@
   <translation tag="Heated Bed MPC Calibration" pt="Calibração MPC da Mesa Aquecida"/>
   <translation tag="Heated Bed PID Tuning" pt="Ajuste PID da Mesa Aquecida"/>
   <translation tag="Heater" pt="Aquecedor"/>
+  <translation tag="Heater Calibration" pt="Calibração do aquecedor"/>
   <translation tag="Heater Power" pt="Potência do Aquecedor"/>
   <translation tag="Heater connection lost" pt="Conexão do aquecedor perdida"/>
   <translation tag="Heater fault" pt="Falha do aquecedor"/>

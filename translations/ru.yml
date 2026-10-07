@@ -1458,6 +1458,7 @@ translations:
   Heated Bed MPC Calibration: Калибровка MPC стола
   Heated Bed PID Tuning: Настройка PID стола
   Heater: Нагреватель
+  Heater Calibration: Калибровка нагревателя
   Heater Power: Мощность нагревателя
   Heater connection lost: Потеряна связь с нагревателем
   Heater fault: Неисправность нагревателя

@@ -1475,6 +1475,7 @@ translations:
   Heated Bed MPC Calibration: Calibración MPC de la cama caliente
   Heated Bed PID Tuning: Ajuste PID de la cama caliente
   Heater: Calentador
+  Heater Calibration: Calibración del calentador
   Heater Power: Potencia del calentador
   Heater connection lost: Fallo de conexión del calentador
   Heater fault: Fallo del calentador

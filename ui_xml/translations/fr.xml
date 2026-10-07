@@ -1333,6 +1333,7 @@
   <translation tag="Heated Bed MPC Calibration" fr="Calibration MPC du plateau chauffant"/>
   <translation tag="Heated Bed PID Tuning" fr="Réglage PID du plateau chauffant"/>
   <translation tag="Heater" fr="Chauffage"/>
+  <translation tag="Heater Calibration" fr="Calibrage du chauffage"/>
   <translation tag="Heater Power" fr="Puissance du chauffage"/>
   <translation tag="Heater connection lost" fr="Connexion au chauffage perdue"/>
   <translation tag="Heater fault" fr="Défaut du chauffage"/>

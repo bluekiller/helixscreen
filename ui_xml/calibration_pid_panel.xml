@@ -45,9 +45,8 @@
         style_bg_color="#card_bg" style_pad_all="0" style_border_width="0" scrollable="false" flex_flow="column">
     <!-- Header Bar -->
     <header_bar name="overlay_header"
-                title="Automatic Heater Control Calibration" title_tag="Automatic Heater Control Calibration"
-                title_transform="none" hide_action_button="false" action_button_text="Start"
-                action_button_text_tag="Start" action_button_callback="on_pid_start"
+                title="Heater Calibration" title_tag="Heater Calibration" hide_action_button="false"
+                action_button_text="Start" action_button_text_tag="Start" action_button_callback="on_pid_start"
                 action_button_disabled_cond="pid_cal_not_idle or nav_buttons_enabled eq 0"/>
     <!-- Content Area -->
     <lv_obj name="overlay_content"
