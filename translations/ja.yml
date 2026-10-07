@@ -295,6 +295,7 @@ translations:
   'Backtrace: {} frames': 'バックトレース: {} フレーム'
   Backup lane name contains invalid characters: 'バックアップレーン名に無効な文字が含まれています'
   Backup spool switching state unknown: バックアップスプール切り替えの状態は不明です
+  Balanced: 均衡
   Barcode Scanner: バーコードスキャナー
   Base: 基準
   Based on the newest {} prints: '最新の{}件の印刷に基づく'
@@ -2642,7 +2643,6 @@ translations:
   Run the chamber dryer too: チャンバーのドライヤーも使う
 
   Run {}?: '{} を実行しますか？'
-  Running balanced: '均衡'
   Running loose: '緩み気味'
   Running tight: '張り気味'
   Running {}...: '{} を実行中...'

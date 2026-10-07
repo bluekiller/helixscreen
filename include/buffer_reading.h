@@ -58,7 +58,7 @@ struct BufferReading {
 /// "target 50%" where a set point is known, else empty.
 [[nodiscard]] std::string buffer_target_text(const BufferReading& r);
 
-/// "Running tight" / "Running loose" / "Running balanced" from buffer_lean();
+/// "Running tight" / "Running loose" / "Balanced" from buffer_lean();
 /// empty without a slider.
 [[nodiscard]] const char* buffer_lean_text(const BufferReading& r);
 

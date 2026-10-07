@@ -291,6 +291,7 @@
   <translation tag="Backtrace: {} frames" zh="回溯: {} 帧"/>
   <translation tag="Backup lane name contains invalid characters" zh="备用耗材通道名称包含无效字符"/>
   <translation tag="Backup spool switching state unknown" zh="备用料盘切换状态未知"/>
+  <translation tag="Balanced" zh="平衡"/>
   <translation tag="Barcode Scanner" zh="条码扫描器"/>
   <translation tag="Base" zh="基准"/>
   <translation tag="Based on the newest {} prints" zh="基于最近 {} 次打印"/>
@@ -2542,7 +2543,6 @@
   <translation tag="Run the HelixScreen installer with --update from a terminal on this printer. Scan for the command for your platform." zh="在本打印机的终端中运行 HelixScreen 安装程序并加上 --update。扫码获取适用于你的平台的命令。"/>
   <translation tag="Run the chamber dryer too" zh="同时运行腔体烘干器"/>
   <translation tag="Run {}?" zh="运行 {}？"/>
-  <translation tag="Running balanced" zh="平衡"/>
   <translation tag="Running loose" zh="偏松"/>
   <translation tag="Running tight" zh="偏紧"/>
   <translation tag="Running {}..." zh="正在运行 {}..."/>

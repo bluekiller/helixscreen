@@ -291,6 +291,7 @@
   <translation tag="Backtrace: {} frames" en="Backtrace: {} frames"/>
   <translation tag="Backup lane name contains invalid characters" en="Backup lane name contains invalid characters"/>
   <translation tag="Backup spool switching state unknown" en="Backup spool switching state unknown"/>
+  <translation tag="Balanced" en="Balanced"/>
   <translation tag="Barcode Scanner" en="Barcode Scanner"/>
   <translation tag="Base" en="Base"/>
   <translation tag="Based on the newest {} prints" en="Based on the newest {} prints"/>
@@ -2542,7 +2543,6 @@
   <translation tag="Run the HelixScreen installer with --update from a terminal on this printer. Scan for the command for your platform." en="Run the HelixScreen installer with --update from a terminal on this printer. Scan for the command for your platform."/>
   <translation tag="Run the chamber dryer too" en="Run the chamber dryer too"/>
   <translation tag="Run {}?" en="Run {}?"/>
-  <translation tag="Running balanced" en="Running balanced"/>
   <translation tag="Running loose" en="Running loose"/>
   <translation tag="Running tight" en="Running tight"/>
   <translation tag="Running {}..." en="Running {}..."/>

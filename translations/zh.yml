@@ -294,6 +294,7 @@ translations:
   'Backtrace: {} frames': '回溯: {} 帧'
   Backup lane name contains invalid characters: '备用耗材通道名称包含无效字符'
   Backup spool switching state unknown: 备用料盘切换状态未知
+  Balanced: 平衡
   Barcode Scanner: 条码扫描器
   Base: 基准
   Based on the newest {} prints: '基于最近 {} 次打印'
@@ -2633,7 +2634,6 @@ translations:
   Run the chamber dryer too: 同时运行腔体烘干器
 
   Run {}?: 运行 {}？
-  Running balanced: '平衡'
   Running loose: '偏松'
   Running tight: '偏紧'
   Running {}...: 正在运行 {}...

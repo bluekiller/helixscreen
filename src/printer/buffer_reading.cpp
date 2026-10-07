@@ -85,7 +85,7 @@ const char* buffer_lean_text(const BufferReading& r) {
     case ui::BufferLean::Balanced:
         break;
     }
-    return lv_tr("Running balanced");
+    return lv_tr("Balanced");
 }
 
 } // namespace helix

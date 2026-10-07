@@ -320,6 +320,7 @@ translations:
   'Backtrace: {} frames': 'Backtrace: {} frame'
   Backup lane name contains invalid characters: 'Il nome della corsia di riserva contiene caratteri non validi'
   Backup spool switching state unknown: Stato del cambio a bobina di riserva sconosciuto
+  Balanced: Bilanciato
   Barcode Scanner: Scanner codici a barre
   Base: Riferimento
   Based on the newest {} prints: 'Basato sulle {} stampe più recenti'
@@ -2808,7 +2809,6 @@ translations:
   Run the chamber dryer too: Usa anche l'essiccatore della camera
 
   Run {}?: Eseguire {}?
-  Running balanced: 'Bilanciato'
   Running loose: 'Allentato'
   Running tight: 'Teso'
   Running {}...: Esecuzione {}...

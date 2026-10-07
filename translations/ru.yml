@@ -314,6 +314,7 @@ translations:
   'Backtrace: {} frames': 'Трассировка: {} кадров'
   Backup lane name contains invalid characters: 'Имя резервного канала содержит недопустимые символы'
   Backup spool switching state unknown: 'Резервная катушка: состояние неизвестно'
+  Balanced: Сбалансирован
   Barcode Scanner: Сканер штрих-кодов
   Base: Опорный
   Based on the newest {} prints: 'По последним печатям ({})'
@@ -2785,7 +2786,6 @@ translations:
   Run the chamber dryer too: Включить и сушилку камеры
 
   Run {}?: Запустить {}?
-  Running balanced: 'Сбалансирован'
   Running loose: 'Ослаблен'
   Running tight: 'Натянут'
   Running {}...: Выполнение {}...

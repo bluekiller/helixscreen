@@ -291,6 +291,7 @@
   <translation tag="Backtrace: {} frames" ja="バックトレース: {} フレーム"/>
   <translation tag="Backup lane name contains invalid characters" ja="バックアップレーン名に無効な文字が含まれています"/>
   <translation tag="Backup spool switching state unknown" ja="バックアップスプール切り替えの状態は不明です"/>
+  <translation tag="Balanced" ja="均衡"/>
   <translation tag="Barcode Scanner" ja="バーコードスキャナー"/>
   <translation tag="Base" ja="基準"/>
   <translation tag="Based on the newest {} prints" ja="最新の{}件の印刷に基づく"/>
@@ -2542,7 +2543,6 @@
   <translation tag="Run the HelixScreen installer with --update from a terminal on this printer. Scan for the command for your platform." ja="このプリンターのターミナルで HelixScreen インストーラーを --update 付きで実行してください。プラットフォーム別のコマンドはスキャンして確認できます。"/>
   <translation tag="Run the chamber dryer too" ja="チャンバーのドライヤーも使う"/>
   <translation tag="Run {}?" ja="{} を実行しますか？"/>
-  <translation tag="Running balanced" ja="均衡"/>
   <translation tag="Running loose" ja="緩み気味"/>
   <translation tag="Running tight" ja="張り気味"/>
   <translation tag="Running {}..." ja="{} を実行中..."/>

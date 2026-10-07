@@ -308,6 +308,7 @@ translations:
   'Backtrace: {} frames': 'Backtrace: {} frames'
   Backup lane name contains invalid characters: Backup lane name contains invalid characters
   Backup spool switching state unknown: Backup spool switching state unknown
+  Balanced: Balanced
   Barcode Scanner: Barcode Scanner
   Base: Base
   Based on the newest {} prints: Based on the newest {} prints
@@ -2729,7 +2730,6 @@ translations:
   Run the HelixScreen installer with --update from a terminal on this printer. Scan for the command for your platform.: Run the HelixScreen installer with --update from a terminal on this printer. Scan for the command for your platform.
   Run the chamber dryer too: Run the chamber dryer too
   Run {}?: Run {}?
-  Running balanced: Running balanced
   Running loose: Running loose
   Running tight: Running tight
   Running {}...: Running {}...

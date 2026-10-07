@@ -291,6 +291,7 @@
   <translation tag="Backtrace: {} frames" ru="Трассировка: {} кадров"/>
   <translation tag="Backup lane name contains invalid characters" ru="Имя резервного канала содержит недопустимые символы"/>
   <translation tag="Backup spool switching state unknown" ru="Резервная катушка: состояние неизвестно"/>
+  <translation tag="Balanced" ru="Сбалансирован"/>
   <translation tag="Barcode Scanner" ru="Сканер штрих-кодов"/>
   <translation tag="Base" ru="Опорный"/>
   <translation tag="Based on the newest {} prints" ru="По последним печатям ({})"/>
@@ -2542,7 +2543,6 @@
   <translation tag="Run the HelixScreen installer with --update from a terminal on this printer. Scan for the command for your platform." ru="Запустите установщик HelixScreen с ключом --update в терминале на этом принтере. Отсканируйте код, чтобы получить команду для вашей платформы."/>
   <translation tag="Run the chamber dryer too" ru="Включить и сушилку камеры"/>
   <translation tag="Run {}?" ru="Запустить {}?"/>
-  <translation tag="Running balanced" ru="Сбалансирован"/>
   <translation tag="Running loose" ru="Ослаблен"/>
   <translation tag="Running tight" ru="Натянут"/>
   <translation tag="Running {}..." ru="Выполнение {}..."/>

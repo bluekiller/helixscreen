@@ -160,7 +160,7 @@ TEST_CASE_METHOD(LVGLTestFixture, "buffer reading words", "[buffer][reading][tex
         info.sync_feedback_bias = 0.0f;
         r = buffer_reading(info, -1);
         CHECK(buffer_value_text(r) == "0%");
-        CHECK(std::string(buffer_lean_text(r)) == "Running balanced");
+        CHECK(std::string(buffer_lean_text(r)) == "Balanced");
     }
     SECTION("nothing to read") {
         const BufferReading r;
