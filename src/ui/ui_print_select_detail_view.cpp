@@ -608,6 +608,10 @@ void PrintSelectDetailView::show(const std::string& filename, const std::string&
     // show() call, so the first frame never sees a stale value.
     publish_mapping_ready();
 
+    // The objects were cleared above; a view that is already open gets no
+    // on_activate() to list them again.
+    refresh_exclude_objects();
+
     spdlog::debug("[DetailView] Showing detail view for: {} ({} colors)", filename,
                   filament_colors.size());
 }

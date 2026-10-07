@@ -1646,3 +1646,18 @@ TEST_CASE_METHOD(LVGLUITestFixture, "The pick count counts only picks the file s
     CHECK(std::string(lv_subject_get_string(
               lv_xml_get_subject(nullptr, "detail_exclude_pick_count_text"))) == "1");
 }
+
+TEST_CASE_METHOD(LVGLUITestFixture, "Re-showing the open view for its file lists the objects again",
+                 "[print_select][detail_view][pre_start_exclude]") {
+    ExcludeObjectHardware hw(true);
+    OpenDetail d(test_screen(), "parts.gcode", kThreeParts);
+    d.view.toggle_exclude_pick("Cube_id_1");
+
+    d.view.show("parts.gcode", "", "PLA");
+    OpenDetail::settle();
+
+    CHECK(d.view.exclude_objects().get_defined_objects().size() == 3);
+    CHECK(OpenDetail::subject_int("detail_exclude_available") == 1);
+    CHECK(d.view.exclude_picks().empty());
+    CHECK(OpenDetail::subject_int("detail_exclude_pick_count") == 0);
+}
