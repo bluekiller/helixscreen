@@ -6347,3 +6347,39 @@ TEST_CASE("Happy Hare v4 writes clog detection mode as the selected unit's encod
     helper.test_parse_mmu_state({{"unit", 1}, {"gate", 7}});
     CHECK_FALSE(helper.clog_detection_mode_gcode(2, 0.0f));
 }
+
+TEST_CASE("Happy Hare clog detection mode command on v3 and a single v4 unit",
+          "[ams][happy_hare][hh_v4][clog]") {
+    QueryCapturingClient client;
+    helix::test::RegisteredBackend<AmsBackendHappyHareTestHelper> helper_reg(nullptr, &client);
+    AmsBackendHappyHareTestHelper& helper = *helper_reg;
+    helper.initialize_test_gates(4);
+    helper.set_config_defaults_for_test();
+
+    SECTION("v3") {
+        CHECK(helper.clog_detection_mode_gcode(1, 12.0f) ==
+              std::optional<std::string>("MMU_TEST_CONFIG clog_detection=1 detection_length=12.0"));
+        helper.execute_device_action("clog_detection", std::string("Manual"));
+        CHECK(helper.captured_gcodes ==
+              std::vector<std::string>{"MMU_TEST_CONFIG CLOG_DETECTION=1"});
+    }
+    SECTION("v4 single unit with an encoder") {
+        auto fx = helix::test::load_happy_hare_fixture("happy_hare_v4_single_unit.json");
+        fx["mmu_machine"]["unit_0"]["selector_type"] = "LinearSelector";
+        helper.test_parse_mmu_state(fx["mmu_status"]);
+        connect_with_fixture(helper, client, fx);
+        helper.clear_captured_gcodes();
+        CHECK(helper.clog_detection_mode_gcode(1, 12.0f) ==
+              std::optional<std::string>(
+                  "MMU_TEST_CONFIG flowguard_encoder_mode=1 flowguard_encoder_max_motion=12.0"));
+        helper.execute_device_action("clog_detection", std::string("Off"));
+        CHECK(helper.captured_gcodes ==
+              std::vector<std::string>{"MMU_TEST_CONFIG FLOWGUARD_ENCODER_MODE=0"});
+    }
+    SECTION("v4 single Type B unit has no encoder mode") {
+        const auto fx = helix::test::load_happy_hare_fixture("happy_hare_v4_single_unit.json");
+        helper.test_parse_mmu_state(fx["mmu_status"]);
+        connect_with_fixture(helper, client, fx);
+        CHECK_FALSE(helper.clog_detection_mode_gcode(2, 0.0f));
+    }
+}
