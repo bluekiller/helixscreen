@@ -69,10 +69,13 @@ template <typename Handle> class TransportLifecycle {
         ops_.post("disconnect", [this] { retire_current(); });
     }
 
-    /// Restart the running transport in place; with none running (its start failed),
-    /// connect to the last requested URL again.
+    /// Restart the running transport in place; with none running because its start failed,
+    /// connect to the last requested URL again, unless a request has come since the failure.
     void reconnect() {
         if (!current_.load()) {
+            if (failed_generation_.load() != generation_.load()) {
+                return; // a disconnect or newer connect owns the transport now
+            }
             std::string url;
             {
                 std::lock_guard<std::mutex> lock(url_mutex_);
@@ -160,6 +163,7 @@ template <typename Handle> class TransportLifecycle {
     }
 
     void fail_start() {
+        failed_generation_.store(generation_.load());
         if (ops_.on_start_failed) {
             ops_.on_start_failed();
         }
@@ -170,6 +174,8 @@ template <typename Handle> class TransportLifecycle {
     std::atomic<uint64_t> generation_{0};
     std::atomic<uint64_t> installed_generation_{0};
     std::atomic<bool> connected_{false};
+    /// The request generation a start failed in; a retry is only for that request.
+    std::atomic<uint64_t> failed_generation_{UINT64_MAX};
     std::atomic<bool> retiring_unconnected_{false};
     std::mutex url_mutex_;
     std::string last_url_;

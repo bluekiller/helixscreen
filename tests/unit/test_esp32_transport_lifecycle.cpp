@@ -204,6 +204,24 @@ TEST_CASE("Transport: a reconnect after a failed start connects again", "[esp32]
     CHECK(h.lc().current()->url == "ws://a");
 }
 
+TEST_CASE("Transport: a disconnect after a failed start stops the retry", "[esp32][transport]") {
+    Harness h;
+    h.fail_begin = true;
+    h.lc().connect("ws://a");
+    h.run_jobs();
+    REQUIRE(h.start_failures == 1);
+    const int creates_before = h.creates;
+
+    h.fail_begin = false;
+    h.lc().disconnect();
+    h.lc().reconnect();
+    h.run_jobs();
+
+    CHECK(h.lc().current() == nullptr);
+    CHECK(h.live() == 0);
+    CHECK(h.creates == creates_before);
+}
+
 TEST_CASE("Transport: a stop of a transport that never connected is flagged while it runs",
           "[esp32][transport]") {
     Harness h;
