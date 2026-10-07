@@ -56,6 +56,7 @@
 #include <fstream>
 #include <map>
 #include <memory>
+#include <optional>
 #include <set>
 #include <string>
 #include <thread>
@@ -1636,6 +1637,72 @@ TEST_CASE_METHOD(LVGLUITestFixture, "Leaving details closes exclude mode",
     d.close();
     process_lvgl(50);
     CHECK_FALSE(d.view.is_exclude_mode_open());
+}
+
+TEST_CASE_METHOD(LVGLUITestFixture, "A suspend closes exclude mode and keeps the picks",
+                 "[print_select][detail_view][pre_start_exclude]") {
+    ExcludeObjectHardware hw(true);
+    OpenDetail d(test_screen(), "parts.gcode", kThreeParts);
+    d.view.toggle_exclude_pick("Cube_id_1");
+    d.view.toggle_exclude_mode();
+    OpenDetail::settle();
+    REQUIRE(d.view.is_exclude_mode_open());
+
+    d.view.on_deactivating(DeactivateReason::Suspended);
+    OpenDetail::settle();
+    CHECK_FALSE(d.view.is_exclude_mode_open());
+    CHECK(d.view.exclude_picks() == std::vector<std::string>{"Cube_id_1"});
+}
+
+TEST_CASE_METHOD(LVGLUITestFixture, "Clearing the details viewer closes exclude mode",
+                 "[print_select][detail_view][pre_start_exclude]") {
+    ExcludeObjectHardware hw(true);
+    OpenDetail d(test_screen(), "parts.gcode", kThreeParts);
+    lv_obj_t* viewer = lv_obj_find_by_name(d.view.get_widget(), "detail_gcode_viewer");
+    REQUIRE(viewer != nullptr);
+    d.view.toggle_exclude_pick("Cube_id_1");
+    d.view.toggle_exclude_mode();
+    OpenDetail::settle();
+    REQUIRE(d.view.is_exclude_mode_open());
+
+    // What the memory-pressure responder does to every live viewer.
+    ui_gcode_viewer_clear_all_active();
+    OpenDetail::settle();
+    CHECK_FALSE(d.view.is_exclude_mode_open());
+    CHECK(d.view.exclude_picks() == std::vector<std::string>{"Cube_id_1"});
+}
+
+TEST_CASE_METHOD(LVGLUITestFixture, "Showing the open view for another file closes exclude mode",
+                 "[print_select][detail_view][pre_start_exclude]") {
+    ExcludeObjectHardware hw(true);
+    OpenDetail d(test_screen(), "parts.gcode", kThreeParts);
+    d.view.toggle_exclude_mode();
+    OpenDetail::settle();
+    REQUIRE(d.view.is_exclude_mode_open());
+
+    d.view.show("other.gcode", "", "PLA");
+    OpenDetail::settle();
+    CHECK_FALSE(d.view.is_exclude_mode_open());
+}
+
+TEST_CASE_METHOD(LVGLUITestFixture, "Picks the skip option no longer offers are never sent",
+                 "[print_select][detail_view][pre_start_exclude]") {
+    std::optional<ExcludeObjectHardware> hw(std::in_place, true);
+    OpenDetail d(test_screen(), "parts.gcode", kThreeParts);
+    d.view.toggle_exclude_pick("Cone_id_0");
+    d.view.toggle_exclude_pick("Cube_id_1");
+    d.view.toggle_exclude_pick("Cylinder_id_2");
+    d.view.hold_picks_for_start(true);
+    d.close();
+
+    // The start failed, then the user switched to a printer without [exclude_object].
+    hw.reset();
+    ExcludeObjectHardware none(false);
+    d.view.show("parts.gcode", "", "PLA");
+    OpenDetail::settle();
+    REQUIRE(OpenDetail::subject_int("detail_exclude_available") == 0);
+    CHECK(d.view.exclude_picks().empty());
+    CHECK_FALSE(d.view.all_objects_picked());
 }
 
 TEST_CASE_METHOD(LVGLUITestFixture, "The pick count counts only picks the file still defines",

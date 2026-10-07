@@ -362,10 +362,10 @@ class PrintSelectDetailView : public OverlayBase {
     /// printer cannot be sent is refused with a toast.
     void toggle_exclude_pick(const std::string& name);
 
-    /// Picked objects, in defined order.
+    /// Picked objects, in defined order; none while the skip option is not offered.
     [[nodiscard]] std::vector<std::string> exclude_picks() const;
 
-    /// Clear every pick; true when there were any.
+    /// Clear every pick; true when any of them was offered.
     bool drop_exclude_picks();
 
     /// Whether the picks cover every object, which would print nothing.

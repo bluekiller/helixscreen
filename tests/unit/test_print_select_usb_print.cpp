@@ -19,6 +19,8 @@
 #include "app_globals.h"
 #include "job_queue_state.h"
 #include "moonraker_api_mock.h"
+#include "printer_discovery.h"
+#include "printer_state.h"
 #include "usb_backend_mock.h"
 #include "usb_manager.h"
 
@@ -364,7 +366,17 @@ class UsbPickFixture : public UsbPrintFixture {
                           "EXCLUDE_OBJECT_DEFINE NAME=Cube_id_1 CENTER=-36,6\n"
                           "EXCLUDE_OBJECT_DEFINE NAME=Cylinder_id_2 CENTER=-22,30\n"
                           "G28\n",
-                          /*other_file=*/true) {}
+                          /*other_file=*/true) {
+        // Picks are offered, and sent, only on a printer with [exclude_object].
+        helix::PrinterDiscovery hw;
+        hw.parse_objects(nlohmann::json{"exclude_object", "extruder"});
+        get_printer_state().set_hardware(hw);
+        REQUIRE(panel_->select_file_by_name("part.gcode"));
+        drain();
+    }
+    ~UsbPickFixture() override {
+        get_printer_state().set_hardware(helix::PrinterDiscovery{});
+    }
 };
 
 } // namespace
@@ -380,6 +392,7 @@ TEST_CASE_METHOD(UsbPickFixture,
         return detail->exclude_objects().get_defined_objects().size() == 3;
     }));
     detail->toggle_exclude_pick("Cube_id_1");
+    REQUIRE(detail->exclude_picks() == std::vector<std::string>{"Cube_id_1"});
 
     transfers().mock_hold_path_uploads();
     panel_->start_print(/*force=*/true);

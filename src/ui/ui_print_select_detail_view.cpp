@@ -320,6 +320,8 @@ lv_obj_t* PrintSelectDetailView::create(lv_obj_t* parent_screen) {
             gcode_viewer_,
             [](lv_obj_t*, void* ud) {
                 auto* self = static_cast<PrintSelectDetailView*>(ud);
+                // Its map and badges belong to the parse just freed; picks stay.
+                self->exclude_mode_.hide();
                 self->show_gcode_viewer(false);
                 self->gcode_loaded_ = false;
                 // gcode_loaded_ flipping false can drop readiness (when the
@@ -485,6 +487,9 @@ void PrintSelectDetailView::show(const std::string& filename, const std::string&
 
     // Picks belong to one file; a hold for a print start keeps them for that file only.
     const bool same_file = filename == current_filename_ && current_path == current_path_;
+    if (!same_file) {
+        exclude_mode_.hide();
+    }
     if (!(picks_held_for_start_ && same_file)) {
         exclude_objects_.clear_objects();
     }
@@ -873,11 +878,10 @@ void PrintSelectDetailView::on_activate() {
 void PrintSelectDetailView::on_deactivating(DeactivateReason reason) {
     spdlog::debug("[DetailView] on_deactivating({})", deactivate_reason_name(reason));
 
-    // A blanked screen keeps everything; leaving the file drops its picks,
-    // unless they are held for the print start that hid this view.
-    if (reason != DeactivateReason::Suspended) {
-        exclude_mode_.hide();
-    }
+    // Exclude mode closes on every reason: the viewer is cleared below. Picks
+    // live in exclude_objects_; a blanked screen keeps them, leaving the file
+    // drops them, unless they are held for the print start that hid this view.
+    exclude_mode_.hide();
     if ((reason == DeactivateReason::NavigateAway && !picks_held_for_start_) ||
         reason == DeactivateReason::Shutdown) {
         exclude_objects_.clear_objects();
@@ -1927,8 +1931,13 @@ void PrintSelectDetailView::toggle_exclude_pick(const std::string& name) {
 }
 
 std::vector<std::string> PrintSelectDetailView::exclude_picks() const {
-    const auto& picks = exclude_objects_.get_excluded_objects();
+    // Picks the skip option no longer offers (the printer lost [exclude_object])
+    // are neither shown nor sent.
     std::vector<std::string> out;
+    if (lv_subject_get_int(const_cast<lv_subject_t*>(&detail_exclude_available_)) == 0) {
+        return out;
+    }
+    const auto& picks = exclude_objects_.get_excluded_objects();
     for (const auto& name : exclude_objects_.get_defined_objects()) {
         if (picks.count(name) > 0) {
             out.push_back(name);
@@ -1941,12 +1950,14 @@ bool PrintSelectDetailView::drop_exclude_picks() {
     if (exclude_objects_.get_excluded_objects().empty()) {
         return false;
     }
+    const bool had_offered_picks = !exclude_picks().empty();
     exclude_objects_.set_excluded_objects({});
-    return true;
+    return had_offered_picks;
 }
 
 bool PrintSelectDetailView::all_objects_picked() const {
-    return helix::ui::every_object_picked(exclude_objects_.get_defined_objects(),
+    return !exclude_picks().empty() &&
+           helix::ui::every_object_picked(exclude_objects_.get_defined_objects(),
                                           exclude_objects_.get_excluded_objects());
 }
 
