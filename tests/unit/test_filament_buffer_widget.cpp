@@ -158,6 +158,17 @@ TEST_CASE_METHOD(LVGLUITestFixture, "filament_buffer: nothing is drawn over or a
                 CHECK(apart(slider, obj));
             }
         }
+        if (size.cols == 2 && size.h == 76) {
+            // The tile's padding holds on its right and bottom edges too.
+            lv_area_t box;
+            lv_obj_get_content_coords(h.root(), &box);
+            lv_area_t trace;
+            lv_area_t caption;
+            lv_obj_get_coords(h.child("buffer_trace"), &trace);
+            lv_obj_get_coords(h.child("buffer_caption"), &caption);
+            CHECK(trace.x2 <= box.x2);
+            CHECK(caption.y2 <= box.y2);
+        }
     }
 
     AmsStateTestAccess::sync_buffer(ams, AmsSystemInfo{}, 0);

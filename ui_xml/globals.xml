@@ -336,6 +336,18 @@
     <px name="loaded_swatch_narrow_w_medium" value="14"/>
     <px name="loaded_swatch_narrow_w_large" value="14"/>
 
+    <!-- buffer_tile_pad: the Filament Buffer tile's padding. space_sm, but held at
+         the medium value at tiny and small, where space_sm leaves the 2x1 trace
+         and caption on the tile's edges; micro keeps space_sm, which the 1x1
+         tile needs to fit at 272x480. -->
+    <px name="buffer_tile_pad_micro" value="4"/>
+    <px name="buffer_tile_pad_tiny" value="7"/>
+    <px name="buffer_tile_pad_small" value="7"/>
+    <px name="buffer_tile_pad_medium" value="7"/>
+    <px name="buffer_tile_pad_large" value="8"/>
+    <px name="buffer_tile_pad_xlarge" value="10"/>
+    <px name="buffer_tile_pad_xxlarge" value="12"/>
+
     <!-- buffer_slider_w: the width of the upright filament buffer slider's housing
          (UiBufferSlider) on the home widget and in the Buffer Status modal. -->
     <px name="buffer_slider_w_micro" value="14"/>
