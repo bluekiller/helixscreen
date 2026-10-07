@@ -186,6 +186,7 @@ translations:
   Add: Aggiungi
   Add Filament: Aggiungi filamento
   Add Hidden Network: Aggiungi rete nascosta
+  Add Printer: Aggiungi stampante
   Add Vendor: Aggiungi fornitore
   Add Widget: Aggiungi widget
   Add custom filament: Aggiungi filamento personalizzato
@@ -439,6 +440,7 @@ translations:
   CURRENT SELECTION: SELEZIONE CORRENTE
   CUSTOM IMAGES: IMMAGINI PERSONALIZZATE
   Cache Dir: Dir cache
+  Calculator: Calcolatrice
   Calibrate: Calibra
   Calibrate All: Calibra tutto
   Calibrate Bowden: 'Calibra il bowden'
@@ -492,6 +494,7 @@ translations:
     — prova a dimenticare e associare di nuovo la stampante
   Can't move filament while the print is paused: Impossibile muovere il filamento con la stampa in pausa
   Can't read filament RFID tag: Impossibile leggere il tag RFID del filamento
+  Can't reach this printer. Save anyway?: Stampante non raggiungibile. Salvare comunque?
   Cancel: Annulla
   Cancel Escalation: Annulla escalation
   Cancel Print: Annulla stampa
@@ -2200,6 +2203,7 @@ translations:
   Nozzle temp must be 100-%d°C: La temperatura dell’ugello deve essere 100-%d°C
   Nozzle, bed, and chamber in one widget: Ugello, piano e camera in un widget
   'Nozzle:': 'Ugello:'
+  Number Pad Layout: Layout del tastierino numerico
   OD: OD
   'OFF': 'OFF'
   OK: OK
@@ -2322,6 +2326,8 @@ translations:
   Permission denied. Check printer configuration.: Permesso negato. Controlla la configurazione della stampante.
   Phomemo (Bluetooth): Phomemo (Bluetooth)
   Phomemo M110: Phomemo M110
+  Phone: Telefono
+  Phone puts 1 2 3 on the top row, calculator puts 7 8 9 there: Telefono mette 1 2 3 nella riga in alto, calcolatrice 7 8 9
   Pick: Scegli
   Pick Color: Scegli colore
   Pick up tool: Preleva utensile
@@ -3220,6 +3226,7 @@ translations:
   Switching to MPC requires a config change and Klipper restart.: Il passaggio a MPC
     richiede una modifica alla configurazione e il riavvio di Klipper.
   Sync: 'Sinc.'
+  Switching to {}: Passaggio a {}
   Sync during printing: Sincronizza durante la stampa
   Sync with Spoolman: Sincronizza con Spoolman
   Sysfs: Sysfs
@@ -3967,6 +3974,7 @@ translations:
   '{} is feeding the current print. Clear it after the print ends.': '{}: alimenta la stampa in corso. Rimuovi la bobina al termine della stampa.'
   '{} is installed but its backup-spool switching is turned off, so no automatic swap will happen.': '{} è installato ma il passaggio alla bobina di riserva è disattivato, quindi non avverrà alcun cambio automatico.'
   '{} is installed, but its backup-spool setting could not be read - do not count on an automatic swap.': '{} è installato, ma non è stato possibile leggere la sua impostazione della bobina di riserva - non contare su un cambio automatico.'
+  '{} is still printing. The print keeps running after you switch.': '{} sta ancora stampando. La stampa continua dopo il cambio.'
   '{} is not set up on this printer': '{} non è configurato su questa stampante'
   '{} lines in helixscreen.env were ignored': '{} righe di helixscreen.env sono state ignorate'
   '{} macro not configured': Macro {} non configurata

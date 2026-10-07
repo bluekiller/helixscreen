@@ -177,6 +177,7 @@
   <translation tag="Add" zh="添加"/>
   <translation tag="Add Filament" zh="添加耗材"/>
   <translation tag="Add Hidden Network" zh="添加隐藏网络"/>
+  <translation tag="Add Printer" zh="添加打印机"/>
   <translation tag="Add Vendor" zh="添加供应商"/>
   <translation tag="Add Widget" zh="添加小组件"/>
   <translation tag="Add custom filament" zh="添加自定义耗材"/>
@@ -403,6 +404,7 @@
   <translation tag="CURRENT SELECTION" zh="当前选择"/>
   <translation tag="CUSTOM IMAGES" zh="自定义图片"/>
   <translation tag="Cache Dir" zh="缓存目录"/>
+  <translation tag="Calculator" zh="计算器"/>
   <translation tag="Calibrate" zh="校准"/>
   <translation tag="Calibrate All" zh="全部校准"/>
   <translation tag="Calibrate Bowden" zh="校准波顿管"/>
@@ -449,6 +451,7 @@
   <translation tag="Camera" zh="摄像头"/>
   <translation tag="Can&apos;t connect — try forgetting and re-pairing the printer" zh="无法连接 — 请尝试忘记并重新配对打印机"/>
   <translation tag="Can&apos;t move filament while the print is paused" zh="打印暂停期间无法移动耗材"/>
+  <translation tag="Can&apos;t reach this printer. Save anyway?" zh="无法连接到此打印机。仍要保存吗？"/>
   <translation tag="Can&apos;t read filament RFID tag" zh="无法读取耗材 RFID 标签"/>
   <translation tag="Cancel" zh="取消"/>
   <translation tag="Cancel Escalation" zh="取消升级"/>
@@ -1988,6 +1991,7 @@
   <translation tag="Nozzle temp must be 100-%d°C" zh="喷嘴温度必须为 100-%d°C"/>
   <translation tag="Nozzle, bed, and chamber in one widget" zh="喷嘴、热床和腔体合为一个小组件"/>
   <translation tag="Nozzle:" zh="喷嘴："/>
+  <translation tag="Number Pad Layout" zh="数字键盘布局"/>
   <translation tag="OD" zh="OD"/>
   <translation tag="OFF" zh="关"/>
   <translation tag="OK" zh="确定"/>
@@ -2101,6 +2105,8 @@
   <translation tag="Permission denied. Check printer configuration." zh="权限被拒绝。请检查打印机配置。"/>
   <translation tag="Phomemo (Bluetooth)" zh="Phomemo（蓝牙）"/>
   <translation tag="Phomemo M110" zh="Phomemo M110"/>
+  <translation tag="Phone" zh="电话"/>
+  <translation tag="Phone puts 1 2 3 on the top row, calculator puts 7 8 9 there" zh="电话布局第一行为 1 2 3，计算器布局第一行为 7 8 9"/>
   <translation tag="Pick" zh="选取"/>
   <translation tag="Pick Color" zh="选择颜色"/>
   <translation tag="Pick up tool" zh="取出工具"/>
@@ -2894,6 +2900,7 @@
   <translation tag="Switching heater control to MPC. Klipper will restart." zh="正在将加热控制切换为 MPC。Klipper 将重启。"/>
   <translation tag="Switching to MPC changes how this heater is controlled, then calibrates it. That takes several minutes at temperature." zh="切换到 MPC 会改变此加热器的控制方式，随后会进行校准。这需要在工作温度下耗时数分钟。"/>
   <translation tag="Switching to MPC requires a config change and Klipper restart." zh="切换到 MPC 需要修改配置并重启 Klipper。"/>
+  <translation tag="Switching to {}" zh="正在切换到 {}"/>
   <translation tag="Sync" zh="同步"/>
   <translation tag="Sync during printing" zh="打印期间同步"/>
   <translation tag="Sync with Spoolman" zh="与 Spoolman 同步"/>
@@ -3540,6 +3547,7 @@
   <translation tag="{} is installed but its backup-spool switching is turned off, so no automatic swap will happen." zh="{} 已安装，但其备用料盘切换已关闭，因此不会自动切换。"/>
   <translation tag="{} is installed, but its backup-spool setting could not be read - do not count on an automatic swap." zh="{} 已安装，但无法读取其备用料盘设置 - 请勿指望自动切换。"/>
   <translation tag="{} is not set up on this printer" zh="{} 未在此打印机上设置"/>
+  <translation tag="{} is still printing. The print keeps running after you switch." zh="{} 仍在打印。切换后打印会继续进行。"/>
   <translation tag="{} lines in helixscreen.env were ignored" zh="helixscreen.env 中有 {} 行被忽略"/>
   <translation tag="{} macro not configured" zh="{} 宏未配置"/>
   <translation tag="{} matches." zh="{} 匹配。"/>

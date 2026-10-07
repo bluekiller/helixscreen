@@ -99,6 +99,9 @@ class AudioSettingsManager {
     /** @brief Set ALSA output device PCM (persists to config) */
     void set_output_device(const std::string& pcm);
 
+    /** @brief Persisted PWM buzzer channel as "<chip>:<channel>" ("" if unset) */
+    std::string get_pwm_channel() const;
+
     CompletionAlertMode get_completion_alert_mode() const {
         return static_cast<CompletionAlertMode>(
             std::clamp(settings_.get(Key::CompletionAlert), 0, 2));

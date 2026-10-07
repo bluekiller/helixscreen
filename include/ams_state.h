@@ -1820,6 +1820,8 @@ class AmsState {
     /// only; @p backend is the primary backend and never null.
     /// @{
     /// Type, action, operation phase, system name and logo, current slot/tool.
+    /// Every backend-derived subject back to its init_subjects() value.
+    void reset_backend_subjects();
     void sync_system_subjects(const AmsSystemInfo& info);
     /// Push or drop the AMS tool topology in ToolState.
     void sync_tool_topology(AmsBackend* backend);

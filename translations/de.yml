@@ -188,6 +188,7 @@ translations:
   Add: Hinzufügen
   Add Filament: Filament hinzufügen
   Add Hidden Network: Verstecktes Netzwerk hinzufügen
+  Add Printer: Drucker hinzufügen
   Add Vendor: Hersteller hinzufügen
   Add Widget: Widget hinzufügen
   Add custom filament: Benutzerdefiniertes Filament hinzufügen
@@ -444,6 +445,7 @@ translations:
   CURRENT SELECTION: AKTUELLE AUSWAHL
   CUSTOM IMAGES: EIGENE BILDER
   Cache Dir: Cache-Verzeichnis
+  Calculator: Taschenrechner
   Calibrate: Kalibrieren
   Calibrate All: Alle kalibrieren
   Calibrate Bowden: 'Bowden kalibrieren'
@@ -499,6 +501,7 @@ translations:
     — versuchen Sie, den Drucker zu vergessen und erneut zu koppeln
   Can't move filament while the print is paused: Filament kann bei pausiertem Druck nicht bewegt werden
   Can't read filament RFID tag: RFID-Tag des Filaments nicht lesbar
+  Can't reach this printer. Save anyway?: Drucker nicht erreichbar. Trotzdem speichern?
   Cancel: Abbrechen
   Cancel Escalation: Eskalation abbrechen
   Cancel Print: Druck abbrechen
@@ -2209,6 +2212,7 @@ translations:
   Nozzle temp must be 100-%d°C: Düsentemperatur muss 100-%d°C betragen
   Nozzle, bed, and chamber in one widget: Düse, Bett und Kammer in einem Widget
   'Nozzle:': 'Düse:'
+  Number Pad Layout: Ziffernblock-Layout
   OD: OD
   'OFF': AUS
   OK: OK
@@ -2331,6 +2335,8 @@ translations:
   Permission denied. Check printer configuration.: Zugriff verweigert. Prüfe die Druckerkonfiguration.
   Phomemo (Bluetooth): Phomemo (Bluetooth)
   Phomemo M110: Phomemo M110
+  Phone: Telefon
+  Phone puts 1 2 3 on the top row, calculator puts 7 8 9 there: 'Telefon: 1 2 3 in der obersten Reihe, Taschenrechner: 7 8 9'
   Pick: Auswählen
   Pick Color: Farbe wählen
   Pick up tool: Werkzeug aufnehmen
@@ -3227,6 +3233,7 @@ translations:
   Switching to MPC requires a config change and Klipper restart.: Wechsel zu MPC erfordert
     eine Konfigurationsänderung und Klipper-Neustart.
   Sync: 'Sync'
+  Switching to {}: Wechsel zu {}
   Sync during printing: Beim Drucken synchronisieren
   Sync with Spoolman: Mit Spoolman synchronisieren
   Sysfs: Sysfs
@@ -3976,6 +3983,7 @@ translations:
   '{} is feeding the current print. Clear it after the print ends.': '{}: versorgt den laufenden Druck. Erst nach Druckende löschen.'
   '{} is installed but its backup-spool switching is turned off, so no automatic swap will happen.': '{} ist installiert, aber der Wechsel zur Ersatzspule ist ausgeschaltet, daher findet kein automatischer Wechsel statt.'
   '{} is installed, but its backup-spool setting could not be read - do not count on an automatic swap.': '{} ist installiert, aber die Ersatzspulen-Einstellung konnte nicht gelesen werden - verlasse dich nicht auf einen automatischen Wechsel.'
+  '{} is still printing. The print keeps running after you switch.': '{} druckt noch. Der Druck läuft nach dem Wechsel weiter.'
   '{} is not set up on this printer': '{} ist auf diesem Drucker nicht eingerichtet'
   '{} lines in helixscreen.env were ignored': '{} Zeilen in helixscreen.env wurden ignoriert'
   '{} macro not configured': '{}-Makro nicht konfiguriert'
