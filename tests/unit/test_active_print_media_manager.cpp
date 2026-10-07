@@ -791,7 +791,7 @@ class StubTransferAPI : public MoonrakerFileTransferAPI {
 
     void download_thumbnail(const std::string& thumbnail_path, const std::string& cache_path,
                             StringCallback on_success, ErrorCallback on_error) override {
-        (void)thumbnail_path;
+        last_thumbnail_path_ = thumbnail_path;
         download_count_++;
         if (capture_downloads_) {
             captured_.push_back(Captured{cache_path, std::move(on_success)});
@@ -836,6 +836,10 @@ class StubTransferAPI : public MoonrakerFileTransferAPI {
     [[nodiscard]] int download_count() const {
         return download_count_;
     }
+    /// Moonraker path of the most recent thumbnail download.
+    [[nodiscard]] const std::string& last_thumbnail_path() const {
+        return last_thumbnail_path_;
+    }
 
     /// Hold subsequent downloads open instead of completing them inline, so a
     /// test can let a newer print supersede the load that started them.
@@ -868,6 +872,7 @@ class StubTransferAPI : public MoonrakerFileTransferAPI {
     bool fail_downloads_ = false;
     bool capture_downloads_ = false;
     int download_count_ = 0;
+    std::string last_thumbnail_path_;
     std::vector<Captured> captured_;
     std::vector<ErrorCallback> partial_errors_;
 };
@@ -1407,6 +1412,24 @@ TEST_CASE_METHOD(ActivePrintMediaAsyncFixture,
 
     REQUIRE(get_thumbnail_path() != NO_THUMB);
     REQUIRE(TestAccess::thumbnail_loaded(manager()));
+}
+
+TEST_CASE_METHOD(ActivePrintMediaAsyncFixture,
+                 "ActivePrintMediaManager: subfolder print downloads its thumbnail from that "
+                 "subfolder",
+                 "[ActivePrintMediaManager][thumbnail]") {
+    set_print_filename_no_drain("sub/dir/subfolder_thumb.gcode");
+    drain();
+    REQUIRE(files().pending_count() == 1);
+
+    // Moonraker gives a thumbnail's relative_path relative to the gcode's own
+    // directory, so the download has to prepend that directory.
+    const std::string rel = unique_thumb_path("subfolder_thumb");
+    files().fire_last(make_metadata_with_thumb(4, rel));
+    drain();
+
+    REQUIRE(transfers_stub().download_count() == 1);
+    REQUIRE(transfers_stub().last_thumbnail_path() == "sub/dir/" + rel);
 }
 
 TEST_CASE_METHOD(ActivePrintMediaAsyncFixture,
