@@ -1130,6 +1130,16 @@ class MoonrakerClientMock : public helix::MoonrakerClient {
                                        const json* requested = nullptr) const;
 
     /**
+     * @brief Append every non-chamber heater_generic (e.g. a filament dryer added
+     *        through HELIX_MOCK_OBJECTS) to a synthesized frame, stepping each
+     *        one's temperature @p dt simulated seconds toward its target.
+     */
+    void append_aux_heater_status(json& status_obj, double dt);
+
+    /// Set a non-chamber heater_generic's target by its BARE name. False if unknown.
+    bool set_aux_heater_target(const std::string& bare_name, double target);
+
+    /**
      * @brief Bare gcode name of the resolved chamber heater
      * @return e.g. "chamber" or "dragonbreath" (the HEATER= form), empty if none
      */
@@ -1653,6 +1663,14 @@ class MoonrakerClientMock : public helix::MoonrakerClient {
     /// Test inspection: sends of @p method so far, failed and deferred included.
     [[nodiscard]] int call_count(const std::string& method) const;
 
+    /// What machine.update.status reports as `busy` (an update_manager job running).
+    void set_update_manager_busy(bool busy) {
+        update_manager_busy_ = busy;
+    }
+    [[nodiscard]] bool update_manager_busy() const {
+        return update_manager_busy_;
+    }
+
     /// Test helper: the Moonraker database the server.database.* handlers serve.
     /// Keys are dotted the way Moonraker's are ("a.b" is member b of record a).
     void mock_db_set(const std::string& ns, const std::string& key, const json& value);
@@ -1808,6 +1826,7 @@ class MoonrakerClientMock : public helix::MoonrakerClient {
     /// never simulate a link keep getting answers (the mock's initial
     /// ConnectionState is DISCONNECTED and must not gate sends by itself).
     bool sim_link_down_{false};
+    bool update_manager_busy_{false};
 
     // Intent of the in-flight send_jsonrpc() dispatch, read by the method
     // handlers via current_send_intent().
@@ -1855,8 +1874,11 @@ class MoonrakerClientMock : public helix::MoonrakerClient {
     std::atomic<double> bed_target_{0.0};      // Target temperature (0 = off)
     std::atomic<double> chamber_temp_{25.0};   // Chamber temp (25-45°C, passive sensor)
     std::atomic<double> chamber_target_{0.0};  // Chamber target temperature (0 = off)
-    std::atomic<double> mcu_temp_{42.0};       // MCU temp (40-55°C, stable with small variation)
-    std::atomic<double> host_temp_{52.0};      // Host/RPi temp (45-65°C, correlates with load)
+    // Non-chamber heater_generic objects, keyed by full Klipper name: {temp, target}
+    std::map<std::string, std::pair<double, double>> aux_heaters_;
+    std::mutex aux_heaters_mutex_;
+    std::atomic<double> mcu_temp_{42.0};  // MCU temp (40-55°C, stable with small variation)
+    std::atomic<double> host_temp_{52.0}; // Host/RPi temp (45-65°C, correlates with load)
 
     // Position simulation state.
     // The three axes are individually atomic, but a multi-axis move and the

@@ -31,12 +31,17 @@ class ThumbnailSlotPool {
     uint8_t* acquire();
     /// Hands @p slot back for reuse. Safe from any thread.
     void release(uint8_t* slot);
+    /// Frees every slot handed back, so their memory serves something else;
+    /// the pool allocates again as needed.
+    void trim();
 
     size_t slot_bytes() const {
         return slot_bytes_;
     }
     /// Slots allocated so far, in use or free.
     size_t allocated() const;
+    /// Slots handed out and not yet handed back.
+    size_t in_use() const;
 
   private:
     const size_t slot_bytes_;

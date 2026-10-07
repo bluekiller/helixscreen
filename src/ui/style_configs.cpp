@@ -7,7 +7,7 @@
 namespace helix {
 
 void configure_pressed_for_tier(lv_style_t* s, PlatformTier tier, const ThemePalette* ring) {
-    if (!pressed_scale_allowed(tier)) {
+    if (!full_style_effects_allowed(tier)) {
         // A scale renders through a TRANSFORM layer. An outline draws in place
         // and moves no layout. It sits outside the widget because it is drawn
         // before the children, which cover a full-bleed card's inside edge.
@@ -209,6 +209,8 @@ void configure_button_outline(lv_style_t* s, const ThemePalette& p) {
     lv_style_set_border_width(s, 1);
     lv_style_set_border_opa(s, LV_OPA_COVER);
     lv_style_set_text_color(s, p.primary);
+    // A shadow under a transparent fill shows as a smear beside the border
+    lv_style_set_shadow_opa(s, LV_OPA_0);
 }
 
 void configure_button_success(lv_style_t* s, const ThemePalette& p) {

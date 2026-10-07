@@ -180,6 +180,7 @@ translations:
   Add: Add
   Add Filament: Add Filament
   Add Hidden Network: Add Hidden Network
+  Add Printer: Add Printer
   Add Vendor: Add Vendor
   Add Widget: Add Widget
   Add custom filament: Add custom filament
@@ -308,6 +309,7 @@ translations:
   'Backtrace: {} frames': 'Backtrace: {} frames'
   Backup lane name contains invalid characters: Backup lane name contains invalid characters
   Backup spool switching state unknown: Backup spool switching state unknown
+  Balanced: Balanced
   Barcode Scanner: Barcode Scanner
   Base: Base
   Based on the newest {} prints: Based on the newest {} prints
@@ -424,6 +426,7 @@ translations:
   CURRENT SELECTION: CURRENT SELECTION
   CUSTOM IMAGES: CUSTOM IMAGES
   Cache Dir: Cache Dir
+  Calculator: Calculator
   Calibrate: Calibrate
   Calibrate All: Calibrate All
   Calibrate Bowden: Calibrate Bowden
@@ -477,6 +480,7 @@ translations:
     and re-pairing the printer
   Can't move filament while the print is paused: Can't move filament while the print is paused
   Can't read filament RFID tag: Can't read filament RFID tag
+  Can't reach this printer. Save anyway?: Can't reach this printer. Save anyway?
   Cancel: Cancel
   Cancel Escalation: Cancel Escalation
   Cancel Print: Cancel Print
@@ -783,6 +787,7 @@ translations:
   'Could not save the drying state: nothing was heated': 'Could not save the drying state: nothing was heated'
   "Could not save the mesh as '{}': {}": "Could not save the mesh as '{}': {}"
   Could not save the printer image tags: Could not save the printer image tags
+  Could not skip {}: Could not skip {}
   Could not start Bluetooth discovery: Could not start Bluetooth discovery
   Could not update filaments: Could not update filaments
   Could not verify Spoolman status. Moonraker may still be restarting.: Could not
@@ -1060,6 +1065,7 @@ translations:
   Every extruder's temperature at once: Every extruder's temperature at once
   Everything else was saved. Change them in Spoolman.: Everything else was saved. Change them in Spoolman.
   Everything else was saved. Rename the material using letters, digits, spaces, and + - _ . ( ) /: Everything else was saved. Rename the material using letters, digits, spaces, and + - _ . ( ) /
+  Every object is set to skip, so there is nothing to print: Every object is set to skip, so there is nothing to print
   Every tool's offsets are measured again and replace the current ones. Save afterwards to keep the result.: Every tool's offsets are measured again and replace the current ones. Save afterwards to keep the result.
   Excellent Accuracy: Excellent Accuracy
   'Exception: {}': 'Exception: {}'
@@ -1237,6 +1243,7 @@ translations:
   Feeders: Feeders
   Feeding filament forward: Feeding filament forward
   Filament: Filament
+  Filament Buffer: 'Filament Buffer'
   Filament Control: Filament Control
   Filament Detected: Filament Detected
   Filament Grade Mismatch: Filament Grade Mismatch
@@ -1250,6 +1257,7 @@ translations:
   Filament Used: Filament Used
   Filament already exists: Filament already exists
   Filament buffer failure during feed: Filament buffer failure during feed
+  Filament buffer position against its target: 'Filament buffer position against its target'
   Filament buffer stopped moving: Filament buffer stopped moving
   Filament by Type: Filament by Type
   ? Filament can't be loaded below the minimum extrude temperature. Set a hotend target (e.g. 220°C for PLA, 240°C for PETG), wait for it to reach temperature, then try again
@@ -1267,8 +1275,6 @@ translations:
   Filament is dragging: Filament is dragging
   Filament is loaded at the toolhead. Unload it before enabling bypass.: Filament is loaded at the toolhead. Unload it before enabling bypass.
   Filament is loaded at the toolhead. Unload it first, so it does not soften in the extruder while the bed heats.: Filament is loaded at the toolhead. Unload it first, so it does not soften in the extruder while the bed heats.
-  Filament is loose: Filament is loose
-  Filament is pulling tight: Filament is pulling tight
   ? Filament is still at the nozzle after unloading. The cut or retract may not have completed. Clear the toolhead before loading another spool.
   : Filament is still at the nozzle after unloading. The cut or retract may not have completed. Clear the toolhead before loading another spool.
   Filament is still loaded. Unload it before enabling bypass.: Filament is still loaded. Unload it before enabling bypass.
@@ -1301,7 +1307,6 @@ translations:
   Filament stalled between CFS hub and extruder sensor: Filament stalled between CFS hub and extruder sensor
   Filament stuck in connector during unload: Filament stuck in connector during unload
   Filament stuck inside the CFS hub: Filament stuck inside the CFS hub
-  Filament tension is balanced: Filament tension is balanced
   Filament tracking & label printing: Filament tracking & label printing
   Filament tracking and inventory: Filament tracking and inventory
   FilamentSensor: FilamentSensor
@@ -2132,6 +2137,7 @@ translations:
   Nozzle temp must be 100-%d°C: Nozzle temp must be 100-%d°C
   Nozzle, bed, and chamber in one widget: Nozzle, bed, and chamber in one widget
   'Nozzle:': 'Nozzle:'
+  Number Pad Layout: Number Pad Layout
   OD: OD
   'OFF': 'OFF'
   OK: OK
@@ -2139,6 +2145,7 @@ translations:
   'ON: {} | OFF: {}': 'ON: {} | OFF: {}'
   OS: OS
   'OS: ': 'OS: '
+  Object picks apply only to prints started now: Object picks apply only to prints started now
   Object positions unavailable: Object positions unavailable
   Objects: Objects
   'Off': 'Off'
@@ -2251,6 +2258,8 @@ translations:
   Permission denied. Check printer configuration.: Permission denied. Check printer configuration.
   Phomemo (Bluetooth): Phomemo (Bluetooth)
   Phomemo M110: Phomemo M110
+  Phone: Phone
+  Phone puts 1 2 3 on the top row, calculator puts 7 8 9 there: Phone puts 1 2 3 on the top row, calculator puts 7 8 9 there
   Pick: Pick
   Pick Color: Pick Color
   Pick up tool: Pick up tool
@@ -2621,6 +2630,7 @@ translations:
   Requires Moonraker-Timelapse plugin: Requires Moonraker-Timelapse plugin
   Requires Multi-Filament System or MMU hardware: Requires Multi-Filament System or MMU hardware
   Requires a filament system with bypass: Requires a filament system with bypass
+  Requires a filament pressure sensor or sync feedback: 'Requires a filament pressure sensor or sync feedback'
   Requires clog detection hardware: Requires clog detection hardware
   Resend write failed at chunk {}: Resend write failed at chunk {}
   Reset: Reset
@@ -2730,6 +2740,8 @@ translations:
   Run the HelixScreen installer with --update from a terminal on this printer. Scan for the command for your platform.: Run the HelixScreen installer with --update from a terminal on this printer. Scan for the command for your platform.
   Run the chamber dryer too: Run the chamber dryer too
   Run {}?: Run {}?
+  Running loose: Running loose
+  Running tight: Running tight
   Running {}...: Running {}...
   Runout: Runout
   Runout Sensor: Runout Sensor
@@ -3117,6 +3129,8 @@ translations:
   Switching to MPC changes how this heater is controlled, then calibrates it. That takes several minutes at temperature.: Switching to MPC changes how this heater is controlled, then calibrates it. That takes several minutes at temperature.
   Switching to MPC requires a config change and Klipper restart.: Switching to MPC
     requires a config change and Klipper restart.
+  Sync: Sync
+  Switching to {}: Switching to {}
   Sync during printing: Sync during printing
   Sync with Spoolman: Sync with Spoolman
   Sysfs: Sysfs
@@ -3142,7 +3156,6 @@ translations:
   Tap Firmware Restart to recover — on K2 this also bounces the rpi MCU bridge: Tap Firmware Restart to recover — on K2 this also bounces the rpi MCU bridge
   Tap again to confirm this orientation: Tap again to confirm this orientation
   Tap an empty spot inside the enclosure: Tap an empty spot inside the enclosure
-  Tap an object to exclude it | {} objects ({} excluded): Tap an object to exclude it | {} objects ({} excluded)
   Tap any tile to open its full controls or toggle its state.: Tap any tile to open its full controls or toggle its state.
   Tap anywhere if this text is right-side up: Tap anywhere if this text is right-side
     up
@@ -3774,6 +3787,7 @@ translations:
   incompatible: incompatible
   invalid: invalid
   just now: just now
+  last 60 s · LOOSE up, TIGHT down: last 60 s · LOOSE up, TIGHT down
   layers: layers
   left: left
   loaded: loaded
@@ -3804,6 +3818,7 @@ translations:
   steppers: steppers
   sweeping: sweeping
   tall: tall
+  target {}%: target {}%
   target {}°: target {}°
   tool(s): tool(s)
   used: used
@@ -3819,6 +3834,7 @@ translations:
   '{} and {} are both mapped here': '{} and {} are both mapped here'
   '{} available': '{} available'
   '{} axis homed': '{} axis homed'
+  '{} cannot be skipped: its name has characters the printer cannot be sent': '{} cannot be skipped: its name has characters the printer cannot be sent'
   '{} changed': '{} changed'
   '{} command timed out': '{} command timed out'
   '{} complete': '{} complete'
@@ -3838,6 +3854,7 @@ translations:
   '{} is feeding the current print. Clear it after the print ends.': '{} is feeding the current print. Clear it after the print ends.'
   '{} is installed but its backup-spool switching is turned off, so no automatic swap will happen.': '{} is installed but its backup-spool switching is turned off, so no automatic swap will happen.'
   '{} is installed, but its backup-spool setting could not be read - do not count on an automatic swap.': '{} is installed, but its backup-spool setting could not be read - do not count on an automatic swap.'
+  '{} is still printing. The print keeps running after you switch.': '{} is still printing. The print keeps running after you switch.'
   '{} is not set up on this printer': '{} is not set up on this printer'
   '{} lines in helixscreen.env were ignored': '{} lines in helixscreen.env were ignored'
   '{} macro not configured': '{} macro not configured'

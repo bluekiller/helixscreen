@@ -401,6 +401,7 @@ void register_xml_components() {
     // file detail view, and the whole print-status preview card shared by the
     // landscape and portrait status layouts. Registered here, ahead of both
     // consumers, because a component must exist before the file that nests it.
+    register_xml("components/exclude_objects_button.xml");
     register_xml("components/preview_stack.xml");
     register_xml("components/print_status_preview_card.xml");
     register_xml("header_bar.xml");
@@ -541,8 +542,8 @@ void register_xml_components() {
     register_xml("components/panel_widget_nozzle_temps.xml");
     register_xml("components/panel_widget_job_queue.xml");
     register_xml("components/clog_bar_body.xml");
-    register_xml("components/clog_bar_page.xml");
     register_xml("components/panel_widget_clog_detection.xml");
+    register_xml("components/panel_widget_filament_buffer.xml");
     register_xml("components/panel_widget_print_stats.xml");
     register_xml("components/panel_widget_gcode_console.xml");
     register_xml("components/panel_widget_active_spool.xml");
@@ -558,6 +559,7 @@ void register_xml_components() {
     register_xml("components/picker_option_row.xml");
     register_xml("components/picker_chip.xml");
     register_xml("fan_stack_picker.xml");
+    register_xml("power_device_picker.xml");
     register_xml("tool_switcher_picker.xml");
     register_xml("thermistor_sensor_picker.xml");
     register_xml("thermistor_configure_picker.xml");
@@ -812,7 +814,7 @@ void register_xml_components() {
     register_xml("wizard_telemetry.xml");
     register_xml("telemetry_info_modal.xml");
 
-    // Upgrade nudge banner (hidden by default; C++ UpgradeBanner singleton
+    // Upgrade nudge banner (hidden by default; Application's UpgradeBanner
     // attaches an instance to lv_layer_top during Application::init and
     // toggles visibility based on UpgradeNudge state).
     register_xml("components/upgrade_banner.xml");

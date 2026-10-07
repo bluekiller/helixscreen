@@ -160,9 +160,10 @@ SpoolmanOverlay& get_spoolman_overlay() {
 // value in ui_ams_edit_overlay.cpp, so it needs a real ctor.
 //
 // SpoolmanPanel CANNOT be raw storage: two kept call sites
-// (ui_panel_advanced.cpp handle_spoolman_clicked, ui_printer_manager_overlay
-// .cpp on_chip_spoolman_clicked) hand it to lazy_create_and_push_overlay,
-// which dispatches init_subjects(), register_callbacks() and create() on it.
+// (ui_panel_advanced.cpp handle_spoolman_clicked, the pm_chip_spoolman_clicked
+// entry in ui_printer_manager_overlay.cpp PrinterManagerOverlay::register_callbacks)
+// hand it to lazy_create_and_push_overlay, which dispatches init_subjects(),
+// register_callbacks() and create() on it.
 // Those are virtual, so raw storage would fault (LoadProhibited) the moment
 // the capability gate that hides both rows is lifted. So the accessor
 // constructs a real object, which requires defining the ctor and every
@@ -687,6 +688,8 @@ UpdateChecker::UpdateChannel UpdateChecker::get_channel() const {
     return UpdateChannel::Stable;
 }
 void UpdateChecker::on_channel_changed() {}
+// No Moonraker update_manager stanza names this firmware, so there is nothing to sync.
+void UpdateChecker::sync_moonraker_channel() {}
 // The notification history panel's "show update" action. Nothing posts an
 // update notification in this slice, so the action is never dispatched.
 void UpdateChecker::show_update_notification() {}

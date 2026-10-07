@@ -188,6 +188,7 @@ translations:
   Add: Ajouter
   Add Filament: Ajouter un filament
   Add Hidden Network: Ajouter un réseau masqué
+  Add Printer: Ajouter une imprimante
   Add Vendor: Ajouter un fournisseur
   Add Widget: Ajouter un widget
   Add custom filament: Ajouter un filament personnalisé
@@ -324,6 +325,7 @@ translations:
   'Backtrace: {} frames': 'Trace : {} frames'
   Backup lane name contains invalid characters: 'Le nom de la voie de secours contient des caractères non valides'
   Backup spool switching state unknown: État du passage à la bobine de secours inconnu
+  Balanced: Équilibré
   Barcode Scanner: Scanner de codes-barres
   Base: Référence
   Based on the newest {} prints: 'Basé sur les {} impressions les plus récentes'
@@ -442,6 +444,7 @@ translations:
   CURRENT SELECTION: SÉLECTION ACTUELLE
   CUSTOM IMAGES: IMAGES PERSONNALISÉES
   Cache Dir: Dossier cache
+  Calculator: Calculatrice
   Calibrate: Calibrer
   Calibrate All: Tout calibrer
   Calibrate Bowden: 'Calibrer le bowden'
@@ -498,6 +501,7 @@ translations:
     — essayez d'oublier et de réappairer l'imprimante
   Can't move filament while the print is paused: Impossible de déplacer le filament pendant une impression en pause
   Can't read filament RFID tag: Impossible de lire l'étiquette RFID du filament
+  Can't reach this printer. Save anyway?: "Imprimante injoignable. Enregistrer quand même ?"
   Cancel: Annuler
   Cancel Escalation: Annuler l'escalade
   Cancel Print: Annuler l'impression
@@ -821,6 +825,7 @@ translations:
 
   "Could not save the mesh as '{}': {}": "Impossible d'enregistrer le maillage sous '{}' : {}"
   Could not save the printer image tags: 'Échec de l''enregistrement des repères de l''image'
+  Could not skip {}: 'Impossible d''ignorer {}'
   Could not start Bluetooth discovery: Impossible de démarrer la découverte Bluetooth
   Could not update filaments: Impossible de mettre à jour les filaments
   Could not verify Spoolman status. Moonraker may still be restarting.: Impossible
@@ -1111,6 +1116,7 @@ translations:
   Every extruder's temperature at once: Température de chaque extrudeur
   Everything else was saved. Change them in Spoolman.: Tout le reste a été enregistré. Modifiez-les dans Spoolman.
   Everything else was saved. Rename the material using letters, digits, spaces, and + - _ . ( ) /: 'Tout le reste a été enregistré. Renommez le matériau en utilisant des lettres, des chiffres, des espaces et + - _ . ( ) /'
+  Every object is set to skip, so there is nothing to print: 'Tous les objets sont à ignorer, il n''y a rien à imprimer'
   Every tool's offsets are measured again and replace the current ones. Save afterwards to keep the result.: Les offsets de tous les outils sont mesurés à nouveau et remplacent les actuels. Enregistrez ensuite pour conserver le résultat.
   Excellent Accuracy: Excellente précision
   'Exception: {}': 'Exception : {}'
@@ -1297,6 +1303,7 @@ translations:
   Feeders: Alimentateurs
   Feeding filament forward: Avancement du filament
   Filament: Filament
+  Filament Buffer: 'Tampon de filament'
   Filament Control: Contrôle du filament
   Filament Detected: Filament détecté
   Filament Grade Mismatch: Grade de filament incompatible
@@ -1310,6 +1317,7 @@ translations:
   Filament Used: Filament utilisé
   Filament already exists: Ce filament existe déjà
   Filament buffer failure during feed: Défaillance du tampon de filament pendant l'alimentation
+  Filament buffer position against its target: 'Position du tampon de filament par rapport à la cible'
   Filament buffer stopped moving: Le tampon de filament ne bouge plus
   Filament by Type: Filament par type
   ? Filament can't be loaded below the minimum extrude temperature. Set a hotend target (e.g. 220°C for PLA, 240°C for PETG), wait for it to reach temperature, then try again
@@ -1328,8 +1336,6 @@ translations:
   Filament is loaded at the toolhead. Unload it before enabling bypass.: 'Du filament est chargé dans la tête d''outil. Déchargez-le avant d''activer le bypass.'
   Filament is loaded at the toolhead. Unload it first, so it does not soften in the extruder while the bed heats.: Du filament est chargé dans la tête d'outil. Déchargez-le d'abord pour qu'il ne ramollisse pas dans l'extrudeur pendant que le plateau chauffe.
 
-  Filament is loose: Le filament est détendu
-  Filament is pulling tight: Le filament est sous tension
   ? Filament is still at the nozzle after unloading. The cut or retract may not have completed. Clear the toolhead before loading another spool.
   : Le filament est encore à la buse après le déchargement. La coupe ou la rétractation n'a peut-être pas abouti. Dégagez la tête d'outil avant de charger une autre bobine.
   Filament is still loaded. Unload it before enabling bypass.: 'Du filament est encore chargé. Déchargez-le avant d''activer le bypass.'
@@ -1362,7 +1368,6 @@ translations:
   Filament stalled between CFS hub and extruder sensor: Le filament est bloqué entre le hub CFS et le capteur d'extrudeur
   Filament stuck in connector during unload: Filament coincé dans le connecteur pendant le déchargement
   Filament stuck inside the CFS hub: Filament coincé dans le hub CFS
-  Filament tension is balanced: La tension du filament est équilibrée
   Filament tracking & label printing: Suivi du filament & impression d'étiquettes
   Filament tracking and inventory: Suivi et inventaire du filament
   FilamentSensor: Capteur de filament
@@ -2213,6 +2218,7 @@ translations:
   Nozzle temp must be 100-%d°C: La température de la buse doit être entre 100 et %d°C
   Nozzle, bed, and chamber in one widget: Buse, plateau et enceinte réunis
   'Nozzle:': 'Buse :'
+  Number Pad Layout: Disposition du pavé numérique
   OD: OD
   'OFF': 'OFF'
   OK: OK
@@ -2220,6 +2226,7 @@ translations:
   'ON: {} | OFF: {}': 'MARCHE : {} | ARRÊT : {}'
   OS: OS
   'OS: ': 'OS : '
+  Object picks apply only to prints started now: 'La sélection d''objets ne s''applique qu''aux impressions lancées maintenant'
   Object positions unavailable: Positions des objets indisponibles
   Objects: Objets
   'Off': Éteint
@@ -2334,6 +2341,8 @@ translations:
   Permission denied. Check printer configuration.: Permission refusée. Vérifiez la configuration de l'imprimante.
   Phomemo (Bluetooth): Phomemo (Bluetooth)
   Phomemo M110: Phomemo M110
+  Phone: Téléphone
+  Phone puts 1 2 3 on the top row, calculator puts 7 8 9 there: Téléphone place 1 2 3 en haut, calculatrice place 7 8 9
   Pick: Choisir
   Pick Color: Choisir la couleur
   Pick up tool: Prendre l'outil
@@ -2719,6 +2728,7 @@ translations:
   Requires Moonraker-Timelapse plugin: Nécessite le plugin Moonraker-Timelapse
   Requires Multi-Filament System or MMU hardware: 'Nécessite un système multi-filament ou du matériel MMU'
   Requires a filament system with bypass: Nécessite un système de filament avec bypass
+  Requires a filament pressure sensor or sync feedback: 'Nécessite un capteur de pression de filament ou un retour de synchronisation'
   Requires clog detection hardware: 'Nécessite du matériel de détection de bourrage'
   Resend write failed at chunk {}: Échec du renvoi de l'écriture au bloc {}
   Reset: Réinitialiser
@@ -2830,6 +2840,8 @@ translations:
   Run the chamber dryer too: Faire aussi tourner le séchoir de l'enceinte
 
   Run {}?: Exécuter {} ?
+  Running loose: 'Détendu'
+  Running tight: 'Tendu'
   Running {}...: Exécution de {}...
   Runout: 'Fin de filament'
   Runout Sensor: Capteur de fin de filament
@@ -3237,6 +3249,8 @@ translations:
   Switching to MPC changes how this heater is controlled, then calibrates it. That takes several minutes at temperature.: Le passage à MPC change la façon dont ce chauffage est contrôlé, puis le calibre. Cela prend plusieurs minutes à température.
   Switching to MPC requires a config change and Klipper restart.: Le passage à MPC
     nécessite une modification de la config et un redémarrage de Klipper.
+  Sync: 'Sync'
+  Switching to {}: Passage à {}
   Sync during printing: 'Synchroniser pendant l''impression'
   Sync with Spoolman: Synchroniser avec Spoolman
   Sysfs: Sysfs
@@ -3262,7 +3276,6 @@ translations:
   Tap Firmware Restart to recover — on K2 this also bounces the rpi MCU bridge: Appuyez sur Redémarrer le firmware pour récupérer. Sur la K2, cela redémarre aussi le pont MCU rpi
   Tap again to confirm this orientation: Appuyez à nouveau pour confirmer cette orientation
   Tap an empty spot inside the enclosure: Touchez un endroit vide dans le caisson
-  Tap an object to exclude it | {} objects ({} excluded): 'Touchez un objet pour l''exclure | {} objets ({} exclus)'
   Tap any tile to open its full controls or toggle its state.: Appuyez sur n'importe quelle tuile pour ouvrir ses commandes complètes ou basculer son état.
   Tap anywhere if this text is right-side up: Appuyez n'importe où si ce texte est
     à l'endroit
@@ -3922,6 +3935,7 @@ translations:
   incompatible: incompatible
   invalid: non valide
   just now: à l'instant
+  last 60 s · LOOSE up, TIGHT down: '60 dernières s · DÉTENDU en haut, TENDU en bas'
   layers: couches
   left: restant
   loaded: 'chargé'
@@ -3958,6 +3972,7 @@ translations:
   steppers: moteurs pas à pas
   sweeping: en cours de mesure
   tall: de haut
+  target {}%: 'cible {}%'
   target {}°: 'cible {}°'
   tool(s): outil(s)
   used: utilisé
@@ -3973,6 +3988,7 @@ translations:
   '{} and {} are both mapped here': '{} et {} sont tous deux affectés ici'
   '{} available': '{} disponible'
   '{} axis homed': Axe {} référencé
+  '{} cannot be skipped: its name has characters the printer cannot be sent': '{} ne peut pas être exclu : son nom contient des caractères impossibles à envoyer à l''imprimante'
   '{} changed': '{} modifié(s)'
   '{} command timed out': Délai d'attente dépassé pour la commande {}
   '{} complete': '{} terminé'
@@ -3992,6 +4008,7 @@ translations:
   '{} is feeding the current print. Clear it after the print ends.': '{} : alimente l''impression en cours. Effacez la bobine une fois l''impression terminée.'
   '{} is installed but its backup-spool switching is turned off, so no automatic swap will happen.': '{} est installé mais son passage à la bobine de secours est désactivé, aucun changement automatique n''aura donc lieu.'
   '{} is installed, but its backup-spool setting could not be read - do not count on an automatic swap.': '{} est installé, mais son réglage de bobine de secours n''a pas pu être lu - ne comptez pas sur un changement automatique.'
+  '{} is still printing. The print keeps running after you switch.': '{} imprime encore. L''impression continue après le changement.'
   '{} is not set up on this printer': "{} n'est pas configuré sur cette imprimante"
   '{} lines in helixscreen.env were ignored': '{} lignes de helixscreen.env ont été ignorées'
   '{} macro not configured': Macro {} non configurée

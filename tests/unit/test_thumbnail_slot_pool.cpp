@@ -59,9 +59,11 @@ TEST_CASE("slots are allocated as needed, capped, and reused once handed back",
         CHECK(std::set<uint8_t*>{a, b, c}.size() == 3);
         CHECK(pool.acquire() == nullptr); // the cap
         CHECK(g_allocs == 3);
+        CHECK(pool.in_use() == 3);
 
         // Scrolling: one card leaves, another arrives, and gets the same buffer.
         pool.release(b);
+        CHECK(pool.in_use() == 2);
         CHECK(pool.acquire() == b);
         CHECK(g_allocs == 3);
         pool.release(nullptr); // harmless
@@ -80,6 +82,30 @@ TEST_CASE("a slot allocation that fails yields no slot and is tried again later"
         g_fail_after = -1;
         CHECK(pool.acquire() != nullptr);
         CHECK(pool.allocated() == 1);
+    }
+    CHECK(g_live == 0);
+}
+
+TEST_CASE("trim frees the slots handed back and keeps those in use", "[thumbnail][slots]") {
+    reset_counts();
+    {
+        ThumbnailSlotPool pool(1000, 4, counting_alloc, counting_free);
+        uint8_t* a = pool.acquire();
+        uint8_t* b = pool.acquire();
+        uint8_t* c = pool.acquire();
+        REQUIRE(c);
+        pool.release(b);
+        pool.release(c);
+        pool.trim();
+        CHECK(pool.allocated() == 1);
+        CHECK(g_live == 1); // only a is still allocated
+
+        // The pool grows again to its cap afterwards.
+        CHECK(pool.acquire() != nullptr);
+        CHECK(pool.acquire() != nullptr);
+        CHECK(pool.acquire() != nullptr);
+        CHECK(pool.acquire() == nullptr);
+        pool.release(a);
     }
     CHECK(g_live == 0);
 }

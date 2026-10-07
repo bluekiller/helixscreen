@@ -8,6 +8,7 @@
 #include <map>
 #include <memory>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #if defined(HELIX_PLATFORM_ESP32)
@@ -92,9 +93,12 @@ struct PrintFileData {
     // allocation rather than re-copying image bytes.
     std::shared_ptr<helix::ui::EspPsramThumbnail> esp_thumbnail;
     /// A fetch was started for this file while its card has been on screen:
-    /// in flight, done, or failed. Cleared when the card leaves the screen, so a
-    /// failed thumbnail is tried again only when the card is next shown.
+    /// in flight, done, or failed. Cleared when the card leaves the screen
+    /// holding nothing, so a failed thumbnail is tried again only when the card
+    /// is next shown.
     bool esp_thumbnail_tried = false;
+    /// The print-select sync tick at which its card was last on screen.
+    uint32_t esp_thumbnail_shown = 0;
 #endif
 
     // ========================================================================
@@ -201,6 +205,58 @@ inline bool should_carry_forward_print_file_metadata(const PrintFileData& old_en
     }
     return true;
 }
+
+/**
+ * @brief Carry cached metadata from the previous listing into a fresh one
+ *
+ * Each fresh entry whose file already had metadata takes the whole cached entry,
+ * keeping only the listing's size and modified time; one the cache cannot vouch
+ * for (see should_carry_forward_print_file_metadata) is set to fetch again. A
+ * cached entry is handed out once: a name listed twice fetches fresh for the
+ * second, rather than reading an entry already moved out.
+ *
+ * @param files Fresh listing, updated in place
+ * @param previous Previous file list; its entries are moved from
+ * @param retry_missing_thumbnails See should_carry_forward_print_file_metadata
+ */
+namespace helix {
+inline void carry_forward_print_file_metadata(std::vector<PrintFileData>& files,
+                                              std::vector<PrintFileData>& previous,
+                                              bool retry_missing_thumbnails) {
+    std::unordered_map<std::string, PrintFileData> cached;
+    for (auto& f : previous) {
+        if (f.metadata_fetched) {
+            cached.emplace(f.filename, std::move(f));
+        }
+    }
+    for (auto& f : files) {
+        auto it = cached.find(f.filename);
+        if (it == cached.end()) {
+            continue;
+        }
+        const time_t modified = f.modified_timestamp;
+        const size_t size = f.file_size_bytes;
+        if (should_carry_forward_print_file_metadata(it->second, size, retry_missing_thumbnails)) {
+#if defined(HELIX_PLATFORM_ESP32)
+            // A re-upload of the same size is a different picture.
+            if (it->second.modified_timestamp != modified) {
+                it->second.esp_thumbnail.reset();
+                it->second.esp_thumbnail_tried = false;
+            }
+#endif
+            f = std::move(it->second);
+            f.modified_timestamp = modified;
+            f.file_size_bytes = size;
+        } else {
+            // The provider may have kept metadata_fetched / thumbnail_path on the
+            // fresh entry; left set, the next fetch would skip it.
+            f.metadata_fetched = false;
+            f.thumbnail_path.clear();
+        }
+        cached.erase(it);
+    }
+}
+} // namespace helix
 
 /**
  * @brief Truncate a sorted print-file list to the newest max_files entries
