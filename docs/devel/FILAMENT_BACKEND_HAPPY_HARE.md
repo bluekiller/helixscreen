@@ -149,7 +149,8 @@ one layout.
 
 | What | v3 | v4 |
 |------|----|----|
-| Machine fields (selector type, heaters, env sensors) | `configfile.settings.mmu_machine` | live `mmu_machine.unit_N` |
+| Machine fields (selector type, heaters, env sensors) | live `mmu_machine.unit_N` on v3.4, else `configfile.settings.mmu_machine` | live `mmu_machine.unit_N` |
+| Version (`AmsSystemInfo::version`) | `[mmu] happy_hare_version` (a number such as 3.42) | `mmu_machine.happy_hare_version` |
 | Tunables (tip macro, speeds, toolhead distances, `heater_max_temp`, `sync_to_extruder`) | `[mmu]` | `[mmu_parameters]`, `[mmu_unit_parameters <unit>]`, `[mmu_toolhead <toolhead of that unit>]`; `happy_hare::find_config_param()` owns which |
 | `MMU_TEST_CONFIG` gear speeds | `GEAR_FROM_SPOOL_SPEED`, `GEAR_FROM_BUFFER_SPEED` | `GEAR_LOAD_SPEED`, `GEAR_FROM_FILAMENT_BUFFER_SPEED`; `happy_hare::param_name()` maps them, and `CLOG_DETECTION` has no v4 parameter |
 | Bypass support | `printer.mmu.has_bypass` | any `mmu_machine.unit_N.has_bypass` (`printer.mmu.has_bypass` is a constant true) |
@@ -160,10 +161,22 @@ one layout.
 
 **`UNIT=` on a multi-unit v4.** v4 refuses its per-unit commands without `UNIT=` once
 `mmu_machine.num_units` is above 1. `unit_suffix_locked()` builds it, and only there:
-`MMU_HOME` and `MMU_MOTORS_ON/OFF` take `UNIT=ALL`, `MMU_HEATER` the unit being dried,
-`MMU_SERVO`, `MMU_TEST_GRIP`, `MMU_CALIBRATE_GATE ALL=1` and unit-scoped `MMU_TEST_CONFIG`
-parameters the selected unit (`printer.mmu.unit`). v3's `MMU_TEST_CONFIG` rejects an unknown
-`UNIT`, so it is never sent there.
+`MMU_HOME` and `MMU_MOTORS_ON/OFF` take `UNIT=ALL`. `MMU_HEATER` takes the unit being dried;
+a whole-machine start or stop sends one `MMU_HEATER` per unit with a heater, because
+`UNIT=ALL` stops at the first unit without one. `MMU_SERVO`, `MMU_TEST_GRIP`,
+`MMU_CALIBRATE_GATE ALL=1` and unit-scoped `MMU_TEST_CONFIG` parameters take the selected unit
+(`printer.mmu.unit`), or, when it lacks the hardware, the first unit that has it. v3's
+`MMU_TEST_CONFIG` rejects an unknown `UNIT`, so it is never sent there.
+
+**Per-unit guards.** v4 refuses an `MMU_TEST_CONFIG` naming a parameter the target unit's
+hardware cannot take, so `happy_hare::unit_supports()` answers, from `mmu_machine.unit_N` and
+the unit's `[mmu_unit <name>] encoder`: `MMU_SERVO` needs a servo selector,
+`selector_move_speed` a moving selector, the encoder mode and gate calibration an encoder,
+`sync_to_extruder` a unit that does not keep its filament gripped, and
+`gear_from_filament_buffer_speed` a filament buffer. The two toolhead distances tuned against a
+sensor need it fitted (its key in `printer.mmu.sensors`). A device action no unit takes is
+disabled, and the v4 override reapply sends one `MMU_TEST_CONFIG` per parameter, leaving out
+any no unit takes, so one refusal cannot sink the rest.
 
 **Units.** `happy_hare::read_machine_units()` returns every `mmu_machine.unit_N` (v3.4 and v4
 both publish them; an older v3 falls back to configfile's `[mmu_machine]` as one unit). Each
@@ -177,8 +190,12 @@ when every unit uses the same one, else become one entry per gate across all uni
 on v4 and is never read.
 
 v4 sends `encoder`, `flowguard`, `tangle_prevention` and the `sync_feedback_*` fields as
-JSON null until a unit has them; every parser reads null as absent, so the last real value
-stands. The clog config modal asks `AmsBackend::clog_detection_mode_gcode()` for its
+JSON null while the selected unit lacks that hardware. A null `sync_feedback_bias_*` returns
+the bias to the -2 "unavailable" sentinel, and a null `flowguard` or `encoder` clears
+`flowguard_info.enabled` / `encoder_info.enabled`; other fields keep their last value. The
+presence of `tangle_prevention` in a frame marks it v4 before the connect-time query answers,
+so v4's constant `has_bypass` shows no bypass in the meantime, and a v4 `espooler` list is read
+per gate (v3's covers only the gates fitted with one). The clog config modal asks `AmsBackend::clog_detection_mode_gcode()` for its
 command. `MMU_FLOWGUARD ENABLE=` switches buffer FlowGuard as a whole; no HelixScreen control
 sends it. Golden payloads: `tests/fixtures/happy_hare_v4_*.json`.
 
