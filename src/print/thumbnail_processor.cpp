@@ -15,6 +15,7 @@
 #include "memory_monitor.h"
 #include "system/crash_handler.h"
 #include "thumbnail_cache.h"
+#include "thumbnail_rules.h"
 
 #include <hv/hthreadpool.h>
 #include <spdlog/spdlog.h>
@@ -392,35 +393,6 @@ std::string ThumbnailProcessor::generate_cache_filename(const std::string& cache
     return filename;
 }
 
-// A complete PNG starts with the 8-byte signature and ends with an IEND chunk.
-// stb_image is fragile on malformed/truncated input — crafted or severed streams
-// can drive heap overreads — and the gcode-header extraction fallback can hand us
-// a PNG cut mid-stream by the 100 KB partial-download boundary. A bad decode runs
-// on the worker thread and corrupts the heap, surfacing later as an unrelated
-// glibc abort on the main thread (debug bundle 783DVYKD). Reject non-PNG and
-// truncated data before stb_image ever touches it.
-static bool is_complete_png(const std::vector<uint8_t>& data) {
-    static const unsigned char SIG[8] = {0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A};
-    static const unsigned char IEND[4] = {0x49, 0x45, 0x4E, 0x44}; // "IEND"
-
-    if (data.size() < 16) {
-        return false; // too small to hold signature + a terminating IEND chunk
-    }
-    if (std::memcmp(data.data(), SIG, sizeof(SIG)) != 0) {
-        return false; // not a PNG
-    }
-    // A complete stream ends with [len=0]["IEND"][CRC], so the IEND marker sits in
-    // the last 12 bytes; scan the final 16 to tolerate a stray trailing byte.
-    constexpr size_t window = 16;
-    const unsigned char* tail = data.data() + (data.size() - window);
-    for (size_t i = 0; i + sizeof(IEND) <= window; ++i) {
-        if (std::memcmp(tail + i, IEND, sizeof(IEND)) == 0) {
-            return true;
-        }
-    }
-    return false; // no IEND near the end → truncated/corrupt
-}
-
 ProcessResult
 ThumbnailProcessor::do_process(const std::vector<uint8_t>& png_data, const std::string& source_path,
                                const std::string& cache_key, const ThumbnailTarget& target,
@@ -440,11 +412,12 @@ ThumbnailProcessor::do_process(const std::vector<uint8_t>& png_data, const std::
         return result;
     }
 
-    // Reject truncated/corrupt or non-PNG data before stb_image touches it (see
-    // is_complete_png). All thumbnails in this pipeline are PNG (Moonraker-served
-    // or extracted from gcode), so a complete-PNG gate is both correct and tightest.
-    if (!is_complete_png(png_data)) {
-        result.error = "Incomplete or non-PNG thumbnail data (truncated or corrupt)";
+    // stb_image is fragile on malformed/truncated input: a severed stream (the
+    // 100 KB gcode-header boundary, a partial download) can drive heap
+    // overreads on this worker that surface later as an unrelated abort on the
+    // main thread (debug bundle 783DVYKD). Only a complete PNG or JPEG is decoded.
+    if (!is_complete_image(png_data)) {
+        result.error = "Incomplete or unsupported thumbnail data (not a complete PNG or JPEG)";
         return result;
     }
 

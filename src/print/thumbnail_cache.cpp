@@ -13,6 +13,7 @@
 #include "system/crash_handler.h"
 #include "system/helix_paths.h"
 #include "text_io.h"
+#include "thumbnail_rules.h"
 
 #include <spdlog/spdlog.h>
 
@@ -751,15 +752,12 @@ std::string ThumbnailCache::save_raw_png(const std::string& source_identifier,
         return "";
     }
 
-    if (png_data.size() < 8) {
-        spdlog::warn("[ThumbnailCache] PNG data too small ({} bytes)", png_data.size());
-        return "";
-    }
-
-    // Validate PNG magic bytes: 89 50 4E 47 0D 0A 1A 0A
-    static const uint8_t png_magic[] = {0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A};
-    if (std::memcmp(png_data.data(), png_magic, sizeof(png_magic)) != 0) {
-        spdlog::warn("[ThumbnailCache] Invalid PNG magic bytes in save_raw_png");
+    // The file is named .png and LVGL picks its decoder by that name, so a
+    // JPEG is re-encoded and anything else is refused.
+    const std::vector<uint8_t> png = helix::ensure_png(png_data);
+    if (png.empty()) {
+        spdlog::warn("[ThumbnailCache] save_raw_png: {} is not a PNG or decodable JPEG ({} bytes)",
+                     source_identifier, png_data.size());
         return "";
     }
 
@@ -801,13 +799,13 @@ std::string ThumbnailCache::save_raw_png(const std::string& source_identifier,
         std::lock_guard<std::mutex> lock(mutex_);
 
         // Write PNG data to cache file
-        if (!helix::text_io::write_file(
-                cache_path, {reinterpret_cast<const char*>(png_data.data()), png_data.size()})) {
+        if (!helix::text_io::write_file(cache_path,
+                                        {reinterpret_cast<const char*>(png.data()), png.size()})) {
             spdlog::error("[ThumbnailCache] Failed to create cache file: {}", cache_path);
             return "";
         }
 
-        spdlog::debug("[ThumbnailCache] Saved {} bytes from gcode extraction: {}", png_data.size(),
+        spdlog::debug("[ThumbnailCache] Saved {} bytes from gcode extraction: {}", png.size(),
                       cache_path);
 
         // The pre-scaled .bin variants still on disk were derived from

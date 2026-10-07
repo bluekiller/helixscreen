@@ -361,7 +361,7 @@ TEST_CASE("ThumbnailCache save_raw_png validates PNG data", "[assets][cache][sav
         REQUIRE(result.empty());
     }
 
-    SECTION("Rejects JPEG data (wrong magic)") {
+    SECTION("Rejects a JPEG that does not decode") {
         std::vector<uint8_t> jpeg_data = {0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, 0x4A, 0x46};
         std::string result = cache.save_raw_png("test_jpeg", jpeg_data);
         REQUIRE(result.empty());
