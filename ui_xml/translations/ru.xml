@@ -2542,6 +2542,9 @@
   <translation tag="Run the HelixScreen installer with --update from a terminal on this printer. Scan for the command for your platform." ru="Запустите установщик HelixScreen с ключом --update в терминале на этом принтере. Отсканируйте код, чтобы получить команду для вашей платформы."/>
   <translation tag="Run the chamber dryer too" ru="Включить и сушилку камеры"/>
   <translation tag="Run {}?" ru="Запустить {}?"/>
+  <translation tag="Running balanced" ru="Сбалансирован"/>
+  <translation tag="Running loose" ru="Ослаблен"/>
+  <translation tag="Running tight" ru="Натянут"/>
   <translation tag="Running {}..." ru="Выполнение {}..."/>
   <translation tag="Runout" ru="Окончание"/>
   <translation tag="Runout Sensor" ru="Датчик окончания"/>
@@ -2886,6 +2889,7 @@
   <translation tag="Switching heater control to MPC. Klipper will restart." ru="Переключение управления нагревом на MPC. Klipper перезапустится."/>
   <translation tag="Switching to MPC changes how this heater is controlled, then calibrates it. That takes several minutes at temperature." ru="Переход на MPC меняет способ управления этим нагревателем, а затем калибрует его. Это занимает несколько минут при рабочей температуре."/>
   <translation tag="Switching to MPC requires a config change and Klipper restart." ru="Переход на MPC требует изменения конфига и перезапуска Klipper."/>
+  <translation tag="Sync" ru="Синхр."/>
   <translation tag="Sync during printing" ru="Синхронизация во время печати"/>
   <translation tag="Sync with Spoolman" ru="Синхронизация со Spoolman"/>
   <translation tag="Sysfs" ru="Sysfs"/>
@@ -3494,6 +3498,7 @@
   <translation tag="steppers" ru="шаговые двигатели"/>
   <translation tag="sweeping" ru="идёт измерение"/>
   <translation tag="tall" ru="высотой"/>
+  <translation tag="target {}%" ru="цель {}%"/>
   <translation tag="target {}°" ru="цель {}°"/>
   <translation tag="tool(s)" ru="инструмент(ы)"/>
   <translation tag="used" ru="использ."/>

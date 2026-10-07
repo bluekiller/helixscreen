@@ -79,6 +79,18 @@ ClogMeterStatus pressure_status(int pct) {
     return ClogMeterStatus::Ok;
 }
 
+const char* buffer_status_token(ClogMeterStatus s) {
+    switch (s) {
+    case ClogMeterStatus::Warning:
+        return "warning";
+    case ClogMeterStatus::Fault:
+        return "danger";
+    case ClogMeterStatus::Ok:
+        break;
+    }
+    return "text_muted";
+}
+
 BufferLean buffer_lean(float bias) {
     if (std::fabs(bias) < 0.02f) {
         return BufferLean::Balanced;

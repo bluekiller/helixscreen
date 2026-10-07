@@ -327,3 +327,10 @@ TEST_CASE("buffer_lean: tension is tight, compression loose, a deadband between"
     CHECK(buffer_lean(-0.3f) == BufferLean::Tight);
     CHECK(buffer_lean(0.15f) == BufferLean::Loose);
 }
+
+TEST_CASE("buffer_status_token: neutral on target, warning off it, danger at an end stop",
+          "[clog][status][buffer]") {
+    CHECK(std::string(buffer_status_token(ClogMeterStatus::Ok)) == "text_muted");
+    CHECK(std::string(buffer_status_token(ClogMeterStatus::Warning)) == "warning");
+    CHECK(std::string(buffer_status_token(ClogMeterStatus::Fault)) == "danger");
+}

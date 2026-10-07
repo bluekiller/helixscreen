@@ -2542,6 +2542,9 @@
   <translation tag="Run the HelixScreen installer with --update from a terminal on this printer. Scan for the command for your platform." en="Run the HelixScreen installer with --update from a terminal on this printer. Scan for the command for your platform."/>
   <translation tag="Run the chamber dryer too" en="Run the chamber dryer too"/>
   <translation tag="Run {}?" en="Run {}?"/>
+  <translation tag="Running balanced" en="Running balanced"/>
+  <translation tag="Running loose" en="Running loose"/>
+  <translation tag="Running tight" en="Running tight"/>
   <translation tag="Running {}..." en="Running {}..."/>
   <translation tag="Runout" en="Runout"/>
   <translation tag="Runout Sensor" en="Runout Sensor"/>
@@ -2886,6 +2889,7 @@
   <translation tag="Switching heater control to MPC. Klipper will restart." en="Switching heater control to MPC. Klipper will restart."/>
   <translation tag="Switching to MPC changes how this heater is controlled, then calibrates it. That takes several minutes at temperature." en="Switching to MPC changes how this heater is controlled, then calibrates it. That takes several minutes at temperature."/>
   <translation tag="Switching to MPC requires a config change and Klipper restart." en="Switching to MPC requires a config change and Klipper restart."/>
+  <translation tag="Sync" en="Sync"/>
   <translation tag="Sync during printing" en="Sync during printing"/>
   <translation tag="Sync with Spoolman" en="Sync with Spoolman"/>
   <translation tag="Sysfs" en="Sysfs"/>
@@ -3494,6 +3498,7 @@
   <translation tag="steppers" en="steppers"/>
   <translation tag="sweeping" en="sweeping"/>
   <translation tag="tall" en="tall"/>
+  <translation tag="target {}%" en="target {}%"/>
   <translation tag="target {}°" en="target {}°"/>
   <translation tag="tool(s)" en="tool(s)"/>
   <translation tag="used" en="used"/>

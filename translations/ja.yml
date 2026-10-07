@@ -2642,6 +2642,9 @@ translations:
   Run the chamber dryer too: チャンバーのドライヤーも使う
 
   Run {}?: '{} を実行しますか？'
+  Running balanced: '均衡'
+  Running loose: '緩み気味'
+  Running tight: '張り気味'
   Running {}...: '{} を実行中...'
   Runout: 'フィラメント切れ'
   Runout Sensor: フィラメント切れセンサー
@@ -3005,6 +3008,7 @@ translations:
   Switching heater control to MPC. Klipper will restart.: ヒーター制御をMPCに切り替えます。Klipperが再起動します。
   Switching to MPC changes how this heater is controlled, then calibrates it. That takes several minutes at temperature.: MPCに切り替えると、このヒーターの制御方法が変わり、その後キャリブレーションが行われます。温度に達した状態で数分かかります。
   Switching to MPC requires a config change and Klipper restart.: MPCへの切り替えには設定変更とKlipperの再起動が必要です。
+  Sync: '同期'
   Sync during printing: 印刷中に同期
   Sync with Spoolman: Spoolman と同期
   Sysfs: Sysfs
@@ -3664,6 +3668,7 @@ translations:
   steppers: ステッパー
   sweeping: 測定中
   tall: 高さ
+  target {}%: '目標 {}%'
   target {}°: '目標 {}°'
   tool(s): ツール
   used: 使用

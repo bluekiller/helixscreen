@@ -2729,6 +2729,9 @@ translations:
   Run the HelixScreen installer with --update from a terminal on this printer. Scan for the command for your platform.: Run the HelixScreen installer with --update from a terminal on this printer. Scan for the command for your platform.
   Run the chamber dryer too: Run the chamber dryer too
   Run {}?: Run {}?
+  Running balanced: Running balanced
+  Running loose: Running loose
+  Running tight: Running tight
   Running {}...: Running {}...
   Runout: Runout
   Runout Sensor: Runout Sensor
@@ -3115,6 +3118,7 @@ translations:
   Switching to MPC changes how this heater is controlled, then calibrates it. That takes several minutes at temperature.: Switching to MPC changes how this heater is controlled, then calibrates it. That takes several minutes at temperature.
   Switching to MPC requires a config change and Klipper restart.: Switching to MPC
     requires a config change and Klipper restart.
+  Sync: Sync
   Sync during printing: Sync during printing
   Sync with Spoolman: Sync with Spoolman
   Sysfs: Sysfs
@@ -3802,6 +3806,7 @@ translations:
   steppers: steppers
   sweeping: sweeping
   tall: tall
+  target {}%: target {}%
   target {}°: target {}°
   tool(s): tool(s)
   used: used

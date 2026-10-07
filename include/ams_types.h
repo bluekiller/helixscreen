@@ -1768,27 +1768,33 @@ struct AmsSystemInfo {
         return sync_feedback_bias;
     }
 
-    /// The filament pressure sensor feeding the toolhead: the current slot's
-    /// unit's, else the first unit's that has one. nullptr when no unit
-    /// reports pressure against a set point.
-    [[nodiscard]] const BufferHealth* feeding_pressure_sensor() const {
-        const AmsUnit* active = get_unit_for_slot(current_slot);
-        if (active && active->buffer_health && active->buffer_health->has_fps()) {
-            return &*active->buffer_health;
+    /// Index of the unit whose filament pressure sensor feeds the toolhead: the
+    /// current slot's unit, else the first unit that reports pressure (with
+    /// several lanes loaded there is no current slot). -1 when none does. A
+    /// sensor without a set point counts: it has a reading, just nothing to
+    /// centre it on.
+    [[nodiscard]] int feeding_pressure_unit() const {
+        auto reports = [this](int pos) {
+            const auto& health = units[static_cast<size_t>(pos)].buffer_health;
+            return health && health->fps_reported;
+        };
+        const int active = get_unit_position_for_slot(current_slot);
+        if (active >= 0 && reports(active)) {
+            return active;
         }
-        for (const auto& unit : units) {
-            if (unit.buffer_health && unit.buffer_health->has_fps()) {
-                return &*unit.buffer_health;
+        for (int pos = 0; pos < static_cast<int>(units.size()); ++pos) {
+            if (reports(pos)) {
+                return pos;
             }
         }
-        return nullptr;
+        return -1;
     }
 
-    /// System-level bias for backends with a pressure sensor per unit, from
-    /// feeding_pressure_sensor(). -1.5 when no unit reports pressure.
+    /// System-level bias from feeding_pressure_unit(): -1.5 when that sensor has no set
+    /// point, or when no unit reports pressure.
     [[nodiscard]] float pressure_sensor_bias() const {
-        const BufferHealth* sensor = feeding_pressure_sensor();
-        return sensor ? sensor->fps_to_bias() : -1.5f;
+        const int pos = feeding_pressure_unit();
+        return pos >= 0 ? units[static_cast<size_t>(pos)].buffer_health->fps_to_bias() : -1.5f;
     }
 
     /// Which clog-meter sources this snapshot can feed. The meter's source

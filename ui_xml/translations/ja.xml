@@ -2542,6 +2542,9 @@
   <translation tag="Run the HelixScreen installer with --update from a terminal on this printer. Scan for the command for your platform." ja="このプリンターのターミナルで HelixScreen インストーラーを --update 付きで実行してください。プラットフォーム別のコマンドはスキャンして確認できます。"/>
   <translation tag="Run the chamber dryer too" ja="チャンバーのドライヤーも使う"/>
   <translation tag="Run {}?" ja="{} を実行しますか？"/>
+  <translation tag="Running balanced" ja="均衡"/>
+  <translation tag="Running loose" ja="緩み気味"/>
+  <translation tag="Running tight" ja="張り気味"/>
   <translation tag="Running {}..." ja="{} を実行中..."/>
   <translation tag="Runout" ja="フィラメント切れ"/>
   <translation tag="Runout Sensor" ja="フィラメント切れセンサー"/>
@@ -2886,6 +2889,7 @@
   <translation tag="Switching heater control to MPC. Klipper will restart." ja="ヒーター制御をMPCに切り替えます。Klipperが再起動します。"/>
   <translation tag="Switching to MPC changes how this heater is controlled, then calibrates it. That takes several minutes at temperature." ja="MPCに切り替えると、このヒーターの制御方法が変わり、その後キャリブレーションが行われます。温度に達した状態で数分かかります。"/>
   <translation tag="Switching to MPC requires a config change and Klipper restart." ja="MPCへの切り替えには設定変更とKlipperの再起動が必要です。"/>
+  <translation tag="Sync" ja="同期"/>
   <translation tag="Sync during printing" ja="印刷中に同期"/>
   <translation tag="Sync with Spoolman" ja="Spoolman と同期"/>
   <translation tag="Sysfs" ja="Sysfs"/>
@@ -3494,6 +3498,7 @@
   <translation tag="steppers" ja="ステッパー"/>
   <translation tag="sweeping" ja="測定中"/>
   <translation tag="tall" ja="高さ"/>
+  <translation tag="target {}%" ja="目標 {}%"/>
   <translation tag="target {}°" ja="目標 {}°"/>
   <translation tag="tool(s)" ja="ツール"/>
   <translation tag="used" ja="使用"/>

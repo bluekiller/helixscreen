@@ -2785,6 +2785,9 @@ translations:
   Run the chamber dryer too: Включить и сушилку камеры
 
   Run {}?: Запустить {}?
+  Running balanced: 'Сбалансирован'
+  Running loose: 'Ослаблен'
+  Running tight: 'Натянут'
   Running {}...: Выполнение {}...
   Runout: 'Окончание'
   Runout Sensor: Датчик окончания
@@ -3181,6 +3184,7 @@ translations:
   Switching to MPC changes how this heater is controlled, then calibrates it. That takes several minutes at temperature.: Переход на MPC меняет способ управления этим нагревателем, а затем калибрует его. Это занимает несколько минут при рабочей температуре.
   Switching to MPC requires a config change and Klipper restart.: Переход на MPC требует
     изменения конфига и перезапуска Klipper.
+  Sync: 'Синхр.'
   Sync during printing: Синхронизация во время печати
   Sync with Spoolman: Синхронизация со Spoolman
   Sysfs: Sysfs
@@ -3879,6 +3883,7 @@ translations:
   steppers: шаговые двигатели
   sweeping: идёт измерение
   tall: высотой
+  target {}%: 'цель {}%'
   target {}°: 'цель {}°'
   tool(s): инструмент(ы)
   used: использ.

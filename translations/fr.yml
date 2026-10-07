@@ -2829,6 +2829,9 @@ translations:
   Run the chamber dryer too: Faire aussi tourner le séchoir de l'enceinte
 
   Run {}?: Exécuter {} ?
+  Running balanced: 'Équilibré'
+  Running loose: 'Détendu'
+  Running tight: 'Tendu'
   Running {}...: Exécution de {}...
   Runout: 'Fin de filament'
   Runout Sensor: Capteur de fin de filament
@@ -3235,6 +3238,7 @@ translations:
   Switching to MPC changes how this heater is controlled, then calibrates it. That takes several minutes at temperature.: Le passage à MPC change la façon dont ce chauffage est contrôlé, puis le calibre. Cela prend plusieurs minutes à température.
   Switching to MPC requires a config change and Klipper restart.: Le passage à MPC
     nécessite une modification de la config et un redémarrage de Klipper.
+  Sync: 'Sync'
   Sync during printing: 'Synchroniser pendant l''impression'
   Sync with Spoolman: Synchroniser avec Spoolman
   Sysfs: Sysfs
@@ -3956,6 +3960,7 @@ translations:
   steppers: moteurs pas à pas
   sweeping: en cours de mesure
   tall: de haut
+  target {}%: 'cible {}%'
   target {}°: 'cible {}°'
   tool(s): outil(s)
   used: utilisé

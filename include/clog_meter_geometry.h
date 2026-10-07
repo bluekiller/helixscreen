@@ -75,6 +75,10 @@ constexpr int kPressureFaultPct = 70;
 /// Severity of a buffer reading, `bias * 100` (-100..+100), by magnitude.
 ClogMeterStatus pressure_status(int pct);
 
+/// The design token a buffer reading of this severity is drawn in: neutral on
+/// target, warning off it, danger near an end stop.
+const char* buffer_status_token(ClogMeterStatus s);
+
 /// Which way a buffer bias (-1..+1) leans. Negative is tension (the extruder
 /// pulling harder than the feeder pushes), positive is compression.
 enum class BufferLean : int { Balanced, Tight, Loose };

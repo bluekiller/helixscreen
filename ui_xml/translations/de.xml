@@ -2542,6 +2542,9 @@
   <translation tag="Run the HelixScreen installer with --update from a terminal on this printer. Scan for the command for your platform." de="HelixScreen-Installer mit --update in einem Terminal auf diesem Drucker ausführen. Für den passenden Befehl den Code scannen."/>
   <translation tag="Run the chamber dryer too" de="Kammertrockner ebenfalls betreiben"/>
   <translation tag="Run {}?" de="{} ausführen?"/>
+  <translation tag="Running balanced" de="Läuft ausgeglichen"/>
+  <translation tag="Running loose" de="Läuft locker"/>
+  <translation tag="Running tight" de="Läuft straff"/>
   <translation tag="Running {}..." de="{} wird ausgeführt..."/>
   <translation tag="Runout" de="Auslauf"/>
   <translation tag="Runout Sensor" de="Auslaufsensor"/>
@@ -2886,6 +2889,7 @@
   <translation tag="Switching heater control to MPC. Klipper will restart." de="Heizungsregelung wird auf MPC umgestellt. Klipper wird neu starten."/>
   <translation tag="Switching to MPC changes how this heater is controlled, then calibrates it. That takes several minutes at temperature." de="Der Wechsel zu MPC ändert, wie diese Heizung geregelt wird, und kalibriert sie anschließend. Das dauert mehrere Minuten bei Betriebstemperatur."/>
   <translation tag="Switching to MPC requires a config change and Klipper restart." de="Wechsel zu MPC erfordert eine Konfigurationsänderung und Klipper-Neustart."/>
+  <translation tag="Sync" de="Sync"/>
   <translation tag="Sync during printing" de="Beim Drucken synchronisieren"/>
   <translation tag="Sync with Spoolman" de="Mit Spoolman synchronisieren"/>
   <translation tag="Sysfs" de="Sysfs"/>
@@ -3494,6 +3498,7 @@
   <translation tag="steppers" de="Schrittmotoren"/>
   <translation tag="sweeping" de="wird gemessen"/>
   <translation tag="tall" de="hoch"/>
+  <translation tag="target {}%" de="Ziel {}%"/>
   <translation tag="target {}°" de="Ziel {}°"/>
   <translation tag="tool(s)" de="Werkzeug(e)"/>
   <translation tag="used" de="verbraucht"/>
