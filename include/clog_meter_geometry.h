@@ -137,7 +137,7 @@ struct ClogMeterSample {
 /// Width of the value marker and the peak tick, in px. Both are deliberately
 /// thin: the fill carries the reading, and these two only say "here" and
 /// "worst so far". clog_bar_geometry() keeps both inside the track by this
-/// width, and clog_bar_page.xml authors the same figure.
+/// width, and clog_bar_body.xml authors the same figure.
 constexpr int kClogBarTickW = 2;
 
 /// Pixel geometry of the horizontal FlowGuard bar, in track-local coordinates.

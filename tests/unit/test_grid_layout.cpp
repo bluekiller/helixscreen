@@ -481,7 +481,7 @@ TEST_CASE("PanelWidgetDef: half-cell capability is classified per widget",
         {"temp_stack", {true, true}},        // 2-3 stacked readout rows
         {"fan_stack", {true, true}},         // 2-3 stacked readout rows
         {"tool_switcher", {true, true}},     // horizontal chip strip
-        {"clog_detection", {true, true}},    // carousel arc scales with the box
+        {"clog_detection", {true, true}},    // horizontal bar scales with the box
         {"filament_buffer", {false, false}}, // slider tile; the trace needs a whole second cell
         {"preheat", {true, false}},          // flex row; row span is fixed
         {"fan", {true, true}},               // user fan name, long_mode=dots

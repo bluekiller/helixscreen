@@ -540,7 +540,6 @@ void register_xml_components() {
     register_xml("components/panel_widget_nozzle_temps.xml");
     register_xml("components/panel_widget_job_queue.xml");
     register_xml("components/clog_bar_body.xml");
-    register_xml("components/clog_bar_page.xml");
     register_xml("components/panel_widget_clog_detection.xml");
     register_xml("components/panel_widget_filament_buffer.xml");
     register_xml("components/panel_widget_print_stats.xml");
