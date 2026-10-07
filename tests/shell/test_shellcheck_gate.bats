@@ -1,7 +1,7 @@
 #!/usr/bin/env bats
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
-# Meta-tests for the shellcheck section of scripts/quality-checks.sh.
+# Meta-tests for the shellcheck gate, scripts/qc/shellcheck.sh.
 #
 # The gate used to cover config/platform/*.sh and config/helixscreen.init and
 # nothing else, so every script under scripts/ — the installer modules, the
@@ -16,7 +16,7 @@
 # must be clean. Without those the baseline silently becomes a permanent
 # exemption list and the gate stops meaning anything.
 
-QC="scripts/quality-checks.sh"
+QC="scripts/qc/shellcheck.sh"
 
 setup() {
     cd "$BATS_TEST_DIRNAME/../.." || return 1

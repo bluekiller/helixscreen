@@ -1001,17 +1001,17 @@ SHAPES
 # and `make test-shell` only runs late in the release. These pin the wiring.
 
 @test "the translation coverage gate is wired into quality-checks.sh" {
-  run grep -c 'qc_translation_coverage' scripts/quality-checks.sh
+  run grep -q 'QC_ALL=.*qc_translation_coverage' scripts/quality-checks.sh
   [ "$status" -eq 0 ]
-  # definition, QC_ALL registration, and the path-gating trigger row
-  [ "$output" -ge 3 ]
+  run grep -q '^qc_translation_coverage() {' scripts/qc/translation_coverage.sh
+  [ "$status" -eq 0 ]
 }
 
 @test "quality-checks.sh runs the coverage gate as a dry run" {
   # A bare `sync` REWRITES all nine catalogs. A gate that edits the tree it is
   # inspecting would stage catalog churn behind the committer's back, and would
   # then report green on the very drift it just introduced.
-  run grep -n 'translation_sync.py sync' scripts/quality-checks.sh
+  run grep -n 'translation_sync.py sync' scripts/qc/translation_coverage.sh
   [ "$status" -eq 0 ]
   while IFS= read -r line; do
     contains "--dry-run" "$line"
@@ -1022,7 +1022,7 @@ SHAPES
   # A new lv_tr() in src/ or a label_tag in ui_xml/ is what ADDS an untranslated
   # string; gating the check on ^translations/ alone would sleep through exactly
   # the commit that introduces one.
-  run bash -c "sed -n '/qc_translation_coverage)/,/;;/p' scripts/quality-checks.sh"
+  run qc_trigger translation_coverage
   [ "$status" -eq 0 ]
   contains "^ui_xml/" "$output"
   [[ "$output" == *"^src/"* ]]
@@ -1038,7 +1038,7 @@ SHAPES
   if [ ! -x .venv/bin/python ]; then
     skip "translations venv not set up (run 'make venv-setup')"
   fi
-  run bash -c "sed -n '/^qc_translation_coverage() {/,/^}/p' scripts/quality-checks.sh"
+  run bash -c "sed -n '/^qc_translation_coverage() {/,/^}/p' scripts/qc/translation_coverage.sh"
   [ "$status" -eq 0 ]
   contains "tests/python/test_cpp_translation_coverage.py" "$output"
   contains "-m pytest" "$output"
@@ -1057,7 +1057,7 @@ run_coverage_gate_without_venv() {
     section_time() { :; }
     STAGED_ONLY="$1"
     VENV_PYTHON="/nonexistent/helix-venv/bin/python"
-    eval "$(sed -n "/^qc_translation_coverage() {/,/^}/p" scripts/quality-checks.sh)"
+    . scripts/qc/translation_coverage.sh
     qc_translation_coverage
   ' _ "$1"
 }

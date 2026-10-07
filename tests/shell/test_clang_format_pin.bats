@@ -29,7 +29,8 @@ fake_clang_format() {
 resolve() {
   bash -c '
     REPO_ROOT="$1"
-    eval "$(sed -n "/^qc_resolve_clang_format() {/,/^}/p" scripts/quality-checks.sh)"
+    . scripts/qc/_lib.sh
+    . scripts/qc/phase2.sh
     if qc_resolve_clang_format; then echo "resolved: $CF_BIN"; else echo "unresolved: $CF_RESOLVE_ERR"; fi
   ' _ "$FAKE_ROOT"
 }
@@ -39,7 +40,7 @@ resolve() {
   [ "$status" -eq 0 ]
   contains "unresolved:" "$output"
   contains "18.1.8" "$output"
-  run grep -n 'make venv-setup' scripts/quality-checks.sh
+  run grep -n 'make venv-setup' scripts/qc/phase2.sh
   [ "$status" -eq 0 ]
 }
 
@@ -74,6 +75,6 @@ resolve() {
   mock_command_script "clang-format-18" 'echo "clang-format version 18.1.8"'
   run resolve
   contains "unresolved:" "$output"
-  run grep -c 'clang-format-18' scripts/quality-checks.sh
-  [ "$output" = "0" ] || fail "quality-checks.sh still names a PATH fallback"
+  run bash -c "cat scripts/quality-checks.sh scripts/qc/*.sh | grep -c 'clang-format-18'"
+  [ "$output" = "0" ] || fail "the quality gate still names a PATH fallback"
 }
