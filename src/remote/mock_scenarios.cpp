@@ -100,14 +100,14 @@ static void clear_clog_sources(AmsBackendMock& mock) {
     }
 }
 
-/// A filament pressure sensor on unit 0 reading `pressure` against a 0.5 set
-/// point, and nothing else measuring. Read as such by every simulated type
-/// but Happy Hare, whose buffer is system-level.
-static void set_fps(AmsBackendMock& mock, float pressure) {
+/// A filament pressure sensor on unit 0 reading `pressure` against
+/// `set_point` (-1: none published), and nothing else measuring. Read as such
+/// by every simulated type but Happy Hare, whose buffer is system-level.
+static void set_fps(AmsBackendMock& mock, float pressure, float set_point = 0.5f) {
     clear_clog_sources(mock);
     BufferHealth h;
     h.fps_value = h.smoothed_fps = pressure;
-    h.fps_set_point = 0.5f;
+    h.fps_set_point = set_point;
     h.fps_reported = true;
     mock.set_unit_buffer_health(0, h);
 }
@@ -211,6 +211,9 @@ static std::vector<MockScenario> clog_scenarios() {
 
     s.push_back({"buffer_fps_loose", "Filament pressure sensor above its set point (loose)",
                  []() { apply_clog_state([](AmsBackendMock& m) { set_fps(m, 0.71f); }); }});
+
+    s.push_back({"buffer_fps_no_target", "Filament pressure sensor with no set point",
+                 []() { apply_clog_state([](AmsBackendMock& m) { set_fps(m, 0.32f, -1.0f); }); }});
 
     s.push_back({"sync_feedback_tight", "Happy Hare sync feedback leaning to tension", []() {
                      apply_clog_state([](AmsBackendMock& m) {

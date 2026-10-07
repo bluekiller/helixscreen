@@ -8,6 +8,7 @@
 #include "ams_state.h"
 #include "buffer_reading.h"
 #include "buffer_slider_geometry.h"
+#include "observer_factory.h"
 #include "theme_manager.h"
 
 #include <spdlog/spdlog.h>
@@ -43,7 +44,25 @@ UiBufferSlider::UiBufferSlider(lv_obj_t* slider_obj, lv_obj_t* trace_obj, int tr
     }
 }
 
+void UiBufferSlider::follow_system_reading() {
+    auto& ams = AmsState::instance();
+    const auto lifetime = ams.get_subjects_lifetime();
+    // Immediate: the handlers only store the reading and invalidate.
+    bias_observer_ = observe<int>(
+        ams.get_buffer_bias_pct_subject(), this,
+        [](UiBufferSlider* self, int pct) { self->set_reading(pct / 100.0f, self->status_); },
+        lifetime, Dispatch::Immediate);
+    status_observer_ = observe<int>(
+        ams.get_buffer_status_subject(), this,
+        [](UiBufferSlider* self, int status) {
+            self->set_reading(self->bias_, static_cast<ClogMeterStatus>(status));
+        },
+        lifetime, Dispatch::Immediate);
+}
+
 UiBufferSlider::~UiBufferSlider() {
+    bias_observer_.reset();
+    status_observer_.reset();
     trace_timer_.reset();
     for (lv_obj_t* obj : {slider_obj_, trace_obj_}) {
         if (obj) {

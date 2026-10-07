@@ -368,6 +368,9 @@ void AmsState::clear_backends() {
     optimistic_action_until_.reset();
     // Every trace describes the departing backend's buffers.
     buffer_traces_.clear();
+    if (initialized_) {
+        publish_buffer_reading(BufferReading{});
+    }
 
     // Drop AMS-derived tool topology so the UI doesn't show stale tool pills
     // between backend disappearance and the next reconnect's init_tools().

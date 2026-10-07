@@ -1036,6 +1036,27 @@ class AmsState {
      * Empty for a unit that has never had a reading. Main thread only.
      */
     [[nodiscard]] const BufferTrace& buffer_trace(int unit) const;
+
+    /// The system-level buffer reading (buffer_reading(info, -1)), as the home
+    /// widget and the loaded card bind it. Observe with get_subjects_lifetime().
+    lv_subject_t* get_buffer_present_subject() {
+        return &buffer_present_;
+    }
+    lv_subject_t* get_buffer_slider_subject() {
+        return &buffer_slider_;
+    }
+    lv_subject_t* get_buffer_bias_pct_subject() {
+        return &buffer_bias_pct_;
+    }
+    lv_subject_t* get_buffer_status_subject() {
+        return &buffer_status_;
+    }
+    lv_subject_t* get_buffer_label_subject() {
+        return &buffer_label_;
+    }
+    lv_subject_t* get_buffer_value_text_subject() {
+        return &buffer_value_text_;
+    }
     lv_subject_t* get_clog_meter_mode_text_subject() {
         return &clog_meter_mode_text_;
     }
@@ -1757,8 +1778,11 @@ class AmsState {
     /** @brief Sync clog detection meter subjects from system info */
     void sync_clog_meter_from_info(const AmsSystemInfo& info);
 
-    /** @brief Note every buffer reading in its trace */
+    /** @brief Publish the system-level buffer reading and note every reading in its trace */
     void sync_buffer_from_info(const AmsSystemInfo& info, int64_t now_ms);
+
+    /** @brief Write one reading onto the buffer_* subjects */
+    void publish_buffer_reading(const BufferReading& r);
 
     /**
      * @brief Sync the endless-spool status subjects from a backend's capabilities.
@@ -2102,6 +2126,15 @@ class AmsState {
     // Clog detection meter subjects
     /// Buffer reading traces, keyed by unit position, -1 for the system-level reading.
     std::map<int, BufferTrace> buffer_traces_;
+
+    lv_subject_t buffer_present_{};  // 0/1: a proportional reading exists (widget gate)
+    lv_subject_t buffer_slider_{};   // 0/1: it has a set point, so the slider draws
+    lv_subject_t buffer_bias_pct_{}; // -100 tight .. +100 loose
+    lv_subject_t buffer_status_{};   // ClogMeterStatus of the bias
+    lv_subject_t buffer_label_{};    // "FPS" / "Sync"
+    char buffer_label_buf_[16]{};
+    lv_subject_t buffer_value_text_{}; // "32%", "-45%", "Pressure: 32%"
+    char buffer_value_text_buf_[48]{};
 
     lv_subject_t clog_meter_mode_{};  // ClogMeterMode: 0=none, 1=encoder, 2=flowguard, 3=afc_buffer
     lv_subject_t clog_meter_value_{}; // 0-100 (encoder/afc) or -100..+100 (flowguard)

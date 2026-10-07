@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "ui_observer_guard.h"
 #include "ui_timer_guard.h"
 
 #include "clog_meter_geometry.h"
@@ -33,6 +34,10 @@ class UiBufferSlider {
     UiBufferSlider& operator=(const UiBufferSlider&) = delete;
 
     void set_reading(float bias, ClogMeterStatus status);
+
+    /// Draw AmsState's system-level reading (buffer_bias_pct, buffer_status),
+    /// following it as it changes.
+    void follow_system_reading();
 
     [[nodiscard]] float bias() const {
         return bias_;
@@ -66,6 +71,8 @@ class UiBufferSlider {
     lv_obj_t* trace_obj_ = nullptr;
     int trace_unit_ = -1;
     LvglTimerGuard trace_timer_;
+    ObserverGuard bias_observer_;
+    ObserverGuard status_observer_;
     int trace_ticks_ = 0;
 
     float bias_ = 0.0f;

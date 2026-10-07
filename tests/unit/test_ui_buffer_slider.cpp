@@ -9,6 +9,7 @@
 #include "ui_buffer_slider.h"
 
 #include "../lvgl_test_fixture.h"
+#include "../test_helpers/ams_state_test_access.h"
 #include "ams_state.h"
 
 #include <memory>
@@ -16,6 +17,7 @@
 #include "../catch_amalgamated.hpp"
 
 using namespace helix;
+using helix::ui::ClogMeterStatus;
 using helix::ui::UiBufferSlider;
 
 namespace {
@@ -59,4 +61,23 @@ TEST_CASE_METHOD(LVGLTestFixture, "UiBufferSlider outlives the objects it draws 
     lv_obj_delete(slider_obj);
     slider.reset(); // removes no callback from a freed object
     process_lvgl(100);
+}
+
+TEST_CASE_METHOD(LVGLTestFixture, "UiBufferSlider follows the system-level reading",
+                 "[buffer][slider]") {
+    auto& ams = AmsState::instance();
+    ams.init_subjects(false);
+    UiBufferSlider slider(box(test_screen(), 24, 120));
+    slider.follow_system_reading();
+
+    AmsSystemInfo info;
+    info.sync_feedback_bias = -0.45f;
+    AmsStateTestAccess::sync_buffer(ams, info, 0);
+    CHECK(slider.bias() == Catch::Approx(-0.45f));
+    CHECK(slider.status() == ClogMeterStatus::Warning);
+
+    AmsStateTestAccess::sync_buffer(ams, AmsSystemInfo{}, 0);
+    CHECK(slider.bias() == Catch::Approx(0.0f));
+    CHECK(slider.status() == ClogMeterStatus::Ok);
+    AmsStateTestAccess::clear_buffer_traces(ams);
 }

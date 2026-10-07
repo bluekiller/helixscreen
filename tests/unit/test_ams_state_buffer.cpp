@@ -10,6 +10,9 @@
 #include "../test_helpers/ams_state_test_access.h"
 #include "../test_helpers/buffer_infos.h"
 #include "ams_state.h"
+#include "clog_meter_geometry.h"
+
+#include <string>
 
 #include "../catch_amalgamated.hpp"
 
@@ -56,5 +59,68 @@ TEST_CASE_METHOD(LVGLTestFixture, "AmsState keeps a trace per buffer reading",
         ams.clear_backends();
         CHECK(ams.buffer_trace(-1).size() == 0);
         CHECK(ams.buffer_trace(0).size() == 0);
+    }
+}
+
+namespace {
+int subject_int(lv_subject_t* s) {
+    return lv_subject_get_int(s);
+}
+std::string text_of(lv_subject_t* s) {
+    return lv_subject_get_string(s);
+}
+} // namespace
+
+TEST_CASE_METHOD(LVGLTestFixture, "AmsState publishes the system-level buffer reading",
+                 "[ams][buffer][subjects]") {
+    auto& ams = AmsState::instance();
+    ams.init_subjects(false);
+    ResetBuffer reset{ams};
+
+    SECTION("Happy Hare sync feedback") {
+        AmsSystemInfo info;
+        info.sync_feedback_bias = -0.45f;
+        AmsStateTestAccess::sync_buffer(ams, info, 0);
+        CHECK(subject_int(ams.get_buffer_present_subject()) == 1);
+        CHECK(subject_int(ams.get_buffer_slider_subject()) == 1);
+        CHECK(subject_int(ams.get_buffer_bias_pct_subject()) == -45);
+        CHECK(subject_int(ams.get_buffer_status_subject()) ==
+              static_cast<int>(ui::ClogMeterStatus::Warning));
+        CHECK(text_of(ams.get_buffer_label_subject()) == "Sync");
+        CHECK(text_of(ams.get_buffer_value_text_subject()) == "-45%");
+    }
+
+    SECTION("a set point that goes away mid-print leaves text and a gap") {
+        AmsSystemInfo info = test::fps_units({0.62f});
+        AmsStateTestAccess::sync_buffer(ams, info, 1000);
+        REQUIRE(subject_int(ams.get_buffer_slider_subject()) == 1);
+
+        info.units[0].buffer_health->fps_set_point = -1.0f;
+        info.sync_feedback_bias = info.pressure_sensor_bias();
+        AmsStateTestAccess::sync_buffer(ams, info, 2000);
+        CHECK(subject_int(ams.get_buffer_present_subject()) == 1);
+        CHECK(subject_int(ams.get_buffer_slider_subject()) == 0);
+        CHECK(subject_int(ams.get_buffer_bias_pct_subject()) == 0);
+        CHECK(subject_int(ams.get_buffer_status_subject()) == 0);
+        CHECK(text_of(ams.get_buffer_value_text_subject()) == "Pressure: 62%");
+        const auto w = ams.buffer_trace(-1).window(2000);
+        REQUIRE(w.size() == 2);
+        CHECK_FALSE(w.back().valid);
+
+        SECTION("and comes back") {
+            info.units[0].buffer_health->fps_set_point = 0.5f;
+            AmsStateTestAccess::sync_buffer(ams, info, 3000);
+            CHECK(subject_int(ams.get_buffer_slider_subject()) == 1);
+            CHECK(ams.buffer_trace(-1).window(3000).back().valid);
+        }
+    }
+
+    SECTION("clear_backends takes the reading away") {
+        AmsSystemInfo info;
+        info.sync_feedback_bias = -0.45f;
+        AmsStateTestAccess::sync_buffer(ams, info, 0);
+        ams.clear_backends();
+        CHECK(subject_int(ams.get_buffer_present_subject()) == 0);
+        CHECK(text_of(ams.get_buffer_label_subject()).empty());
     }
 }

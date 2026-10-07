@@ -259,6 +259,16 @@ void AmsState::init_subjects(bool register_xml) {
     INIT_SUBJECT_STRING(clog_meter_label_left, "", subjects_, register_xml);
     INIT_SUBJECT_STRING(clog_meter_label_right, "", subjects_, register_xml);
 
+    // Filament buffer reading, system level
+    INIT_SUBJECT_INT(buffer_present, 0, subjects_, register_xml);
+    INIT_SUBJECT_INT(buffer_slider, 0, subjects_, register_xml);
+    INIT_SUBJECT_INT(buffer_bias_pct, 0, subjects_,
+                     register_xml); // SUBJECT_OK: UiBufferSlider::follow_system_reading observes it
+    INIT_SUBJECT_INT(buffer_status, 0, subjects_,
+                     register_xml); // SUBJECT_OK: UiBufferSlider::follow_system_reading observes it
+    INIT_SUBJECT_STRING(buffer_label, "", subjects_, register_xml);
+    INIT_SUBJECT_STRING(buffer_value_text, "", subjects_, register_xml);
+
     // Per-slot subjects (dynamic names require manual init)
     char name_buf[32];
     for (int i = 0; i < MAX_SLOTS; ++i) {
@@ -647,6 +657,18 @@ void AmsState::register_xml_subject_names() {
     helix::xml::register_subject_in_current_scope("clog_meter_label_left", &clog_meter_label_left_);
     helix::xml::register_subject_in_current_scope("clog_meter_label_right",
                                                   &clog_meter_label_right_);
+
+    // Filament buffer reading
+    helix::xml::register_subject_in_current_scope("buffer_present", &buffer_present_);
+    helix::xml::register_subject_in_current_scope("buffer_slider", &buffer_slider_);
+    helix::xml::register_subject_in_current_scope(
+        "buffer_bias_pct",
+        &buffer_bias_pct_); // SUBJECT_OK: UiBufferSlider::follow_system_reading observes it
+    helix::xml::register_subject_in_current_scope(
+        "buffer_status",
+        &buffer_status_); // SUBJECT_OK: UiBufferSlider::follow_system_reading observes it
+    helix::xml::register_subject_in_current_scope("buffer_label", &buffer_label_);
+    helix::xml::register_subject_in_current_scope("buffer_value_text", &buffer_value_text_);
 
     // Per-slot subjects (snprintf'd names)
     char name_buf[48];

@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "ui_buffer_slider.h"
 #include "ui_bypass_toggle_controller.h"
 #include "ui_clog_meter.h"
 #include "ui_observer_guard.h"
@@ -174,6 +175,7 @@ class AmsOperationSidebar {
 
     // Extracted UI modules
     std::unique_ptr<UiClogMeter> clog_meter_;
+    std::unique_ptr<UiBufferSlider> buffer_slider_;
 
     // Bypass spool observer (updates sidebar if needed)
     ObserverGuard bypass_spool_observer_;

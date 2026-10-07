@@ -22,6 +22,7 @@
 
 namespace helix {
 using ams_state_detail::assert_main_thread;
+using ams_state_detail::copy_string_if_changed;
 
 namespace {
 
@@ -176,12 +177,6 @@ ClogReading detector_reading(const AmsSystemInfo& info, int source_override) {
     return r;
 }
 
-void copy_if_changed(lv_subject_t* subject, const char* text) {
-    if (strcmp(lv_subject_get_string(subject), text) != 0) {
-        lv_subject_copy_string(subject, text);
-    }
-}
-
 void publish(const AmsState::ClogMeterSubjects& s, const ClogReading& r) {
     lv_subject_set_int(s.mode, r.mode);
     lv_subject_set_int(s.value, r.value);
@@ -190,12 +185,12 @@ void publish(const AmsState::ClogMeterSubjects& s, const ClogReading& r) {
     // the same rule, with any threshold override already folded in.
     lv_subject_set_int(s.status, static_cast<int>(helix::ui::clog_meter_status(
                                      r.mode, r.value, r.warning, r.danger_pct)));
-    copy_if_changed(s.mode_text, r.mode_text);
+    copy_string_if_changed(s.mode_text, r.mode_text);
     lv_subject_set_int(s.danger_pct, r.danger_pct);
     lv_subject_set_int(s.peak_pct, r.peak_pct);
-    copy_if_changed(s.center_text, r.center);
-    copy_if_changed(s.label_left, r.left);
-    copy_if_changed(s.label_right, r.right);
+    copy_string_if_changed(s.center_text, r.center);
+    copy_string_if_changed(s.label_left, r.left);
+    copy_string_if_changed(s.label_right, r.right);
 }
 
 } // namespace

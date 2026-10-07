@@ -5,10 +5,12 @@
 #include "ams_state_internal.h"
 #include "buffer_reading.h"
 
+#include <cmath>
 #include <iterator>
 
 namespace helix {
 using ams_state_detail::assert_main_thread;
+using ams_state_detail::copy_string_if_changed;
 
 void AmsState::sync_buffer_from_info(const AmsSystemInfo& info, int64_t now_ms) {
     const int unit_count = static_cast<int>(info.units.size());
@@ -18,11 +20,21 @@ void AmsState::sync_buffer_from_info(const AmsSystemInfo& info, int64_t now_ms) 
     }
 
     const BufferReading system = buffer_reading(info, -1);
+    publish_buffer_reading(system);
     buffer_traces_[-1].record(now_ms, system.has_slider, system.bias);
     for (int u = 0; u < unit_count; ++u) {
         const BufferReading r = buffer_reading(info, u);
         buffer_traces_[u].record(now_ms, r.has_slider, r.bias);
     }
+}
+
+void AmsState::publish_buffer_reading(const BufferReading& r) {
+    lv_subject_set_int(&buffer_present_, r.present() ? 1 : 0);
+    lv_subject_set_int(&buffer_slider_, r.has_slider ? 1 : 0);
+    lv_subject_set_int(&buffer_bias_pct_, static_cast<int>(std::lround(r.bias * 100.0f)));
+    lv_subject_set_int(&buffer_status_, static_cast<int>(r.status));
+    copy_string_if_changed(&buffer_label_, buffer_label(r));
+    copy_string_if_changed(&buffer_value_text_, buffer_value_text(r).c_str());
 }
 
 const BufferTrace& AmsState::buffer_trace(int unit) const {

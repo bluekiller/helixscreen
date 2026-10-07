@@ -244,6 +244,11 @@ bool AmsOperationSidebar::setup(lv_obj_t* panel) {
     // Setup clog detection meter
     clog_meter_ = std::make_unique<UiClogMeter>(sidebar_root_);
 
+    // The loaded card's buffer slider follows the system-level reading
+    buffer_slider_ =
+        std::make_unique<UiBufferSlider>(lv_obj_find_by_name(sidebar_root_, "buffer_mini_slider"));
+    buffer_slider_->follow_system_reading();
+
     // Hide settings button if no device sections
     update_settings_visibility();
 
@@ -505,6 +510,7 @@ void AmsOperationSidebar::cleanup() {
     // that reference widget pointers; resetting before our observers could
     // trigger callbacks on already-null widget pointers.
     clog_meter_.reset();
+    buffer_slider_.reset();
 
     // Clear all pending state. A preheat still waiting here never dispatches.
     bypass_toggle_.cancel_pending();
