@@ -3,6 +3,7 @@
 
 #include "ui_wizard_wifi.h"
 
+#include "ui_callback_helpers.h"
 #include "ui_error_reporting.h"
 #include "ui_icon.h"
 #include "ui_keyboard_manager.h"
@@ -521,14 +522,6 @@ void WizardWifiStep::network_item_delete_cb(lv_event_t* e) {
     // data automatically freed via ~unique_ptr()
 }
 
-void WizardWifiStep::on_wifi_toggle_changed_static(lv_event_t* e) {
-    // Use global accessor pattern (XML event_cb doesn't provide user_data)
-    WizardWifiStep* self = get_wizard_wifi_step();
-    if (self) {
-        self->handle_wifi_toggle_changed(e);
-    }
-}
-
 void WizardWifiStep::on_network_item_clicked_static(lv_event_t* e) {
     // Network items use item user_data (WifiWizardNetworkItemData with parent pointer)
     // instead of event user_data, since XML event_cb can't pass instance context
@@ -540,20 +533,6 @@ void WizardWifiStep::on_network_item_clicked_static(lv_event_t* e) {
         static_cast<WifiWizardNetworkItemData*>(lv_obj_get_user_data(item));
     if (item_data && item_data->parent) {
         item_data->parent->handle_network_item_clicked(e);
-    }
-}
-
-void WizardWifiStep::on_modal_cancel_clicked_static(lv_event_t*) {
-    WizardWifiStep* self = get_wizard_wifi_step();
-    if (self) {
-        self->handle_modal_cancel_clicked();
-    }
-}
-
-void WizardWifiStep::on_modal_connect_clicked_static(lv_event_t*) {
-    WizardWifiStep* self = get_wizard_wifi_step();
-    if (self) {
-        self->handle_modal_connect_clicked();
     }
 }
 
@@ -863,13 +842,27 @@ void WizardWifiStep::init_subjects() {
 void WizardWifiStep::register_callbacks() {
     spdlog::debug("[{}] Registering event callbacks", get_name());
 
-    lv_xml_register_event_cb(nullptr, "on_wifi_toggle_changed", on_wifi_toggle_changed_static);
-    lv_xml_register_event_cb(nullptr, "on_wizard_wifi_network_clicked",
-                             on_network_item_clicked_static);
-    lv_xml_register_event_cb(nullptr, "on_wizard_wifi_password_cancel",
-                             on_modal_cancel_clicked_static);
-    lv_xml_register_event_cb(nullptr, "on_wizard_wifi_password_connect",
-                             on_modal_connect_clicked_static);
+    register_xml_callbacks({
+        {"on_wifi_toggle_changed",
+         [](lv_event_t* e) {
+             if (auto* self = get_wizard_wifi_step()) {
+                 self->handle_wifi_toggle_changed(e);
+             }
+         }},
+        {"on_wizard_wifi_network_clicked", on_network_item_clicked_static},
+        {"on_wizard_wifi_password_cancel",
+         [](lv_event_t*) {
+             if (auto* self = get_wizard_wifi_step()) {
+                 self->handle_modal_cancel_clicked();
+             }
+         }},
+        {"on_wizard_wifi_password_connect",
+         [](lv_event_t*) {
+             if (auto* self = get_wizard_wifi_step()) {
+                 self->handle_modal_connect_clicked();
+             }
+         }},
+    });
 
     spdlog::debug("[{}] Event callbacks registered", get_name());
 }

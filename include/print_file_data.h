@@ -93,9 +93,12 @@ struct PrintFileData {
     // allocation rather than re-copying image bytes.
     std::shared_ptr<helix::ui::EspPsramThumbnail> esp_thumbnail;
     /// A fetch was started for this file while its card has been on screen:
-    /// in flight, done, or failed. Cleared when the card leaves the screen, so a
-    /// failed thumbnail is tried again only when the card is next shown.
+    /// in flight, done, or failed. Cleared when the card leaves the screen
+    /// holding nothing, so a failed thumbnail is tried again only when the card
+    /// is next shown.
     bool esp_thumbnail_tried = false;
+    /// The print-select sync tick at which its card was last on screen.
+    uint32_t esp_thumbnail_shown = 0;
 #endif
 
     // ========================================================================
@@ -234,6 +237,13 @@ inline void carry_forward_print_file_metadata(std::vector<PrintFileData>& files,
         const time_t modified = f.modified_timestamp;
         const size_t size = f.file_size_bytes;
         if (should_carry_forward_print_file_metadata(it->second, size, retry_missing_thumbnails)) {
+#if defined(HELIX_PLATFORM_ESP32)
+            // A re-upload of the same size is a different picture.
+            if (it->second.modified_timestamp != modified) {
+                it->second.esp_thumbnail.reset();
+                it->second.esp_thumbnail_tried = false;
+            }
+#endif
             f = std::move(it->second);
             f.modified_timestamp = modified;
             f.file_size_bytes = size;

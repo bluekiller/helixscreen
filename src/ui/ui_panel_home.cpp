@@ -140,7 +140,7 @@ void HomePanel::init_subjects() {
         {"on_home_grid_pressing", on_home_grid_pressing},
         {"on_home_grid_released", on_home_grid_released},
         {"on_home_grid_press_cancelled", on_home_grid_press_cancelled},
-        {"on_add_page_clicked", on_add_page_clicked},
+        {"on_add_page_clicked", [](lv_event_t*) { get_global_home_panel().add_page_from_slot(); }},
     });
 
     subjects_initialized_ = true;
@@ -1134,12 +1134,6 @@ void HomePanel::on_home_grid_clicked(lv_event_t* e) {
         !panel.finger_drifted_since_press()) {
         panel.grid_edit_mode_.handle_click(e);
     }
-    LVGL_SAFE_EVENT_CB_END();
-}
-
-void HomePanel::on_add_page_clicked(lv_event_t* e) {
-    LVGL_SAFE_EVENT_CB_BEGIN("[HomePanel] on_add_page_clicked");
-    get_global_home_panel().add_page_from_slot();
     LVGL_SAFE_EVENT_CB_END();
 }
 

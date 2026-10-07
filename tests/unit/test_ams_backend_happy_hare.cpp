@@ -9,6 +9,7 @@
 #include "ams_backend_happy_hare.h"
 #include "ams_state.h"
 #include "ams_types.h"
+#include "buffer_reading.h"
 #include "config.h"
 #include "hh_defaults.h"
 #include "lane_source_store.h"
@@ -6180,7 +6181,7 @@ TEST_CASE("Happy Hare v4 null telemetry clears the selected unit's readings",
 
     helper.test_parse_mmu_state(fx["mmu_status"]);
     auto info = helper.get_system_info();
-    CHECK_FALSE(helper.supports_sync_feedback_visualization(info));
+    CHECK_FALSE(helix::buffer_reading(info, -1).present());
     CHECK(info.sync_feedback_bias == Catch::Approx(-2.0f));
     CHECK(info.sync_feedback_flow_rate == Catch::Approx(-1.0f));
     CHECK(info.sync_feedback_state.empty());
@@ -6193,6 +6194,7 @@ TEST_CASE("Happy Hare v4 null telemetry clears the selected unit's readings",
                                  {"flowguard", {{"enabled", true}, {"level", 0.4}}}});
     info = helper.get_system_info();
     REQUIRE(info.sync_feedback_bias == Catch::Approx(0.25f));
+    REQUIRE(helix::buffer_reading(info, -1).present());
     REQUIRE(info.encoder_info.enabled);
     REQUIRE(info.flowguard_info.enabled);
 
@@ -6205,7 +6207,7 @@ TEST_CASE("Happy Hare v4 null telemetry clears the selected unit's readings",
     info = helper.get_system_info();
     CHECK(info.sync_feedback_bias == Catch::Approx(-2.0f));
     CHECK(info.sync_feedback_bias_raw == Catch::Approx(-2.0f));
-    CHECK_FALSE(helper.supports_sync_feedback_visualization(info));
+    CHECK_FALSE(helix::buffer_reading(info, -1).present());
     CHECK_FALSE(info.encoder_info.enabled);
     CHECK_FALSE(info.flowguard_info.enabled);
     // Fields nothing reset keep their value.

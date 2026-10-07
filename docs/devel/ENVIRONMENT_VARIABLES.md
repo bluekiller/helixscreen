@@ -34,7 +34,7 @@ Only these keys are read; any other key is ignored with one logged warning per k
 `HELIX_DISABLE_AUTO_UPDATES`, `HELIX_DISPLAY_BACKEND`, `HELIX_DISPLAY_ROTATION`, `HELIX_DPI`,
 `HELIX_DRM_DEVICE`, `HELIX_FB_DEVICE`, `HELIX_GCODE_MODE`,
 `HELIX_GCODE_STREAMING`, `HELIX_KEYBOARD_DEVICE`, `HELIX_LOG_DEST`, `HELIX_LOG_FILE`,
-`HELIX_LOG_LEVEL`, `HELIX_MOUSE_DEVICE`, `HELIX_NICE`, `HELIX_NO_SPLASH`,
+`HELIX_LOG_LEVEL`, `HELIX_MOUSE_DEVICE`, `HELIX_NICE`, `HELIX_NO_SPLASH`, `HELIX_PWM_SOUND`,
 `HELIX_REMOTE_CONTROL`, `HELIX_REMOTE_HTTP_TOKEN`, `HELIX_REMOTE_SOCKET`, `HELIX_REQUIRE_POINTER`, `HELIX_SCREEN_SIZE`, `HELIX_SCROLL_GUARD`,
 `HELIX_SCROLL_GUARD_COOLDOWN_MS`, `HELIX_SKIP_SPLASH`, `HELIX_SSAO`, `HELIX_THEME`,
 `HELIX_TOUCH_CALIBRATE`, `HELIX_TOUCH_DEVICE`, `HELIX_TOUCH_SWAP_AXES`, `HELIX_USB_AUTOMOUNT`,
@@ -1098,9 +1098,25 @@ HELIX_BED_MESH_2D=1 ./build/bin/helix-screen
 
 ## Audio
 
+### `HELIX_PWM_SOUND`
+
+Temporary override for the `sound.pwm_channel` setting, which names a passive buzzer on a sysfs PWM channel (generic SBC builds: pi, pi32, x86, yocto, native; and ad5m/ad5m-br). Use the setting for a permanent install; this variable is for trying a channel without editing `settings.json`. The PWM backend it selects, and the hardware requirements, are under `sound.pwm_channel` in the [configuration reference](../user/CONFIGURATION.md#sound-output).
+
+| Property | Value |
+|----------|-------|
+| **Values** | `<chip>:<channel>`, e.g. `0:0` for `/sys/class/pwm/pwmchip0/pwm0` |
+| **Default** | unset |
+| **Precedence** | `HELIX_PWM_SOUND` env > `/sound/pwm_channel` setting > no named buzzer |
+| **File** | `src/system/pwm_sound_backend.cpp` (`PWMSoundBackend::resolve_channel`) |
+
+```bash
+# Try a buzzer on pwmchip0/pwm0 for one run
+HELIX_PWM_SOUND=0:0 ./build/bin/helix-screen
+```
+
 ### `HELIX_PWM_MIN_NOTE_MS`
 
-Audible floor for one theme note on the PWM sysfs buzzer backend (ad5m/ad5m-br/ad5x platform builds). The piezo needs ~20 ms of drive to register a tone; the sequencer quantizes every theme step up to this value, so a sub-floor tone+rest pair plays as one floor-length tone instead of a click. Read once at backend `initialize()` — relaunch to change it.
+Audible floor for one theme note on the PWM sysfs buzzer backend (ad5m/ad5m-br, or a `sound.pwm_channel` buzzer on the generic SBC builds, which defaults to 16). The piezo needs ~20 ms of drive to register a tone; the sequencer quantizes every theme step up to this value, so a sub-floor tone+rest pair plays as one floor-length tone instead of a click. Read once at backend `initialize()` — relaunch to change it.
 
 | Property | Value |
 |----------|-------|

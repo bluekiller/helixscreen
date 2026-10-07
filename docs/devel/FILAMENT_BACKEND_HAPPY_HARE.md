@@ -25,6 +25,12 @@ Klipper object `mmu` in `printer.objects.list` sets `AmsType::HAPPY_HARE`.
 | `printer.mmu.gate_color_rgb` | int[] | Per-gate RGB colors (0xRRGGBB) |
 | `printer.mmu.gate_material` | string[] | Per-gate material names |
 | `printer.mmu.filament_pos` | int | 0-8 filament position for path visualization |
+| `printer.mmu.sync_feedback_bias_modelled` | float | -1 (tight) to +1 (loose); `AmsSystemInfo::sync_feedback_bias`, the one buffer reading Happy Hare gives (`sync_feedback_bias_raw` is the raw sensor value). `helix::buffer_reading()` draws it as the "Sync" buffer on every buffer surface |
+
+Happy Hare has both a buffer reading (sync feedback, above) and clog detection: the
+encoder (`clog_detection` 1 or 2) and FlowGuard (`flowguard.enabled`) feed the
+`clog_meter_*` subjects. The two stay separate; see
+[Filament buffer reading](FILAMENT_MANAGEMENT.md#filament-buffer-reading).
 
 ### G-code Commands
 

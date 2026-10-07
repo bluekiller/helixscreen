@@ -110,6 +110,11 @@ std::string AudioSettingsManager::get_output_device() const {
     return config->get<std::string>("/sound/output_device", "");
 }
 
+std::string AudioSettingsManager::get_pwm_channel() const {
+    Config* config = Config::get_instance();
+    return config->get<std::string>("/sound/pwm_channel", "");
+}
+
 void AudioSettingsManager::set_output_device(const std::string& pcm) {
     spdlog::info("[AudioSettingsManager] set_output_device('{}')", pcm);
 

@@ -67,6 +67,7 @@ void TouchSettingsOverlay::init_subjects() {
 
 void TouchSettingsOverlay::register_callbacks() {
     using helix::ui::event_checked;
+    using helix::ui::event_selected;
     register_xml_callbacks({
         {"on_touch_calibration_clicked",
          [](lv_event_t*) { get_touch_settings_overlay().handle_touch_calibration_clicked(); }},
@@ -94,6 +95,12 @@ void TouchSettingsOverlay::register_callbacks() {
          [](lv_event_t* e) {
              // should_suppress_edit_mode checks this live, so no restart prompt.
              InputSettingsManager::instance().set_home_edit_mode_enabled(event_checked(e));
+         }},
+        {"on_keypad_layout_changed",
+         [](lv_event_t* e) {
+             // The keypad XML binds settings_keypad_layout, so no restart prompt.
+             InputSettingsManager::instance().set_keypad_layout(
+                 static_cast<KeypadLayout>(event_selected(e)));
          }},
         {"on_scroll_guard_changed",
          [](lv_event_t* e) {

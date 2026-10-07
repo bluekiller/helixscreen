@@ -100,13 +100,6 @@ class AmsBackendHappyHare : public AmsSubscriptionBackend {
     [[nodiscard]] helix::ui::LaneNoun lane_noun() const override {
         return helix::ui::LaneNoun::Gate;
     }
-    // Happy Hare reports printer.mmu.sync_feedback_bias; a value > -1.5 means real
-    // bias data is available (the buffer meter, path-canvas tint, and clog buffer
-    // page render proportional bias). -1.5 is the "no data" sentinel.
-    [[nodiscard]] bool
-    supports_sync_feedback_visualization(const AmsSystemInfo& info) const override {
-        return info.sync_feedback_bias > -1.5f;
-    }
     [[nodiscard]] bool manages_active_spool() const override;
 
     // Path visualization
