@@ -2,9 +2,19 @@
 
 #include "pre_start_exclude.h"
 
+#include "ui_error_reporting.h"
+#include "ui_update_queue.h"
+
+#include "app_globals.h"
+#include "i_moonraker_api.h"
+#include "moonraker_error.h"
+#include "printer_state.h"
 #include "text_io.h"
 
+#include <spdlog/spdlog.h>
+
 #include <algorithm>
+#include <memory>
 #include <optional>
 
 namespace helix::ui {
@@ -71,6 +81,91 @@ object_infos_from(const std::vector<gcode::GCodeObject>& objects) {
         out.push_back(PrinterExcludedObjectsState::make_object_info(o.name, center, o.polygon));
     }
     return out;
+}
+
+namespace {
+
+std::string join_names(const std::vector<std::string>& names) {
+    std::string out;
+    for (const auto& n : names) {
+        if (!out.empty()) {
+            out += ", ";
+        }
+        out += n;
+    }
+    return out;
+}
+
+void report_unsent(const std::vector<std::string>& names) {
+    const PrintState state = get_printer_state().print_state().get_print_lifecycle();
+    if (state == PrintState::Cancelled || state == PrintState::Error) {
+        spdlog::info("[PreStartExclude] Print ended before {} could be skipped", join_names(names));
+        return;
+    }
+    NOTIFY_ERROR(lv_tr("Could not skip {}"), join_names(names));
+}
+
+} // namespace
+
+void send_pre_start_exclusions(IMoonrakerAPI* api, std::vector<std::string> names) {
+    if (names.empty()) {
+        return;
+    }
+    if (!api) {
+        spdlog::warn("[PreStartExclude] No printer API to send {} picks", names.size());
+        report_unsent(names);
+        return;
+    }
+
+    // Answers come back on the HTTP thread; each one hops to the main thread,
+    // where this batch is only ever touched.
+    struct Batch {
+        size_t pending = 0;
+        std::vector<std::string> failed;
+    };
+    auto batch = std::make_shared<Batch>();
+    batch->pending = names.size();
+    auto settle = [batch](std::string failed_name) {
+        if (!failed_name.empty()) {
+            batch->failed.push_back(std::move(failed_name));
+        }
+        if (--batch->pending > 0 || batch->failed.empty()) {
+            return;
+        }
+        report_unsent(batch->failed);
+    };
+
+    for (const auto& name : names) {
+        spdlog::info("[PreStartExclude] Skipping '{}' in the print that just started", name);
+        api->exclude_object(
+            name,
+            [settle]() {
+                helix::ui::queue_update("PreStartExclude::sent", [settle]() { settle({}); });
+            },
+            [settle, name](const MoonrakerError& err) {
+                const bool failed = !err.command_may_still_run();
+                spdlog::warn("[PreStartExclude] EXCLUDE_OBJECT '{}' answered: {}", name,
+                             err.message);
+                helix::ui::queue_update("PreStartExclude::failed", [settle, name, failed]() {
+                    settle(failed ? name : std::string{});
+                });
+            });
+    }
+}
+
+std::function<void()> with_pre_start_exclusions(std::function<void()> on_confirmed,
+                                                std::vector<std::string> names) {
+    if (names.empty()) {
+        return on_confirmed;
+    }
+    return [on_confirmed = std::move(on_confirmed), names = std::move(names)]() {
+        if (on_confirmed) {
+            on_confirmed();
+        }
+        helix::ui::queue_update("PreStartExclude::send", [names]() {
+            send_pre_start_exclusions(get_moonraker_api(), names);
+        });
+    };
 }
 
 } // namespace helix::ui

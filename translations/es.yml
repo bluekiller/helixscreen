@@ -816,6 +816,7 @@ translations:
 
   "Could not save the mesh as '{}': {}": "No se pudo guardar la malla como '{}': {}"
   Could not save the printer image tags: Error al guardar las marcas de la imagen
+  Could not skip {}: 'No se pudo omitir {}'
   Could not start Bluetooth discovery: No se pudo iniciar el descubrimiento Bluetooth
   Could not update filaments: No se pudieron actualizar los filamentos
   Could not verify Spoolman status. Moonraker may still be restarting.: No se pudo

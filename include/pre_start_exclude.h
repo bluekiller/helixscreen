@@ -4,9 +4,12 @@
 #include "gcode_parser.h"
 #include "printer_excluded_objects_state.h"
 
+#include <functional>
 #include <string>
 #include <unordered_set>
 #include <vector>
+
+class IMoonrakerAPI; // NAMESPACE_OK: forward declaration of the global API interface
 
 namespace helix::ui {
 
@@ -33,5 +36,16 @@ merge_defined_objects(const std::vector<gcode::GCodeObject>& scanned,
 
 std::vector<PrinterExcludedObjectsState::ObjectInfo>
 object_infos_from(const std::vector<gcode::GCodeObject>& objects);
+
+/// Send EXCLUDE_OBJECT for each picked name. Main thread, after Moonraker
+/// confirmed the start: Klipper clears exclude_object state as a print starts.
+/// One error toast names whatever failed, unless the print has already ended.
+void send_pre_start_exclusions(IMoonrakerAPI* api, std::vector<std::string> names);
+
+/// @p on_confirmed, followed by the exclusions for @p names on the main
+/// thread. Callable from any thread. It holds only the names and reads the
+/// current API when it fires, so the view that started the print may be gone.
+std::function<void()> with_pre_start_exclusions(std::function<void()> on_confirmed,
+                                                std::vector<std::string> names);
 
 } // namespace helix::ui

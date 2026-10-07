@@ -816,6 +816,7 @@ translations:
 
   "Could not save the mesh as '{}': {}": "Não foi possível salvar a malha como '{}': {}"
   Could not save the printer image tags: Falha ao salvar as marcações da imagem
+  Could not skip {}: 'Não foi possível pular {}'
   Could not start Bluetooth discovery: Não foi possível iniciar a descoberta Bluetooth
   Could not update filaments: Não foi possível atualizar os filamentos
   Could not verify Spoolman status. Moonraker may still be restarting.: Não foi possível
