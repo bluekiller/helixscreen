@@ -27,8 +27,7 @@
         <event_cb trigger="clicked" callback="on_add_page_clicked"/>
       </lv_obj>
       <text_small name="add_page_caption"
-                  text="Add page" translation_tag="Add page" style_text_color="#text_muted" clickable="false"
-                  event_bubble="true"/>
+                  text="Add page" style_text_color="#text_muted" clickable="false" event_bubble="true"/>
     </lv_obj>
   </view>
 </component>

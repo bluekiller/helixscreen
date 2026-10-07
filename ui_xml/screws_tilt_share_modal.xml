@@ -18,7 +18,7 @@
               height="content" style_pad_all="0" flex_flow="row" style_flex_main_place="center"
               style_flex_cross_place="center" style_pad_gap="#space_sm" scrollable="false">
         <icon src="qrcode_scan" size="sm" variant="primary"/>
-        <text_heading text="Bed Screw Results" translation_tag="Bed Screw Results"/>
+        <text_heading text="Bed Screw Results"/>
       </lv_obj>
       <!-- Body: screw rows on the left, QR on the right -->
       <lv_obj width="100%"
@@ -43,12 +43,10 @@
         <lv_obj name="qr_container" width="content" height="content" style_pad_all="0" style_border_width="0"/>
       </lv_obj>
       <text_xs width="100%"
-               text="Scan with your phone to save these values"
-               translation_tag="Scan with your phone to save these values" style_text_color="#text_muted"
-               style_text_align="center" long_mode="wrap"/>
+               text="Scan with your phone to save these values" style_text_color="#text_muted" style_text_align="center"
+               long_mode="wrap"/>
     </lv_obj>
     <modal_button_row hide_secondary="true"
-                      primary_name="btn_ok" primary_text="Close" primary_tag="Close"
-                      primary_callback="on_modal_ok_clicked"/>
+                      primary_name="btn_ok" primary_text="Close" primary_callback="on_modal_ok_clicked"/>
   </view>
 </component>

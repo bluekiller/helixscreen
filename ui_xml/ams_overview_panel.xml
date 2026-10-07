@@ -29,9 +29,8 @@
           <icon src="back" size="lg" variant="text" clickable="false" event_bubble="true"/>
           <!-- Overview mode title (hidden in detail mode) -->
           <text_heading name="header_title"
-                        text="Multi-Filament Overview" translation_tag="Multi-Filament Overview"
-                        text_transform="uppercase" long_mode="dots" style_text_align="left" clickable="false"
-                        event_bubble="true" scrollable="false"/>
+                        text="Multi-Filament Overview" text_transform="uppercase" long_mode="dots"
+                        style_text_align="left" clickable="false" event_bubble="true" scrollable="false"/>
           <!-- Detail mode: unit logo + name (hidden in overview mode) -->
           <lv_image name="detail_logo"
                     width="#ams_logo_size" height="#ams_logo_size" inner_align="contain" hidden="true" clickable="false"

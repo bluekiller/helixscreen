@@ -22,8 +22,8 @@
     <!-- Macro name: one dotted line, so a long user-configured name never
          wraps. Follows show_widget_labels. -->
     <text_tiny name="fav_macro_name"
-               width="100%" text="Configure" translation_tag="Configure" style_text_align="center"
-               style_text_color="#text_muted" long_mode="dots" clickable="false" event_bubble="true">
+               width="100%" text="Configure" style_text_align="center" style_text_color="#text_muted" long_mode="dots"
+               clickable="false" event_bubble="true">
       <bind_tile_rung ladder="label" subject="$tile_icon_subject" one_line="true"/>
       <bind_style_if_eq name="styles.tile_fill" subject="$tile_dir_subject" ref_value="1"/>
       <bind_flag_if_eq subject="show_widget_labels" flag="hidden" ref_value="0"/>

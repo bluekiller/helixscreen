@@ -23,7 +23,7 @@
               height="content" flex_flow="row" style_pad_all="0" style_pad_gap="#space_sm"
               style_flex_main_place="center" style_flex_cross_place="center">
         <lv_label text="󰀦" style_text_font="mdi_icons_24" style_text_color="#warning"/>
-        <text_heading text="HelixScreen Crashed" translation_tag="HelixScreen Crashed"/>
+        <text_heading text="HelixScreen Crashed"/>
       </lv_obj>
       <!-- Details + QR row -->
       <lv_obj width="100%"
@@ -49,8 +49,7 @@
       </lv_obj>
     </lv_obj>
     <modal_button_row secondary_name="modal_cancel_btn"
-                      secondary_text="Dismiss" secondary_tag="Dismiss" secondary_callback="on_crash_report_dismiss"
-                      primary_name="modal_send_btn" primary_text="Send Report" primary_tag="Send Report"
-                      primary_callback="on_crash_report_send"/>
+                      secondary_text="Dismiss" secondary_callback="on_crash_report_dismiss"
+                      primary_name="modal_send_btn" primary_text="Send Report" primary_callback="on_crash_report_send"/>
   </view>
 </component>

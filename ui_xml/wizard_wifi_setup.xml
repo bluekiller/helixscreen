@@ -77,19 +77,15 @@
         <!-- Also disable when hardware unavailable -->
         <bind_state_if_eq subject="wifi_hardware_available" state="disabled" ref_value="0"/>
         <!-- Title -->
-        <text_heading width="100%"
-                      text="Available Networks" translation_tag="Available Networks" style_pad_bottom="#space_sm"/>
+        <text_heading width="100%" text="Available Networks" style_pad_bottom="#space_sm"/>
         <!-- Scanning indicator (shown when wifi_scanning == 1) -->
-        <text_body name="network_list_scanning"
-                   width="100%" text="Scanning for networks..." translation_tag="Scanning for networks..."
-                   style_text_align="center">
+        <text_body name="network_list_scanning" width="100%" text="Scanning for networks..." style_text_align="center">
           <!-- Show only when scanning (hide when wifi_scanning == 0) -->
           <bind_flag_if_eq subject="wifi_scanning" flag="hidden" ref_value="0"/>
         </text_body>
         <!-- Placeholder shown when WiFi is disabled (wifi_enabled == 0) -->
         <text_body name="network_list_placeholder"
-                   width="100%" text="Enable WiFi to scan for networks"
-                   translation_tag="Enable WiFi to scan for networks" style_text_align="center">
+                   width="100%" text="Enable WiFi to scan for networks" style_text_align="center">
           <!-- Show placeholder only when WiFi is disabled (hidden when enabled) -->
           <bind_flag_if_eq subject="wifi_enabled" flag="hidden" ref_value="1"/>
         </text_body>

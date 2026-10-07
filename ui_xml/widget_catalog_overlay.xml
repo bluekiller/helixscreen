@@ -4,9 +4,9 @@
 <!-- Widget Catalog Overlay: half-width panel listing available widgets for grid placement -->
 <component>
   <view name="widget_catalog_overlay"
-        extends="overlay_panel" width="70%" title="Add Widget" title_tag="Add Widget" action_button_text="Reset"
-        action_button_text_tag="Reset" action_button_callback="on_catalog_reset" hide_action_button="false"
-        action_button_bg_color="#secondary" bg_color="#screen_bg">
+        extends="overlay_panel" width="70%" title="Add Widget" action_button_text="Reset"
+        action_button_callback="on_catalog_reset" hide_action_button="false" action_button_bg_color="#secondary"
+        bg_color="#screen_bg">
     <!-- Type-to-filter across every widget (name, description, or category).
          An empty query returns to the category list below. -->
     <lv_obj width="100%"
@@ -45,8 +45,7 @@
               width="100%" flex_grow="1" scrollable="false" hidden="true" flex_flow="column"
               style_flex_main_place="center" style_flex_cross_place="center">
         <bind_flag_if cond="widget_catalog_view eq 1 and widget_catalog_match_count eq 0" flag="hidden" invert="true"/>
-        <text_body text="No widgets found"
-                   translation_tag="No widgets found" style_text_color="#text_muted" style_text_align="center"/>
+        <text_body text="No widgets found" style_text_color="#text_muted" style_text_align="center"/>
       </lv_obj>
     </lv_obj>
   </view>

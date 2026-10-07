@@ -55,8 +55,7 @@
             style_pad_gap="0" scrollable="false" flex_grow="1" clickable="false">
       <!-- Primary: the spool's name (e.g., "#12 Kingroon Basic PETG Clear"). Grows +
            ellipsizes when constrained (compact); full-width and un-truncated in rich mode. -->
-      <text_body name="spool_name"
-                 text="Unknown Spool" translation_tag="Unknown Spool" flex_grow="1" long_mode="dots" clickable="false"/>
+      <text_body name="spool_name" text="Unknown Spool" flex_grow="1" long_mode="dots" clickable="false"/>
       <!-- Secondary: Weight -->
       <lv_obj height="content"
               style_pad_all="0" flex_flow="row" style_flex_main_place="start" style_pad_gap="#space_xs"

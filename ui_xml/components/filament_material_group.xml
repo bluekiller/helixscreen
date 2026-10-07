@@ -11,7 +11,7 @@
         extends="lv_obj" width="100%" height="content" style_pad_all="0" scrollable="false" flex_flow="column"
         style_pad_gap="#space_md">
     <!-- Material Selection Header -->
-    <text_body text="Material" translation_tag="Material" text_transform="uppercase" align="left_mid"/>
+    <text_body text="Material" text_transform="uppercase" align="left_mid"/>
     <!-- Material Preset Buttons (3x2 grid: PLA/PETG/ABS + TPU/Spool/Cool Down).
          Every cell is width=0 + flex_grow=1 so the three shares are exact
          thirds regardless of what is visible inside them. -->
@@ -77,7 +77,7 @@
         <ui_button name="btn_cooldown"
                    width="0" height="100%" flex_grow="1" style_pad_ver="#space_xs" style_pad_hor="#space_xs"
                    style_bg_color="#temp_gradient_cold" icon="cooldown" icon_position="top" text="Cool Down"
-                   translation_tag="Cool Down" long_mode="wrap">
+                   long_mode="wrap">
           <bind_state_if_eq subject="filament_nozzle_heating" state="disabled" ref_value="0"/>
           <event_cb trigger="clicked" callback="on_filament_cooldown"/>
         </ui_button>

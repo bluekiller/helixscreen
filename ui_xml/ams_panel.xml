@@ -28,9 +28,8 @@
           <!-- Title: "Multi-Filament" (colon lives with the backend suffix so it
                can be hidden together at MICRO/TINY) -->
           <text_heading name="header_title"
-                        text="Multi-Filament" translation_tag="Multi-Filament" text_transform="uppercase"
-                        long_mode="dots" style_text_align="left" clickable="false" event_bubble="true"
-                        scrollable="false"/>
+                        text="Multi-Filament" text_transform="uppercase" long_mode="dots" style_text_align="left"
+                        clickable="false" event_bubble="true" scrollable="false"/>
           <!-- Backend suffix (":" + logo + name) — hidden at MICRO/TINY where
                horizontal room is tight. -->
           <lv_obj name="header_backend_suffix"
