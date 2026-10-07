@@ -295,3 +295,33 @@ TEST_CASE("Happy Hare layout: v4 renames two gear speeds", "[happy_hare][status_
     CHECK(param_name("gear_from_spool_speed", false) == "gear_from_spool_speed");
     CHECK(param_name("clog_detection", false) == "clog_detection");
 }
+
+TEST_CASE("Happy Hare entry sensor objects are read from sibling keys",
+          "[happy_hare][status_parse][hh_v4]") {
+    const json params = {
+        {"mmu", {{"gate", 1}}},
+        {"filament_switch_sensor mmu_entry_6", {{"filament_detected", true}, {"enabled", true}}},
+        {"filament_switch_sensor mmu_entry_7", {{"enabled", false}}},
+        {"filament_switch_sensor mmu_entry_8", {{"filament_detected", nullptr}}},
+        {"filament_switch_sensor mmu_entry_x", {{"filament_detected", true}}},
+        {"filament_switch_sensor mmu_entry_9", nullptr},
+        {"filament_switch_sensor runout", {{"filament_detected", true}}}};
+    const auto r = happy_hare::parse_entry_sensor_objects(params);
+    REQUIRE(r.size() == 2);
+    CHECK(r[0].gate == 6);
+    CHECK(r[0].detected == true);
+    CHECK(r[0].enabled == true);
+    CHECK(r[1].gate == 7);
+    CHECK_FALSE(r[1].detected);
+    CHECK(r[1].enabled == false);
+    CHECK(happy_hare::parse_entry_sensor_objects(json::array()).empty());
+}
+
+TEST_CASE("Happy Hare sensors dict reads both per-gate spellings",
+          "[happy_hare][status_parse][hh_v4]") {
+    const auto d = happy_hare::parse_mmu_status(
+        json{{"sensors", {{"mmu_pre_gate_0", true}, {"mmu_entry_2", true}, {"mmu_entry", false}}}});
+    REQUIRE(d.sensors);
+    REQUIRE(d.sensors->pre_gate.size() == 2);
+    CHECK_FALSE(d.sensors->aggregate_pre_gate);
+}

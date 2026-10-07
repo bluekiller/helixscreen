@@ -105,17 +105,17 @@ FlowguardDelta read_flowguard(const nlohmann::json& fg) {
 
 MmuSensorsDelta read_sensors(const nlohmann::json& sensors) {
     MmuSensorsDelta d;
-    constexpr std::string_view prefix = "mmu_pre_gate_";
     for (auto it = sensors.begin(); it != sensors.end(); ++it) {
         const std::string& key = it.key();
-        if (key.rfind(prefix, 0) != 0) {
-            continue;
+        for (const std::string_view prefix : {"mmu_pre_gate_", "mmu_entry_"}) {
+            if (key.rfind(prefix, 0) != 0) {
+                continue;
+            }
+            const auto gate = tio::parse_leading<int>(key.substr(prefix.size()));
+            if (gate && *gate >= 0) {
+                d.pre_gate.emplace_back(*gate, it.value().is_boolean() && it.value().get<bool>());
+            }
         }
-        const auto gate = tio::parse_leading<int>(key.substr(prefix.size()));
-        if (!gate || *gate < 0) {
-            continue;
-        }
-        d.pre_gate.emplace_back(*gate, it.value().is_boolean() && it.value().get<bool>());
     }
     if (sensors.contains("mmu_pre_gate")) {
         d.aggregate_pre_gate =
@@ -286,6 +286,32 @@ std::optional<float> read_config_number(const nlohmann::json* v) {
         return tio::parse_leading<float>(v->get<std::string>());
     }
     return std::nullopt;
+}
+
+std::vector<EntrySensorReading> parse_entry_sensor_objects(const nlohmann::json& params) {
+    std::vector<EntrySensorReading> readings;
+    if (!params.is_object()) {
+        return readings;
+    }
+    constexpr std::string_view prefix = "filament_switch_sensor mmu_entry_";
+    for (auto it = params.begin(); it != params.end(); ++it) {
+        const std::string& key = it.key();
+        if (key.rfind(prefix, 0) != 0 || !it.value().is_object()) {
+            continue;
+        }
+        const auto gate = tio::parse_leading<int>(key.substr(prefix.size()));
+        if (!gate || *gate < 0) {
+            continue;
+        }
+        EntrySensorReading r;
+        r.gate = *gate;
+        r.detected = ams::read_field<bool>(it.value(), "filament_detected");
+        r.enabled = ams::read_field<bool>(it.value(), "enabled");
+        if (r.detected || r.enabled) {
+            readings.push_back(r);
+        }
+    }
+    return readings;
 }
 
 MmuCoreDelta parse_core(const nlohmann::json& mmu) {

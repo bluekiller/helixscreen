@@ -107,8 +107,10 @@ struct MmuTelemetryDelta {
 
 /// `sensors`: the pre-gate sensor readings.
 struct MmuSensorsDelta {
-    /// `mmu_pre_gate_N` entries in object order: gate index and whether the
-    /// sensor is triggered (null and non-booleans read as not triggered).
+    /// Per-gate entries in object order: gate index and whether the sensor is
+    /// triggered (null and non-booleans read as not triggered). v3 names them
+    /// `mmu_pre_gate_N`; v4 names them `mmu_entry_N`, and lists them only while
+    /// no gate is selected.
     std::vector<std::pair<int, bool>> pre_gate;
     /// The aggregate `mmu_pre_gate` of EMU boxes, which only knows the active
     /// gate.
@@ -177,6 +179,20 @@ struct MachineLayout {
 /// A configfile number: Klipper reports parsed settings as numbers, and
 /// hand-written settings carry numeric strings.
 [[nodiscard]] std::optional<float> read_config_number(const nlohmann::json* v);
+
+/// One gate's `filament_switch_sensor mmu_entry_<gate>` object. v4's
+/// printer.mmu.sensors covers only the selected gate, so these Klipper objects
+/// are the per-gate source there. Fields are nullopt when the frame omits them.
+struct EntrySensorReading {
+    int gate = -1; ///< global gate index
+    std::optional<bool> detected;
+    std::optional<bool> enabled;
+};
+
+/// Every `filament_switch_sensor mmu_entry_<N>` object in a status notification's
+/// params, in object order.
+[[nodiscard]] std::vector<EntrySensorReading>
+parse_entry_sensor_objects(const nlohmann::json& params);
 
 [[nodiscard]] MmuCoreDelta parse_core(const nlohmann::json& mmu);
 [[nodiscard]] MmuTopologyDelta parse_topology(const nlohmann::json& mmu);

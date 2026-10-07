@@ -50,6 +50,7 @@ class HappyHareTestAccess;
  */
 /**
  * @brief Pre-gate filament sensor readings for one gate, from printer.mmu.sensors
+ * or the gate's own `filament_switch_sensor mmu_entry_<N>` object
  *
  * Kept beside the registry slots rather than inside SlotEntry so the registry
  * stays free of any one backend's sensor vocabulary. Keyed by global gate
@@ -58,6 +59,10 @@ class HappyHareTestAccess;
 struct HappyHareGateSensor {
     bool has_pre_gate_sensor = false; ///< Whether any frame ever reported this gate's sensor
     bool pre_gate_triggered = false;  ///< Filament detected at the pre-gate position
+    /// The sensor object's own fields, which arrive in independent deltas;
+    /// pre_gate_triggered is detected while enabled.
+    bool object_detected = false;
+    bool object_enabled = true;
 };
 
 class AmsBackendHappyHare : public AmsSubscriptionBackend {
@@ -77,8 +82,9 @@ class AmsBackendHappyHare : public AmsSubscriptionBackend {
      * @brief Bare filament-sensor names Happy Hare owns (no AMS keyword).
      *
      * extruder, toolhead, filament_tension, filament_compression. The
-     * keyword-bearing sensors (mmu_gate / mmu_pre_gate_N / mmu_gear_N) are
-     * caught by PrinterHardware's substring path, not here. Static and
+     * keyword-bearing sensors (mmu_gate / mmu_pre_gate_N / mmu_gear_N, and v4's
+     * mmu_entry_N / mmu_exit_N) are caught by PrinterHardware's substring path,
+     * not here. Static and
      * discovery-free; @p discovery is accepted for signature uniformity with
      * other backends. See AmsBackend::sensor_belongs_to_backend (#1054).
      */
@@ -481,6 +487,9 @@ class AmsBackendHappyHare : public AmsSubscriptionBackend {
     /// Pre-gate sensors, drying and the endless-spool enable bit.
     void apply_mmu_sensors_locked(const happy_hare::MmuStatusDelta& delta);
     void apply_mmu_drying_locked(const happy_hare::DryingDelta& drying);
+    /// Per-gate `filament_switch_sensor mmu_entry_<N>` objects.
+    void
+    apply_entry_sensor_objects_locked(const std::vector<happy_hare::EntrySensorReading>& readings);
     /// The tail of every frame: file readings, repaint each gate, re-derive
     /// statuses, mark the fault edge.
     void converge_mmu_locked(MmuFrame& frame);
@@ -641,6 +650,9 @@ class AmsBackendHappyHare : public AmsSubscriptionBackend {
     /// Pre-gate sensor state per gate, keyed by global gate index. Cleared by
     /// initialize_slots() together with the registry it mirrors.
     std::unordered_map<int, HappyHareGateSensor> gate_sensors_;
+    /// A per-gate sensor object has reported. printer.mmu.sensors' aggregate
+    /// `mmu_pre_gate` then adds nothing and must not overwrite the other gates.
+    bool entry_sensor_objects_seen_{false};
 
     /// What Happy Hare's gate map says about each gate's identity, keyed by
     /// global gate index and accumulated across frames. Moonraker names only

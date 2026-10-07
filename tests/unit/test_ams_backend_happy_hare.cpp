@@ -5834,6 +5834,14 @@ void connect_with_fixture(AmsBackendHappyHareTestHelper& helper, QueryCapturingC
     helix::ui::UpdateQueue::instance().drain();
 }
 
+/// One status notification carrying @p params as the printer sends them:
+/// printer.mmu beside whatever sibling objects changed.
+void feed_params(AmsBackendHappyHareTestHelper& helper, const nlohmann::json& params) {
+    nlohmann::json notification;
+    notification["params"] = nlohmann::json::array({params, 0.0});
+    HappyHareTestAccess::handle_status_update(helper, notification);
+}
+
 } // namespace
 
 TEST_CASE("Happy Hare v4 reads its tunables from the split config sections",
@@ -5924,4 +5932,76 @@ TEST_CASE("Happy Hare v3 still takes bypass support from printer.mmu.has_bypass"
     CHECK(helper.get_system_info().supports_bypass);
     helper.test_parse_mmu_state({{"has_bypass", false}});
     CHECK_FALSE(helper.get_system_info().supports_bypass);
+}
+
+TEST_CASE("Happy Hare v4 reads per-gate entry sensors from their Klipper objects",
+          "[ams][happy_hare][hh_v4]") {
+    helix::test::RegisteredBackend<AmsBackendHappyHareTestHelper> helper_reg;
+    AmsBackendHappyHareTestHelper& helper = *helper_reg;
+    const auto fx = helix::test::load_happy_hare_fixture("happy_hare_v4_two_unit.json");
+
+    // The first frame carries printer.mmu (gate 7 selected, so its sensors dict
+    // holds only generic names) beside the four entry sensor objects of unit 1.
+    nlohmann::json params = fx["entry_sensors"];
+    params["mmu"] = fx["mmu_status"];
+    feed_params(helper, params);
+
+    for (int gate = 0; gate < 6; ++gate) {
+        INFO("gate " << gate);
+        CHECK_FALSE(helper.slot_has_prep_sensor(gate));
+    }
+    CHECK(helper.slot_has_prep_sensor(6));
+    CHECK(helper.get_gate_sensor(6)->pre_gate_triggered);
+    CHECK(helper.get_gate_sensor(7)->pre_gate_triggered);
+    CHECK_FALSE(helper.get_gate_sensor(8)->pre_gate_triggered);
+    CHECK(helper.get_gate_sensor(9)->pre_gate_triggered);
+    CHECK(helper.get_slot_filament_segment(9) == PathSegment::PREP);
+
+    // A later sensors dict naming only the selected gate leaves the rest alone.
+    helper.test_parse_mmu_state({{"sensors", {{"mmu_entry", false}, {"mmu_pre_gate", false}}}});
+    CHECK(helper.get_gate_sensor(6)->pre_gate_triggered);
+    CHECK(helper.get_gate_sensor(9)->pre_gate_triggered);
+
+    // Deltas: one field at a time.
+    feed_params(helper, {{"filament_switch_sensor mmu_entry_9", {{"filament_detected", false}}}});
+    CHECK_FALSE(helper.get_gate_sensor(9)->pre_gate_triggered);
+    feed_params(helper, {{"filament_switch_sensor mmu_entry_8", {{"filament_detected", true}}}});
+    CHECK(helper.get_gate_sensor(8)->pre_gate_triggered);
+}
+
+TEST_CASE("Happy Hare v4 entry sensor that is disabled reads as not triggered",
+          "[ams][happy_hare][hh_v4]") {
+    helix::test::RegisteredBackend<AmsBackendHappyHareTestHelper> helper_reg;
+    AmsBackendHappyHareTestHelper& helper = *helper_reg;
+    const auto fx = helix::test::load_happy_hare_fixture("happy_hare_v4_single_unit.json");
+    nlohmann::json params = fx["entry_sensors"];
+    params["mmu"] = fx["mmu_status"];
+    feed_params(helper, params);
+
+    REQUIRE(helper.slot_has_prep_sensor(3));
+    CHECK_FALSE(helper.get_gate_sensor(3)->pre_gate_triggered); // detected, but disabled
+    CHECK(helper.get_gate_sensor(0)->pre_gate_triggered);
+    CHECK_FALSE(helper.get_gate_sensor(2)->pre_gate_triggered);
+    feed_params(helper, {{"filament_switch_sensor mmu_entry_3", {{"enabled", true}}}});
+    CHECK(helper.get_gate_sensor(3)->pre_gate_triggered);
+    CHECK(helper.get_system_info().units[0].has_slot_sensors);
+}
+
+TEST_CASE("Happy Hare v4 sensors dict with no gate selected names gates mmu_entry_N",
+          "[ams][happy_hare][hh_v4]") {
+    helix::test::RegisteredBackend<AmsBackendHappyHareTestHelper> helper_reg;
+    AmsBackendHappyHareTestHelper& helper = *helper_reg;
+    helper.test_parse_mmu_state({{"gate_status", {1, 1, 0, 1}},
+                                 {"gate", -1},
+                                 {"sensors",
+                                  {{"mmu_entry_0", true},
+                                   {"mmu_entry_1", false},
+                                   {"mmu_entry_2", nullptr},
+                                   {"mmu_shared_exit", false}}}});
+    REQUIRE(helper.get_gate_sensor(0));
+    CHECK(helper.get_gate_sensor(0)->pre_gate_triggered);
+    CHECK_FALSE(helper.get_gate_sensor(1)->pre_gate_triggered);
+    REQUIRE(helper.get_gate_sensor(2));
+    CHECK_FALSE(helper.get_gate_sensor(2)->pre_gate_triggered);
+    CHECK_FALSE(helper.get_gate_sensor(3));
 }
