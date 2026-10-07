@@ -179,6 +179,9 @@ def main() -> int:
                     help="tap at X,Y before the screenshot; repeatable")
     ap.add_argument("--tap-wait", type=float, default=1.5)
     ap.add_argument("--notes", action="store_true", help="print the notification history")
+    ap.add_argument("--cmd", action="append", default=[], metavar="TEXT",
+                    help="console command to send after the taps; repeatable")
+    ap.add_argument("--log", help="append every line the board prints to this file")
     args = ap.parse_args()
     if not args.notes and not args.out:
         ap.error("out is required unless --notes is given")
@@ -195,11 +198,32 @@ def main() -> int:
     port.dtr = False
     port.reset_input_buffer()
 
-    time.sleep(args.settle)
+    wait = time.sleep
+    if args.log:
+        log = open(args.log, "a")
+        raw_read = port.read
+
+        def logged_read(n):
+            data = raw_read(n)
+            log.write(data.decode("utf-8", "replace"))
+            log.flush()
+            return data
+
+        port.read = logged_read
+
+        def wait(secs):  # keep reading, so the OS buffer cannot drop boot output
+            until = time.time() + secs
+            while time.time() < until:
+                port.read(4096)
+
+    wait(args.settle)
     for tap in args.tap:
         x, y = (int(v) for v in tap.split(","))
         port.write(f"\ntap {x} {y}\n".encode())
-        time.sleep(args.tap_wait)
+        wait(args.tap_wait)
+    for cmd in args.cmd:
+        port.write(f"\n{cmd}\n".encode())
+        wait(args.tap_wait)
     lines, buf, deadline = [], b"", time.time() + args.timeout
     if args.notes:
         port.write(b"\nnotes\n")

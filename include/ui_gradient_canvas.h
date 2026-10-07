@@ -101,5 +101,13 @@ namespace helix::ui {
 lv_draw_buf_t* gradient_canvas_create_opaque_buf(int32_t width, int32_t height, bool dark_mode,
                                                  int32_t radius, lv_color_t behind,
                                                  lv_color_t under);
+
+/**
+ * @brief Render the diagonal gradient into an existing buffer
+ *
+ * @p start is the top-right color, @p end the bottom-left. Writes every pixel
+ * opaque; @p buf may be ARGB8888, XRGB8888 or RGB565.
+ */
+void gradient_canvas_render(lv_draw_buf_t* buf, lv_color_t start, lv_color_t end, bool dither);
 } // namespace helix::ui
 #endif
