@@ -31,17 +31,19 @@
                 height="content" flex_flow="row" style_pad_all="0" style_pad_gap="#space_sm"
                 style_flex_cross_place="center" scrollable="false">
           <text_input name="vendor_search"
-                      flex_grow="1" placeholder_text="Search vendors..." placeholder_tag="Search vendors...">
+                      height="#input_height" flex_grow="1" placeholder_text="Search vendors..."
+                      placeholder_tag="Search vendors...">
             <event_cb trigger="value_changed" callback="on_wizard_vendor_search_changed"/>
           </text_input>
-          <ui_button name="add_vendor_btn" width="content" variant="secondary" text="+ New" translation_tag="+ New">
+          <ui_button name="add_vendor_btn"
+                     width="content" height="#input_height" variant="secondary" text="+ New" translation_tag="+ New">
             <event_cb trigger="clicked" callback="on_wizard_show_create_vendor_modal"/>
           </ui_button>
         </lv_obj>
 
         <!-- Vendor list (scrollable) -->
         <lv_obj name="vendor_list"
-                width="100%" scrollable="true" flex_flow="column" style_pad_left="#space_xs" style_pad_right="#space_xs"
+                width="100%" scrollable="true" flex_flow="column" style_pad_left="#space_xs" style_pad_right="#space_md"
                 style_pad_top="0" style_pad_bottom="0" style_pad_gap="#space_sm">
           <!-- The whole step, or only the matching vendors while SpoolmanDB
                results share it -->
@@ -73,7 +75,7 @@
           </lv_obj>
           <lv_obj name="catalog_results"
                   width="100%" flex_grow="1" scrollable="true" flex_flow="column" style_pad_left="#space_xs"
-                  style_pad_right="#space_xs" style_pad_top="0" style_pad_bottom="0" style_pad_gap="#space_xs"
+                  style_pad_right="#space_md" style_pad_top="0" style_pad_bottom="0" style_pad_gap="#space_xs"
                   hidden="true">
             <bind_flag_if_eq subject="spool_db_result_count" flag="hidden" ref_value="0"/>
             <!-- One row per result slot, built once; a new answer rebinds their
@@ -133,7 +135,7 @@
         <!-- Filament list (scrollable) -->
         <lv_obj name="filament_list"
                 width="100%" flex_grow="1" scrollable="true" flex_flow="column" style_pad_left="#space_xs"
-                style_pad_right="#space_xs" style_pad_top="0" style_pad_bottom="0" style_pad_gap="#space_xs"/>
+                style_pad_right="#space_md" style_pad_top="0" style_pad_bottom="0" style_pad_gap="#space_xs"/>
 
         <!-- Empty state for filament list -->
         <centered_column name="filament_empty_state" flex_grow="1" hidden="true">

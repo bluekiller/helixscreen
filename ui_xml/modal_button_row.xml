@@ -13,7 +13,7 @@
     <prop name="primary_icon" type="string" default=""/>
     <prop name="secondary_icon" type="string" default=""/>
     <prop name="primary_variant" type="string" default="primary"/>
-    <prop name="secondary_variant" type="string" default="primary"/>
+    <prop name="secondary_variant" type="string" default="secondary"/>
     <!-- Subject-bound captions, for pickers whose button text names a runtime
          choice (an opening direction, a dialog's computed verb) rather than a
          literal. Empty default = binding skipped, static text stands. Same

@@ -66,8 +66,8 @@
          here, not the prop-driven chrome modal_dialog pins in its header. -->
     <lv_obj name="hidden_form_container"
             width="100%" height="content" style_max_height="#dialog_content_max" style_pad_left="#space_lg"
-            style_pad_right="#space_lg" style_pad_top="#space_lg" style_pad_bottom="#space_lg" flex_flow="column"
-            style_flex_cross_place="start" style_pad_gap="#space_md" scrollable="true" scroll_snap_y="none">
+            style_pad_right="#space_lg" style_pad_top="#space_md" style_pad_bottom="#space_md" flex_flow="column"
+            style_flex_cross_place="start" style_pad_gap="#space_sm" scrollable="true" scroll_snap_y="none">
       <!-- Hide form when hidden_connecting == 1 -->
       <bind_flag_if_eq subject="hidden_connecting" flag="hidden" ref_value="1"/>
       <!-- Title -->
@@ -84,7 +84,7 @@
         <lv_dropdown name="security_dropdown"
                      width="100%" height="#input_height" options="None&#10;WPA/WPA2&#10;WPA3"
                      options_tag="None&#10;WPA/WPA2&#10;WPA3" style_radius="#border_radius" style_pad_all="#space_md"
-                     style_text_font="#font_body">
+                     style_text_font="#font_body" bind_value="hidden_security">
           <event_cb trigger="value_changed" callback="on_security_changed"/>
         </lv_dropdown>
       </lv_obj>
@@ -118,7 +118,9 @@
     <!-- ============================================================ -->
     <lv_obj width="100%" height="#button_height" style_pad_all="0" style_pad_gap="0" flex_flow="row">
       <!-- Cancel button (always visible) -->
-      <ui_button name="cancel_btn" height="100%" flex_grow="1" style_radius="0" text="Cancel" translation_tag="Cancel">
+      <ui_button name="cancel_btn"
+                 height="100%" variant="secondary" flex_grow="1" style_radius="0" style_border_width="0" text="Cancel"
+                 translation_tag="Cancel">
         <event_cb trigger="clicked" callback="on_hidden_cancel_clicked"/>
       </ui_button>
       <!-- Vertical divider between buttons (hidden when connecting) -->
@@ -128,7 +130,8 @@
       </divider_vertical>
       <!-- Connect button (hidden while connecting) -->
       <ui_button name="connect_btn"
-                 height="100%" flex_grow="1" style_radius="0" text="Connect" translation_tag="Connect">
+                 height="100%" flex_grow="1" style_radius="0" style_border_width="0" text="Connect"
+                 translation_tag="Connect">
         <!-- Hide button while connecting (hidden_connecting == 1) -->
         <bind_flag_if_eq subject="hidden_connecting" flag="hidden" ref_value="1"/>
         <event_cb trigger="clicked" callback="on_hidden_connect_clicked"/>

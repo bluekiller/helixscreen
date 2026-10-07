@@ -15,9 +15,11 @@
     - ams_sidebar_settings_clicked: Settings button
     C++ companion: AmsOperationSidebar (ui_ams_sidebar.h)
   -->
+  <!-- Scrolls vertically: with every action a backend offers, the buttons
+       outgrow a MEDIUM screen's column. -->
   <view name="ams_sidebar"
-        extends="lv_obj" width="100%" height="100%" style_pad_all="0" scrollable="false" flex_flow="column"
-        style_flex_main_place="start" style_flex_cross_place="center" style_pad_gap="#space_sm">
+        extends="lv_obj" width="100%" height="100%" style_pad_all="0" scrollable="true" scroll_dir="ver"
+        flex_flow="column" style_flex_main_place="start" style_flex_cross_place="center" style_pad_gap="#space_sm">
     <!-- Currently Loaded Section Header (e.g., "Current: Slot 1") -->
     <text_small width="100%" bind_text="ams_current_slot_text"/>
     <!-- Shared loaded card component -->

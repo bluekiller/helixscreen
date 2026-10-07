@@ -24,7 +24,9 @@
     <!-- Single OK button — always visible at bottom -->
     <divider_horizontal/>
     <lv_obj width="100%" height="#button_height" style_pad_all="0" flex_flow="row">
-      <ui_button name="btn_primary" height="100%" flex_grow="1" style_radius="0" text="Got it" translation_tag="Got it"/>
+      <ui_button name="btn_primary"
+                 height="100%" flex_grow="1" style_radius="0" style_border_width="0" text="Got it"
+                 translation_tag="Got it"/>
     </lv_obj>
   </view>
 </component>
