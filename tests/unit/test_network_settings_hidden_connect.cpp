@@ -108,3 +108,45 @@ TEST_CASE_METHOD(HiddenConnectFixture,
     // And nothing reached the backend, hidden or otherwise.
     CHECK_FALSE(raw->last_connect_hidden());
 }
+
+TEST_CASE_METHOD(HiddenConnectFixture,
+                 "the hidden modal swaps its form and Connect for a spinner while joining",
+                 "[network_settings][hidden]") {
+    WifiBackendMock* raw = nullptr;
+    auto wm = make_manager(&raw);
+
+    auto overlay = std::make_unique<NetworkSettingsOverlay>();
+    overlay->init_subjects();
+    overlay->register_callbacks();
+    Access::wifi_manager(*overlay) = wm;
+    REQUIRE(overlay->create(test_screen()) != nullptr);
+
+    Access::add_other_clicked(*overlay);
+    lv_obj_t* modal = Access::hidden_network_modal(*overlay);
+    REQUIRE(modal != nullptr);
+    lv_obj_t* form = lv_obj_find_by_name(modal, "hidden_form_container");
+    lv_obj_t* spinner = lv_obj_find_by_name(modal, "connecting_container");
+    lv_obj_t* connect = lv_obj_find_by_name(modal, "connect_btn");
+    lv_obj_t* cancel = lv_obj_find_by_name(modal, "cancel_btn");
+    REQUIRE(form != nullptr);
+    REQUIRE(spinner != nullptr);
+    REQUIRE(connect != nullptr);
+    REQUIRE(cancel != nullptr);
+    CHECK_FALSE(lv_obj_has_flag(form, LV_OBJ_FLAG_HIDDEN));
+    CHECK(lv_obj_has_flag(spinner, LV_OBJ_FLAG_HIDDEN));
+    CHECK_FALSE(lv_obj_has_flag(connect, LV_OBJ_FLAG_HIDDEN));
+
+    lv_obj_t* ssid_input = lv_obj_find_by_name(modal, "ssid_input");
+    REQUIRE(ssid_input != nullptr);
+    lv_textarea_set_text(ssid_input, "StealthNet");
+    lv_obj_t* security = lv_obj_find_by_name(modal, "security_dropdown");
+    REQUIRE(security != nullptr);
+    lv_dropdown_set_selected(security, 0);
+
+    Access::hidden_connect_clicked(*overlay);
+
+    CHECK(lv_obj_has_flag(form, LV_OBJ_FLAG_HIDDEN));
+    CHECK_FALSE(lv_obj_has_flag(spinner, LV_OBJ_FLAG_HIDDEN));
+    CHECK(lv_obj_has_flag(connect, LV_OBJ_FLAG_HIDDEN));
+    CHECK_FALSE(lv_obj_has_flag(cancel, LV_OBJ_FLAG_HIDDEN));
+}

@@ -88,47 +88,27 @@
       </lv_obj>
     </lv_obj>
 
-    <!-- Divider -->
-    <divider_horizontal/>
-
-    <!-- Button rows - different per state -->
-    <!-- State 0: Upload + Cancel -->
-    <lv_obj name="consent_buttons"
-            width="100%" height="#button_height" style_pad_all="0" style_pad_gap="0" flex_flow="row">
+    <!-- Button rows, one per state; each carries its own top divider. -->
+    <!-- State 0: Cancel | Upload -->
+    <modal_button_row name="consent_buttons"
+                      secondary_name="btn_cancel" secondary_text="Cancel" secondary_tag="Cancel"
+                      secondary_callback="on_debug_bundle_cancel" primary_name="btn_upload" primary_text="Upload"
+                      primary_tag="Upload" primary_callback="on_debug_bundle_upload">
       <bind_flag_if_not_eq subject="debug_bundle_state" flag="hidden" ref_value="0"/>
-      <ui_button name="btn_cancel"
-                 height="100%" variant="secondary" text="Cancel" translation_tag="Cancel" flex_grow="1" style_radius="0"
-                 style_border_width="0">
-        <event_cb trigger="clicked" callback="on_debug_bundle_cancel"/>
-      </ui_button>
-      <divider_vertical/>
-      <ui_button name="btn_upload"
-                 height="100%" text="Upload" translation_tag="Upload" flex_grow="1" style_radius="0"
-                 style_border_width="0" variant="primary">
-        <event_cb trigger="clicked" callback="on_debug_bundle_upload"/>
-      </ui_button>
-    </lv_obj>
+    </modal_button_row>
 
-    <!-- State 2: Done button -->
-    <lv_obj name="success_buttons"
-            width="100%" height="#button_height" style_pad_all="0" style_pad_gap="0" flex_flow="row">
+    <!-- State 2: Done -->
+    <modal_button_row name="success_buttons"
+                      hide_secondary="true" primary_name="btn_done" primary_text="Done" primary_tag="Done"
+                      primary_callback="on_debug_bundle_done">
       <bind_flag_if_not_eq subject="debug_bundle_state" flag="hidden" ref_value="2"/>
-      <ui_button name="btn_done"
-                 height="100%" text="Done" translation_tag="Done" flex_grow="1" style_radius="0" style_border_width="0"
-                 variant="primary">
-        <event_cb trigger="clicked" callback="on_debug_bundle_done"/>
-      </ui_button>
-    </lv_obj>
+    </modal_button_row>
 
-    <!-- State 3: Close button -->
-    <lv_obj name="error_buttons"
-            width="100%" height="#button_height" style_pad_all="0" style_pad_gap="0" flex_flow="row">
+    <!-- State 3: Close -->
+    <modal_button_row name="error_buttons"
+                      hide_secondary="true" primary_name="btn_close" primary_text="Close" primary_tag="Close"
+                      primary_callback="on_debug_bundle_close">
       <bind_flag_if_not_eq subject="debug_bundle_state" flag="hidden" ref_value="3"/>
-      <ui_button name="btn_close"
-                 height="100%" text="Close" translation_tag="Close" flex_grow="1" style_radius="0"
-                 style_border_width="0">
-        <event_cb trigger="clicked" callback="on_debug_bundle_close"/>
-      </ui_button>
-    </lv_obj>
+    </modal_button_row>
   </view>
 </component>

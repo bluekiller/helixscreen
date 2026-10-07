@@ -311,6 +311,19 @@ Reusable button footer with divider. Provides the standard "secondary | primary"
 | `tertiary_icon` | string | "" | Optional icon for the tertiary button |
 | `tertiary_variant` | string | "secondary" | Tertiary button style variant |
 | `hide_tertiary` | string | "true" | Hidden by default; pass `"false"` to reveal it |
+| `tertiary_show_subject` | string | "" | Subject carrying 0 hides the tertiary button and its divider |
+| `quaternary_text` / `_tag` / `_callback` / `_icon` / `_variant` | string | "" / "secondary" | Optional fourth action, leftmost |
+| `hide_quaternary` | string | "true" | Pass `"false"` to reveal the fourth action |
+| `primary_name` / `secondary_name` / `tertiary_name` / `quaternary_name` | string | `btn_primary` ... | Widget names, for C++ lookups and `wire_*_button()`; set them when a dialog has several rows |
+| `primary_hide_subject` | string | "" | Subject carrying 1 hides the primary button and the divider before it |
+| `primary_disable_subject` | string | "" | Subject carrying 1 disables the primary button (inverse of `primary_enable_subject`) |
+| `primary_accent_subject` | string | "" | Subject carrying 1 rings the primary button with `styles.accent_outline` |
+
+A dialog that shows different buttons per state uses one `modal_button_row` per state, each
+with a `name` and a `bind_flag_if_*` child on the instance (`ui_xml/debug_bundle_modal.xml`).
+Each row carries its own top divider, so there is no shared `divider_horizontal` above them.
+Subject props resolve in `modal_button_row`'s scope plus globals, so a subject declared in
+the calling component's own `<subjects>` cannot be passed in.
 
 Use `primary_variant="danger"` (not a color override) for destructive primaries. The
 tertiary button is hidden by default so existing two-button callers are unaffected; a
@@ -608,7 +621,7 @@ void on_quinary() override {
 ```
 
 **Subject-driven conditional sections.** The six button hooks are only half the story - which
-buttons and rows are even visible is driven by XML bindings on component-scoped subjects that
+buttons and rows are even visible is driven by XML bindings on C++-owned global subjects that
 `RunoutGuidanceModal` sets before each `show()`, not by hiding/showing widgets from C++:
 
 - `runout_autofeed_capable` (0/1) - set from the active backend's `recovers_filament_on_resume()`.
