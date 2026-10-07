@@ -6059,3 +6059,117 @@ TEST_CASE_METHOD(SilentVoronReplayFixture,
     set_homed("xyz");
     CHECK(get_current_phase() == PrintStartPhase::INITIALIZING);
 }
+
+TEST_CASE_METHOD(
+    SilentVoronReplayFixture,
+    "PrintStartCollector: a start that cleans before it levels keeps the leveling time",
+    "[print][collector][preprint][silent_voron][eta]") {
+    // K1, K2, QIDI and AD5M macros clean the nozzle before they level, the
+    // reverse of the phase enum. This printer's history has both steps.
+    helix::PreprintEntry past;
+    past.total_seconds = 180;
+    past.timestamp = 1;
+    past.phase_durations = {{static_cast<int>(PrintStartPhase::CLEANING), 30},
+                            {static_cast<int>(PrintStartPhase::Z_TILT), 120}};
+    past.temp_bucket = 2;
+    past.window = helix::PreprintWindow::PrinterEdge;
+    helix::PreprintPredictor::append_to_config(past);
+
+    lv_subject_copy_string(state().motion_state().get_homed_axes_subject(), "xyz");
+    set_all_temps(600, 600, 2000, 2000);
+    collector().start();
+    collector().enable_fallbacks();
+    settle();
+    const auto progress = [this] {
+        return lv_subject_get_int(state().print_state().get_print_start_progress_subject());
+    };
+    const auto tick = [this] {
+        clock_.advance(std::chrono::seconds(5));
+        PrintStartCollectorTestAccess::run_eta_update(collector());
+        tick_fallbacks();
+    };
+
+    send_gcode_response("CLEAN_NOZZLE");
+    for (int t = 5; t <= 25; t += 5) {
+        tick();
+    }
+    const int cleaning_remaining = remaining();
+    const int cleaning_progress = progress();
+
+    clock_.advance(std::chrono::seconds(5));
+    send_gcode_response("Z_TILT_ADJUST");
+    PrintStartCollectorTestAccess::run_eta_update(collector());
+    settle();
+    CHECK(remaining() <= cleaning_remaining);
+
+    for (int t = 35; t <= 90; t += 5) {
+        tick();
+    }
+    CHECK(progress() > cleaning_progress);
+}
+
+TEST_CASE_METHOD(SilentVoronReplayFixture,
+                 "PrintStartCollector: extrusion before the nozzle is hot is not the purge",
+                 "[print][collector][preprint][silent_voron][purge]") {
+    lv_subject_copy_string(state().motion_state().get_homed_axes_subject(), "xyz");
+    set_all_temps(900, 900, 1500, 2700);
+    collector().start();
+    collector().enable_fallbacks();
+    settle();
+    tick_fallbacks();
+
+    // A bucket purge or tool load while the nozzle climbs.
+    client().dispatch_status_update({{"motion_report", {{"live_extruder_velocity", 2.5}}}});
+    settle();
+    CHECK(get_current_phase() != PrintStartPhase::PURGING);
+
+    // The same extrusion once both heaters are at target is the prime line,
+    // read from the heater frames without waiting for a tick.
+    client().dispatch_status_update({{"extruder", {{"temperature", 269.5}, {"target", 270.0}}}});
+    client().dispatch_status_update({{"motion_report", {{"live_extruder_velocity", 2.5}}}});
+    settle();
+    CHECK(get_current_phase() == PrintStartPhase::PURGING);
+}
+
+TEST_CASE_METHOD(SilentVoronReplayFixture,
+                 "PrintStartCollector: a target shown on the display leaves homing inference on",
+                 "[print][collector][preprint][silent_voron][homing]") {
+    lv_subject_copy_string(state().motion_state().get_homed_axes_subject(), "");
+    set_all_temps(300, 0, 320, 0);
+    collector().start();
+    collector().enable_fallbacks();
+    settle();
+
+    display("Bed: 90c");
+    REQUIRE(get_current_phase() == PrintStartPhase::HEATING_BED);
+    set_homed("xy");
+    CHECK(get_current_phase() == PrintStartPhase::HOMING);
+}
+
+TEST_CASE_METHOD(SilentVoronReplayFixture,
+                 "PrintStartCollector: a bed slowing on its approach does not bounce the countdown",
+                 "[print][collector][preprint][silent_voron][eta]") {
+    lv_subject_copy_string(state().motion_state().get_homed_axes_subject(), "xyz");
+    set_all_temps(300, 900, 320, 0);
+    collector().start();
+    collector().enable_fallbacks();
+    settle();
+
+    // A first-order approach to 90C: the measured rate keeps slowing.
+    int last = -1;
+    int increases = 0;
+    for (int t = 5; t <= 400; t += 5) {
+        clock_.advance(std::chrono::seconds(5));
+        const double bed = 90.0 - 60.0 * std::exp(-t / 150.0);
+        set_all_temps(static_cast<int>(std::lround(bed * 10)), 900, 320, 0);
+        tick_fallbacks();
+        PrintStartCollectorTestAccess::run_eta_update(collector());
+        settle();
+        // The first measured rate may raise the estimate once.
+        if (last >= 0 && remaining() > last) {
+            ++increases;
+        }
+        last = remaining();
+    }
+    CHECK(increases <= 1);
+}

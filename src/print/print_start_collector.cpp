@@ -172,12 +172,18 @@ void PrintStartCollector::start() {
         lv_subject_get_int(state_.temperature_state().get_bed_temp_subject()));
     cached_ext_temp_.store(start_ext_temp_, std::memory_order_relaxed);
     cached_bed_temp_.store(start_bed_temp_, std::memory_order_relaxed);
+    frame_ext_temp_.store(start_ext_temp_, std::memory_order_relaxed);
+    frame_bed_temp_.store(start_bed_temp_, std::memory_order_relaxed);
     cached_ext_target_.store(helix::ui::temperature::deci_to_degrees(lv_subject_get_int(
                                  state_.temperature_state().get_active_extruder_target_subject())),
                              std::memory_order_relaxed);
     cached_bed_target_.store(helix::ui::temperature::deci_to_degrees(lv_subject_get_int(
                                  state_.temperature_state().get_bed_target_subject())),
                              std::memory_order_relaxed);
+    frame_ext_target_.store(cached_ext_target_.load(std::memory_order_relaxed),
+                            std::memory_order_relaxed);
+    frame_bed_target_.store(cached_bed_target_.load(std::memory_order_relaxed),
+                            std::memory_order_relaxed);
     // Reset thermal rate models with current temperatures
     {
         auto& mgr = ThermalRateManager::instance();
@@ -630,9 +636,9 @@ void PrintStartCollector::check_fallback_completion() {
     // Also recompute on a substantial RISE (e.g. staged heating: probe temp,
     // then print temp), but never on decreases — temporary M104 S0 (nozzle
     // cooldown for probe cleaning) must not remove the heating phase and
-    // cause progress regression. A heater whose measured rate departs from the
-    // one the weights used recomputes too: a bed heating at 5.6 s/C against a
-    // 1 s/C size guess otherwise counts down a sixth of its real wait.
+    // cause progress regression. A heater's first measured rate recomputes
+    // too: a bed heating at 5.6 s/C against a 1 s/C size guess otherwise
+    // counts down a sixth of its real wait.
     {
         int new_ext = helix::ui::temperature::deci_to_degrees(ext_target);
         int new_bed = helix::ui::temperature::deci_to_degrees(bed_target);
@@ -641,23 +647,18 @@ void PrintStartCollector::check_fallback_completion() {
         bool bed_newly_set = (weights_bed_target_ == 0 && new_bed > 0);
         bool ext_rose = new_ext > weights_ext_target_ + TARGET_RISE_RECOMPUTE_DEGREES;
         bool bed_rose = new_bed > weights_bed_target_ + TARGET_RISE_RECOMPUTE_DEGREES;
-        // A rate within a quarter of the one the weights used is EMA noise.
-        constexpr float RATE_RECOMPUTE_RATIO = 1.25f;
-        const auto rate_moved = [](float used, float now) {
-            return now > used * RATE_RECOMPUTE_RATIO || now * RATE_RECOMPUTE_RATIO < used;
-        };
         auto& rates = ThermalRateManager::instance();
-        const bool ext_rate_moved =
-            rate_moved(weights_ext_rate_, rates.get_model("extruder").best_rate());
-        const bool bed_rate_moved =
-            rate_moved(weights_bed_rate_, rates.get_model("heater_bed").best_rate());
-        if (ext_newly_set || bed_newly_set || ext_rose || bed_rose || ext_rate_moved ||
-            bed_rate_moved) {
+        const bool ext_first_rate =
+            !weights_ext_measured_ && rates.get_model("extruder").measured_rate().has_value();
+        const bool bed_first_rate =
+            !weights_bed_measured_ && rates.get_model("heater_bed").measured_rate().has_value();
+        if (ext_newly_set || bed_newly_set || ext_rose || bed_rose || ext_first_rate ||
+            bed_first_rate) {
             spdlog::info("[PrintStartCollector] Heater targets or rates changed "
-                         "(ext: {}→{}°C, bed: {}→{}°C, rate moved ext={} bed={}), "
+                         "(ext: {}→{}°C, bed: {}→{}°C, first measured rate ext={} bed={}), "
                          "recomputing weights",
-                         weights_ext_target_, new_ext, weights_bed_target_, new_bed, ext_rate_moved,
-                         bed_rate_moved);
+                         weights_ext_target_, new_ext, weights_bed_target_, new_bed, ext_first_rate,
+                         bed_first_rate);
             compute_predicted_weights();
             // The ETA's inputs changed, not just its noise: release the
             // monotonic anchor so the next publish can report the corrected
@@ -1339,6 +1340,7 @@ void PrintStartCollector::check_phase_patterns(const std::string& line) {
 
 void PrintStartCollector::apply_profile_match(const PrintStartProfile::MatchResult& match,
                                               bool marks_real_signal) {
+    marks_real_signal = marks_real_signal && match.narrates;
     if (marks_real_signal) {
         real_signal_seen_.store(true, std::memory_order_relaxed);
         note_signal(std::chrono::seconds(match.hold_seconds));
@@ -1446,6 +1448,26 @@ void PrintStartCollector::handle_status_signals(const json& status) {
         return;
     }
 
+    // Klipper sends each heater field only when it changes, so the last value
+    // seen per field is the live one.
+    const auto note_heater = [&status](const char* name, std::atomic<int>& temp,
+                                       std::atomic<int>& target) {
+        const auto heater = status.find(name);
+        if (heater == status.end() || !heater->is_object()) {
+            return;
+        }
+        const auto t = heater->find("temperature");
+        if (t != heater->end() && t->is_number()) {
+            temp.store(static_cast<int>(t->get<double>()), std::memory_order_relaxed);
+        }
+        const auto g = heater->find("target");
+        if (g != heater->end() && g->is_number()) {
+            target.store(static_cast<int>(g->get<double>()), std::memory_order_relaxed);
+        }
+    };
+    note_heater("extruder", frame_ext_temp_, frame_ext_target_);
+    note_heater("heater_bed", frame_bed_temp_, frame_bed_target_);
+
     for (const auto& rule : rules) {
         const auto object = status.find(rule.object);
         if (object == status.end() || !object->is_object()) {
@@ -1463,7 +1485,19 @@ void PrintStartCollector::handle_status_signals(const json& status) {
         bool fire = false;
         {
             std::lock_guard<std::mutex> lock(state_mutex_);
-            if (holds) {
+            // An after_heat rule waits for both heaters: forward extrusion
+            // before then is a bucket purge ahead of the mesh or a tool load.
+            // It stays unlatched so a frame after the heat fires it. On a
+            // toolchanger the frames name only the first extruder, so a tool
+            // still heating keeps the rule quiet rather than mislabeled.
+            const bool before_heat =
+                rule.after_heat && !(at_target(frame_ext_temp_.load(std::memory_order_relaxed),
+                                               frame_ext_target_.load(std::memory_order_relaxed)) &&
+                                     at_target(frame_bed_temp_.load(std::memory_order_relaxed),
+                                               frame_bed_target_.load(std::memory_order_relaxed)));
+            if (holds && before_heat) {
+                held_status_signal_rules_.erase(rule.name);
+            } else if (holds) {
                 fire = held_status_signal_rules_.insert(rule.name).second;
             } else {
                 held_status_signal_rules_.erase(rule.name);
@@ -2021,6 +2055,12 @@ std::set<int> PrintStartCollector::get_completed_phase_ints_locked() const {
 }
 
 bool PrintStartCollector::phase_skipped_locked(int phase) const {
+    // The enum is not every macro's order: K1, K2, QIDI and AD5M starts clean
+    // the nozzle before they mesh. A phase this printer's own history recorded
+    // is still to come until the purge, the last step any start runs.
+    if (predictor_.has_predictions() && current_phase_ != PrintStartPhase::PURGING) {
+        return false;
+    }
     const auto p = static_cast<PrintStartPhase>(phase);
     return phase < static_cast<int>(current_phase_) && p != PrintStartPhase::HEATING_BED &&
            p != PrintStartPhase::HEATING_NOZZLE &&
@@ -2374,8 +2414,8 @@ void PrintStartCollector::compute_predicted_weights() {
     // Track targets and rates used so we can detect changes and recompute
     weights_ext_target_ = ext_target;
     weights_bed_target_ = bed_target;
-    weights_ext_rate_ = mgr.get_model("extruder").best_rate();
-    weights_bed_rate_ = mgr.get_model("heater_bed").best_rate();
+    weights_ext_measured_ = mgr.get_model("extruder").measured_rate().has_value();
+    weights_bed_measured_ = mgr.get_model("heater_bed").measured_rate().has_value();
 
     spdlog::debug("[PrintStartCollector] Predicted weights: total={:.0f}s, {} phases "
                   "(ext_target={}°C, bed_target={}°C)",
@@ -2411,23 +2451,21 @@ float PrintStartCollector::compute_heating_fraction_for_locked(helix::PrintStart
     return 0.0f;
 }
 
-bool PrintStartCollector::heating_target_reached_locked(helix::PrintStartPhase phase) const {
+bool PrintStartCollector::at_target(int temp, int target) {
     constexpr int WITHIN_DEGREES = 2;
+    // Target unknown (never observed): we cannot judge, so fall back to
+    // the marker-pass completion semantics rather than stalling the phase.
+    return target <= 0 || temp >= target - WITHIN_DEGREES;
+}
+
+bool PrintStartCollector::heating_target_reached_locked(helix::PrintStartPhase phase) const {
     if (phase == PrintStartPhase::HEATING_NOZZLE) {
-        int target = cached_ext_target_.load(std::memory_order_relaxed);
-        int temp = cached_ext_temp_.load(std::memory_order_relaxed);
-        // Target unknown (never observed): we cannot judge, so fall back to
-        // the marker-pass completion semantics rather than stalling the phase.
-        if (target <= 0)
-            return true;
-        return temp >= target - WITHIN_DEGREES;
+        return at_target(cached_ext_temp_.load(std::memory_order_relaxed),
+                         cached_ext_target_.load(std::memory_order_relaxed));
     }
     if (phase == PrintStartPhase::HEATING_BED) {
-        int target = cached_bed_target_.load(std::memory_order_relaxed);
-        int temp = cached_bed_temp_.load(std::memory_order_relaxed);
-        if (target <= 0)
-            return true;
-        return temp >= target - WITHIN_DEGREES;
+        return at_target(cached_bed_temp_.load(std::memory_order_relaxed),
+                         cached_bed_target_.load(std::memory_order_relaxed));
     }
     return true; // not a heating phase — completion is not temp-gated
 }

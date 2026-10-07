@@ -463,8 +463,9 @@ class PrintStartCollector : public std::enable_shared_from_this<PrintStartCollec
      *
      * A non-heating phase that was never detected and is ordered before the
      * phase on display is one this macro does not run (or ran unseen), so it
-     * owes no time. Heating phases are judged by temperature instead. Caller
-     * must hold state_mutex_.
+     * owes no time. With prediction history the enum order is trusted only
+     * at PURGING, since several firmwares clean before they mesh. Heating
+     * phases are judged by temperature instead. Caller must hold state_mutex_.
      */
     [[nodiscard]] bool phase_skipped_locked(int phase) const;
 
@@ -602,8 +603,14 @@ class PrintStartCollector : public std::enable_shared_from_this<PrintStartCollec
     std::atomic<int> cached_ext_target_{0}; ///< Current extruder target (decideg/10)
     std::atomic<int> cached_bed_temp_{0};   ///< Current bed temp (decideg/10)
     std::atomic<int> cached_bed_target_{0}; ///< Current bed target (decideg/10)
-    int last_remaining_ = 0;                ///< For monotonic bias
-    bool fallback_completion_ = false;      ///< True if COMPLETE was triggered by timeout fallback
+    // Heater readings from the status frames themselves (degrees), for
+    // status-signal gates that run on the WebSocket thread between ticks.
+    std::atomic<int> frame_ext_temp_{0};
+    std::atomic<int> frame_ext_target_{0};
+    std::atomic<int> frame_bed_temp_{0};
+    std::atomic<int> frame_bed_target_{0};
+    int last_remaining_ = 0;           ///< For monotonic bias
+    bool fallback_completion_ = false; ///< True if COMPLETE was triggered by timeout fallback
 
     // Bed mesh probe tracking (protected by state_mutex_)
     // Parsed from G-code responses during BED_MESH phase to provide sub-phase
@@ -715,11 +722,12 @@ class PrintStartCollector : public std::enable_shared_from_this<PrintStartCollec
     // and weights need recomputing to include the new heating phase.
     int weights_ext_target_ = 0;
     int weights_bed_target_ = 0;
-    // Heating rates (s/C) the same call used. The first measured rate can be
-    // several times the default a size guess supplies, so a rate that moves
-    // recomputes the weights as a new target does.
-    float weights_ext_rate_ = 0.0f;
-    float weights_bed_rate_ = 0.0f;
+    // Whether that call had a measured heating rate for each heater. The first
+    // measurement can be several times the default a size guess supplies, so
+    // it recomputes the weights as a new target does; later EMA drift is left
+    // to the countdown's monotonic guards.
+    bool weights_ext_measured_ = false;
+    bool weights_bed_measured_ = false;
 
     /// The highest reading a heater has shown under its current target, in
     /// decidegrees; high is -1 until a fallback tick samples the heater.
@@ -737,6 +745,10 @@ class PrintStartCollector : public std::enable_shared_from_this<PrintStartCollec
      * decidegrees.
      */
     static bool heater_climbed(int temp, int target, HeaterHighWater& mark);
+
+    /// Whether a heater is within the at-target band (2C), or has no target.
+    /// Degrees.
+    [[nodiscard]] static bool at_target(int temp, int target);
 
     // Climbing-heater marks. Main thread only, like the targets above.
     HeaterHighWater bed_climb_;
