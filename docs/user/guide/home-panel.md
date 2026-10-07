@@ -315,7 +315,7 @@ These are the same 5 groups the Widget Catalog uses on the device.
 | **Filament Sensor** | Filament runout detection status. Tap to load, unload, or purge filament - what happens depends on what's going on: if the sensor is turned off, tapping opens its settings instead; while a print is running the modal is a status readout only; and if the print is paused you also get **Resume Print** and **Cancel Print**, so a runout pause can be dealt with without leaving the home screen. Cancelling asks you to confirm first. Configurable via the gear icon in Edit Mode - choose which sensor the tile follows. See [Configuring a Widget](#configuring-a-widget) above. | 1x1 | 0.5x1 | Full grid | Yes | Filament sensor |
 | **Width Sensor** | Live filament width reading from a diameter sensor. | 1x1 | 1x1 | 2x2 | Yes | Width sensor |
 | **Clog Detection** | Filament clog and flow health monitor. Shows the FlowGuard bar. Tap to open the Buffer Status detail modal. Configurable via the gear icon in Edit Mode. See [Clog Detection Widget](#clog-detection-widget) below. | 2x1 | 2x1 | 4x2 | Yes | AMS/MMU detected |
-| **Filament Buffer** | Where the filament buffer between your feeder and extruder sits against its target: an upright slider (loose up, tight down) with the reading underneath. At 2x1 it adds the last minute as a trace and says whether the filament is running tight, loose or balanced. Tap for Buffer Status. | 1x1 | 1x1 | 2x1 | Yes | A filament pressure sensor or sync feedback |
+| **Filament Buffer** | Where the filament buffer between your feeder and extruder sits against its target: an upright slider (loose up, tight down) beside a big colored reading. At 2x1 it adds the target, the last minute as a trace, and says whether the filament is running tight, loose or balanced. Tap for Buffer Status. | 1x1 | 1x1 | 2x1 | Yes | A filament pressure sensor or sync feedback |
 | **Bypass** | One-tap toggle for external-spool bypass. Shows the bypass state (icon changes, and the external spool's color and material while engaged) - tap to toggle. Same guards as the AMS panel's bypass toggle: if filament is loaded from a lane it unloads first, and while a job holds the printer (preparing, printing, or paused) the tap is refused with a "Bypass cannot be changed while printing" warning. | 1x1 | 0.5x1 | Full grid | Yes | Filament system with bypass |
 | **Humidity** | Enclosure humidity reading from a connected sensor. | 1x1 | 1x1 | 2x2 | Yes | Humidity sensor |
 
@@ -566,7 +566,7 @@ The same FlowGuard bar sits across the top, so the modal shows everything the wi
 - Advancing/trailing buffer state
 - Distance to fault (in mm)
 
-Where your printer has a filament buffer with a proportional reading, the modal also draws it as a slider with its last minute beside it; see [Filament Buffer Widget](#filament-buffer-widget).
+Where your printer has a filament buffer with a proportional reading, the modal also shows it live: the tall slider on the left, then the reading, its target and whether the filament is running tight, loose or balanced, with the last minute as a trace underneath. The modal closes with the **X** in its corner. See [Filament Buffer Widget](#filament-buffer-widget).
 
 ### Configuring Clog Detection
 
@@ -585,9 +585,22 @@ In Edit Mode, select the Clog Detection widget and tap the **gear icon** to open
 
 ## Filament Buffer Widget
 
-![Filament Buffer widget at 2x1: slider, trace, FPS 71% Running loose](../../images/user/home-filament-buffer.png)
+![Filament Buffer widget at 2x1: slider, 32% target 50%, a one-minute trace, FPS Running tight](../../images/user/home-filament-buffer.png)
 
-The filament buffer is the slack between your feeder and the extruder, and the feeder steers it toward a target. The widget draws where it sits as an upright slider, with loose filament up and tight filament down. The slider is grey on target, amber as it drifts off, and red near an end. A sensor that reports no target shows the pressure as text only, with no slider.
+The filament buffer is the slack between your feeder and the extruder, and the feeder steers it toward a target. The widget shows where it sits right now. The upright slider has loose filament up and tight filament down, with the target as a dashed window in the middle and faint zones at both ends. Only the block on the filament moves.
+
+The block and the number beside it share one color: grey when the buffer is near its target, amber as it drifts off, and red when it is close to an end. The small label under the number says what is measuring: **FPS** for a filament pressure sensor (OpenAMS, or an AFC buffer with a pressure sensor) or **Sync** for Happy Hare's sync feedback.
+
+| Size | Shows |
+|------|-------|
+| **1x1** | The slider, the reading and its label |
+| **2x1** | The reading with its target (for example "32%  target 50%"), the last minute as a trace, and the label with **Running tight**, **Running loose** or **Balanced** |
+
+The trace runs from the slider to the right, newest next to the slider, with the target as a shaded band. It starts empty and fills as the minute goes by: the part with no history yet is a dotted line.
+
+A sensor that reports no target shows the pressure as text only (for example "Pressure: 32%"), with no slider or trace.
+
+Tap the widget to open [Buffer Status](#tapping-the-widget), which shows the same reading larger and updates while it is open. A printer with no buffer reading leaves the widget dimmed with a slash badge; it comes back on its own when a reading appears.
 
 ---
 

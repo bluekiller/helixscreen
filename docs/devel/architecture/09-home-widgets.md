@@ -6,11 +6,11 @@ Counts, recounted 2026-09-23 (method included so you can re-run it):
 
 | What | Count | Method |
 |------|-------|--------|
-| Widget defs in the registry | 38 (37 + `camera` behind `HELIX_HAS_CAMERA`) | rows of `s_widget_defs` ([`src/ui/panel_widget_registry.cpp#helix`](../../../src/ui/panel_widget_registry.cpp#L88)) |
-| `PanelWidget` subclasses | 32 | `rg -l 'public (Tiled)?PanelWidget' include src -g '*.h' -g '*.cpp'`; most sized tiles derive `TiledPanelWidget` |
-| XML components | 41 | `ls ui_xml/components/panel_widget_*.xml \| wc -l` |
+| Widget defs in the registry | 39 (38 + `camera` behind `HELIX_HAS_CAMERA`) | rows of `s_widget_defs` ([`src/ui/panel_widget_registry.cpp#helix`](../../../src/ui/panel_widget_registry.cpp#L88)) |
+| `PanelWidget` subclasses | 33 | `rg -l 'public (Tiled)?PanelWidget' include src -g '*.h' -g '*.cpp'`; most sized tiles derive `TiledPanelWidget` |
+| XML components | 42 | `ls ui_xml/components/panel_widget_*.xml \| wc -l` |
 | Factory-less (pure XML) defs | 3 | `ams`, `notifications`, `firmware_restart` — no `register_*` call in `init_widget_registrations()` |
-| Hardware-gated defs | 12 (11 distinct gate subjects) | defs with a non-null `hardware_gate_subject` in the table below |
+| Hardware-gated defs | 13 (12 distinct gate subjects) | defs with a non-null `hardware_gate_subject` in the table below |
 | Multi-instance defs (`base_id:N`) | 6 | `power_device`, `fan_stack`, `fan`, `thermistor`, `temp_graph`, `favorite_macro` (`multi_instance = true`) |
 
 One class can serve several defs: `HeaterTempWidget` is instantiated three ways with different configs (`temperature`, `bed_temperature`, `chamber_temperature`, [`src/ui/panel_widgets/heater_temp_widget.cpp#register_temperature_widget`](../../../src/ui/panel_widgets/heater_temp_widget.cpp#L75)-86). And two implementations live outside `panel_widgets/` entirely ([`src/ui/widgets/power_device_widget.cpp`](../../../src/ui/widgets/power_device_widget.cpp), [`src/ui/widgets/favorite_macro_widget.cpp`](../../../src/ui/widgets/favorite_macro_widget.cpp)) — the registry does not care where the factory lives.

@@ -67,25 +67,27 @@ than the hub feeds (filament pulling tight), above it the hub is overfeeding
 (filament loose).
 
 The backend puts the reading on every unit of that lane as its `BufferHealth`
-(`fps_value`, `fps_set_point`, `fps_reported`), so:
+(`fps_value`, `fps_set_point`, `fps_reported`). It writes no `sync_feedback_bias`:
+that field is Happy Hare's. Everything draws through `helix::buffer_reading()`
+(`include/buffer_reading.h`), so:
 
-- the path canvas draws the buffer box, labelled **FPS** because the buffer
-  reports pressure (`ui_ams_detail.cpp`); any buffer that reports pressure gets
+- `BufferHealth::fps_to_bias()` maps the pressure onto the -1..+1 bias around the
+  set point, and the one colour rule (grey below 0.3, amber, red from 0.7) applies;
+- the Filament Buffer widget, the loaded-spool card and the Buffer Status modal read
+  the lane feeding the current slot, else the first unit with a sensor (with several
+  lanes loaded there is no current slot); the path canvas draws the unit's own lane;
+- the path canvas draws the buffer box labelled **FPS** because the buffer reports
+  pressure (`ui_ams_detail.cpp`), tinted live; any buffer that reports pressure gets
   the same label;
-- `BufferHealth::fps_to_bias()` maps it onto the -1..+1 sync-feedback bias,
-  the same conversion AFC uses for an `FPS_PSF` buffer, so the box tints like
-  any other buffer and the buffer modal draws the slider with its
-  balanced / running tight / running loose description;
-- `sync_feedback_bias` carries `AmsSystemInfo::pressure_sensor_bias()`: the
-  lane feeding the current slot, else the first unit with a sensor (with
-  several lanes loaded there is no current slot). The Filament Buffer widget, the loaded-spool card and the Buffer Status modal read it through
-  `helix::buffer_reading()` (the lane feeding the current slot, else the first unit with a
-  sensor); per-unit views (path canvas) draw that unit's own lane;
-- tapping it opens the Buffer Status modal: the slider with its last minute
-  beside it, "FPS 62%" and "target 50%".
+- tapping it opens the Buffer Status modal: the slider, "FPS 62%" and "target 50%",
+  the lean in words and the last minute in its own trace panel.
+
+OpenAMS has a buffer reading and no clog detection: klipper_openams publishes none, so
+the Clog Detection widget has nothing to show. See
+[Filament buffer reading](FILAMENT_MANAGEMENT.md#filament-buffer-reading).
 
 A lane with no `set_point` cannot be placed either side of its target, so it
-gets the pressure reading alone, with no meter or tint. A manager that
+gets the pressure reading as text alone ("Pressure: N%"), with no slider, trace or tint. A manager that
 publishes no `pressure` gets no buffer box.
 
 ## Operations
