@@ -3,6 +3,7 @@
 
 #include "ui_wizard_touch_calibration.h"
 
+#include "ui_callback_helpers.h"
 #include "ui_effects.h"
 #include "ui_subject_registry.h"
 #include "ui_utils.h"
@@ -137,11 +138,16 @@ void WizardTouchCalibrationStep::init_subjects() {
 void WizardTouchCalibrationStep::register_callbacks() {
     spdlog::debug("[{}] Registering callbacks", get_name());
 
-    lv_xml_register_event_cb(nullptr, "on_wizard_touch_cal_retry_clicked", on_retry_clicked_static);
-    lv_xml_register_event_cb(nullptr, "on_touch_cal_screen_touched", on_screen_touched_static);
-    lv_xml_register_event_cb(nullptr, "on_touch_cal_screen_released", on_screen_released_static);
-    lv_xml_register_event_cb(nullptr, "on_touch_cal_test_area_touched",
-                             on_test_area_touched_static);
+    register_xml_callbacks({
+        {"on_wizard_touch_cal_retry_clicked",
+         [](lv_event_t*) { get_wizard_touch_calibration_step()->handle_retry_clicked(); }},
+        {"on_touch_cal_screen_touched",
+         [](lv_event_t* e) { get_wizard_touch_calibration_step()->handle_screen_touched(e); }},
+        {"on_touch_cal_screen_released",
+         [](lv_event_t*) { get_wizard_touch_calibration_step()->handle_screen_released(); }},
+        {"on_touch_cal_test_area_touched",
+         [](lv_event_t* e) { get_wizard_touch_calibration_step()->handle_test_area_touched(e); }},
+    });
 }
 
 // ============================================================================
@@ -336,28 +342,6 @@ bool WizardTouchCalibrationStep::should_skip() const {
 
     spdlog::info("[{}] Touch calibration needed — showing wizard step", get_name());
     return false;
-}
-
-// ============================================================================
-// Static Event Handlers (Trampolines)
-// ============================================================================
-
-void WizardTouchCalibrationStep::on_retry_clicked_static(lv_event_t* e) {
-    (void)e;
-    get_wizard_touch_calibration_step()->handle_retry_clicked();
-}
-
-void WizardTouchCalibrationStep::on_screen_touched_static(lv_event_t* e) {
-    get_wizard_touch_calibration_step()->handle_screen_touched(e);
-}
-
-void WizardTouchCalibrationStep::on_screen_released_static(lv_event_t* e) {
-    (void)e;
-    get_wizard_touch_calibration_step()->handle_screen_released();
-}
-
-void WizardTouchCalibrationStep::on_test_area_touched_static(lv_event_t* e) {
-    get_wizard_touch_calibration_step()->handle_test_area_touched(e);
 }
 
 // ============================================================================

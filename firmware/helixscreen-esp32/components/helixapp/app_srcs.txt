@@ -94,6 +94,8 @@ src/application/gcode_error_text.cpp
 src/application/moonraker_event_routing.cpp
 src/application/panel_factory.cpp
 src/application/printer_cache_registry.cpp
+src/application/printer_retarget.cpp
+src/application/printer_switch_flow.cpp
 src/application/static_panel_registry.cpp
 src/application/static_subject_registry.cpp
 src/application/subject_initializer.cpp
@@ -366,6 +368,7 @@ src/ui/panel_widgets/width_sensor_widget.cpp
 src/ui/print_control_buttons.cpp
 src/ui/print_control_view.cpp
 src/ui/save_config_restart.cpp
+src/ui/scroll_blit.cpp
 src/ui/setting_group.cpp
 src/ui/settings_root_status.cpp
 src/ui/shared_font_style.cpp

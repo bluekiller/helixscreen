@@ -180,6 +180,7 @@ translations:
   Add: Add
   Add Filament: Add Filament
   Add Hidden Network: Add Hidden Network
+  Add Printer: Add Printer
   Add Vendor: Add Vendor
   Add Widget: Add Widget
   Add custom filament: Add custom filament
@@ -424,6 +425,7 @@ translations:
   CURRENT SELECTION: CURRENT SELECTION
   CUSTOM IMAGES: CUSTOM IMAGES
   Cache Dir: Cache Dir
+  Calculator: Calculator
   Calibrate: Calibrate
   Calibrate All: Calibrate All
   Calibrate Bowden: Calibrate Bowden
@@ -477,6 +479,7 @@ translations:
     and re-pairing the printer
   Can't move filament while the print is paused: Can't move filament while the print is paused
   Can't read filament RFID tag: Can't read filament RFID tag
+  Can't reach this printer. Save anyway?: Can't reach this printer. Save anyway?
   Cancel: Cancel
   Cancel Escalation: Cancel Escalation
   Cancel Print: Cancel Print
@@ -2134,6 +2137,7 @@ translations:
   Nozzle temp must be 100-%d°C: Nozzle temp must be 100-%d°C
   Nozzle, bed, and chamber in one widget: Nozzle, bed, and chamber in one widget
   'Nozzle:': 'Nozzle:'
+  Number Pad Layout: Number Pad Layout
   OD: OD
   'OFF': 'OFF'
   OK: OK
@@ -2254,6 +2258,8 @@ translations:
   Permission denied. Check printer configuration.: Permission denied. Check printer configuration.
   Phomemo (Bluetooth): Phomemo (Bluetooth)
   Phomemo M110: Phomemo M110
+  Phone: Phone
+  Phone puts 1 2 3 on the top row, calculator puts 7 8 9 there: Phone puts 1 2 3 on the top row, calculator puts 7 8 9 there
   Pick: Pick
   Pick Color: Pick Color
   Pick up tool: Pick up tool
@@ -3120,6 +3126,7 @@ translations:
   Switching to MPC changes how this heater is controlled, then calibrates it. That takes several minutes at temperature.: Switching to MPC changes how this heater is controlled, then calibrates it. That takes several minutes at temperature.
   Switching to MPC requires a config change and Klipper restart.: Switching to MPC
     requires a config change and Klipper restart.
+  Switching to {}: Switching to {}
   Sync during printing: Sync during printing
   Sync with Spoolman: Sync with Spoolman
   Sysfs: Sysfs
@@ -3841,6 +3848,7 @@ translations:
   '{} is feeding the current print. Clear it after the print ends.': '{} is feeding the current print. Clear it after the print ends.'
   '{} is installed but its backup-spool switching is turned off, so no automatic swap will happen.': '{} is installed but its backup-spool switching is turned off, so no automatic swap will happen.'
   '{} is installed, but its backup-spool setting could not be read - do not count on an automatic swap.': '{} is installed, but its backup-spool setting could not be read - do not count on an automatic swap.'
+  '{} is still printing. The print keeps running after you switch.': '{} is still printing. The print keeps running after you switch.'
   '{} is not set up on this printer': '{} is not set up on this printer'
   '{} lines in helixscreen.env were ignored': '{} lines in helixscreen.env were ignored'
   '{} macro not configured': '{} macro not configured'
