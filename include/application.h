@@ -189,7 +189,8 @@ class Application {
     bool m_shutdown_complete = false;
 
     // Process-scoped services. They outlive m_session, which reaches the banner through its
-    // Host; shutdown() stops each one explicitly, so destruction finds them already idle.
+    // Host. shutdown() stops the server and the banner, so destruction finds them idle; the
+    // reporter holds no resources.
     CrashReporter m_crash_reporter;
     helix::UpgradeBanner m_upgrade_banner;
 #ifdef HELIX_ENABLE_REMOTE_CONTROL

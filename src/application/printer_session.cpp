@@ -896,7 +896,7 @@ void PrinterSession::teardown_printer_scope(TeardownScope scope, DisplayManager*
     UpdateChecker::instance().stop_auto_check();
 
     if (exiting) {
-        // Process-level singletons: they persist across a printer switch.
+        // Process-scoped services: they persist across a printer switch.
         // The banner goes before UpdateChecker so its observers release cleanly (#705).
         m_host.upgrade_banner.shutdown();
         UpdateChecker::instance().shutdown();    // cancels pending checks
