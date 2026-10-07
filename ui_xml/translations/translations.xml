@@ -3467,6 +3467,7 @@
   <translation tag="incompatible" de="inkompatibel" en="incompatible" es="incompatible" fr="incompatible" it="incompatibile" ja="互換性なし" pt="incompatível" ru="несовместим" zh="不兼容"/>
   <translation tag="invalid" de="ungültig" en="invalid" es="no válido" fr="non valide" it="non valido" ja="不正" pt="inválido" ru="недопустим" zh="无效"/>
   <translation tag="just now" de="gerade eben" en="just now" es="justo ahora" fr="à l&apos;instant" it="proprio ora" ja="たった今" pt="agora mesmo" ru="только что" zh="刚刚"/>
+  <translation tag="last 60 s · LOOSE up, TIGHT down" de="letzte 60 s · LOCKER oben, STRAFF unten" en="last 60 s · LOOSE up, TIGHT down" es="últimos 60 s · SUELTO arriba, TENSO abajo" fr="60 dernières s · DÉTENDU en haut, TENDU en bas" it="ultimi 60 s · ALLENTATO in alto, TESO in basso" ja="直近60秒 · 上が緩み、下が張り" pt="últimos 60 s · SOLTO em cima, TENSO em baixo" ru="последние 60 с · вверху ОСЛАБЛЕН, внизу НАТЯНУТ" zh="最近 60 秒 · 上松下紧"/>
   <translation tag="layers" de="Schichten" en="layers" es="capas" fr="couches" it="layer" ja="レイヤー" pt="camadas" ru="слои" zh="层"/>
   <translation tag="left" de="übrig" en="left" es="restante" fr="restant" it="rimanente" ja="残り" pt="restante" ru="осталось" zh="剩余"/>
   <translation tag="loaded" de="geladen" en="loaded" es="cargado" fr="chargé" it="caricato" ja="装填済み" pt="carregado" ru="загружен" zh="已加载"/>

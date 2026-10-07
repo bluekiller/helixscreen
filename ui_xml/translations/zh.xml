@@ -3467,6 +3467,7 @@
   <translation tag="incompatible" zh="不兼容"/>
   <translation tag="invalid" zh="无效"/>
   <translation tag="just now" zh="刚刚"/>
+  <translation tag="last 60 s · LOOSE up, TIGHT down" zh="最近 60 秒 · 上松下紧"/>
   <translation tag="layers" zh="层"/>
   <translation tag="left" zh="剩余"/>
   <translation tag="loaded" zh="已加载"/>

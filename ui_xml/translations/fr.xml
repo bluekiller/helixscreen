@@ -3467,6 +3467,7 @@
   <translation tag="incompatible" fr="incompatible"/>
   <translation tag="invalid" fr="non valide"/>
   <translation tag="just now" fr="à l&apos;instant"/>
+  <translation tag="last 60 s · LOOSE up, TIGHT down" fr="60 dernières s · DÉTENDU en haut, TENDU en bas"/>
   <translation tag="layers" fr="couches"/>
   <translation tag="left" fr="restant"/>
   <translation tag="loaded" fr="chargé"/>

@@ -75,6 +75,7 @@ TEST_CASE_METHOD(LVGLUITestFixture, "Buffer Status modal follows the backend whi
     ui::UpdateQueue::instance().drain();
 
     REQUIRE(subject_int("buf_type") == 3);
+    CHECK(subject_int("buf_status") == static_cast<int>(ui::ClogMeterStatus::Warning));
     CHECK(subject_text("buf_value") == "FPS 32%");
     CHECK(subject_text("buf_target") == "target 50%");
     CHECK(subject_text("buf_description") == "Running tight");
@@ -84,6 +85,15 @@ TEST_CASE_METHOD(LVGLUITestFixture, "Buffer Status modal follows the backend whi
         land_backend_update();
         CHECK(subject_text("buf_value") == "FPS 71%");
         CHECK(subject_text("buf_description") == "Running loose");
+    }
+
+    SECTION("the trace has its own panel, clear of the slider") {
+        lv_obj_update_layout(modal.dialog());
+        lv_area_t slider;
+        lv_area_t trace;
+        lv_obj_get_coords(lv_obj_find_by_name(modal.dialog(), "buf_slider"), &slider);
+        lv_obj_get_coords(lv_obj_find_by_name(modal.dialog(), "buf_trace"), &trace);
+        CHECK(trace.x1 > slider.x2 + 1);
     }
 
     SECTION("the X is the only way out") {

@@ -3467,6 +3467,7 @@
   <translation tag="incompatible" ru="несовместим"/>
   <translation tag="invalid" ru="недопустим"/>
   <translation tag="just now" ru="только что"/>
+  <translation tag="last 60 s · LOOSE up, TIGHT down" ru="последние 60 с · вверху ОСЛАБЛЕН, внизу НАТЯНУТ"/>
   <translation tag="layers" ru="слои"/>
   <translation tag="left" ru="осталось"/>
   <translation tag="loaded" ru="загружен"/>

@@ -3632,6 +3632,7 @@ translations:
   incompatible: 互換性なし
   invalid: 不正
   just now: たった今
+  last 60 s · LOOSE up, TIGHT down: '直近60秒 · 上が緩み、下が張り'
   layers: レイヤー
   left: 残り
   loaded: '装填済み'

@@ -77,6 +77,7 @@ class BufferStatusModal : public Modal {
     static lv_subject_t description_subject_;
     static char description_buf_[128];
     static lv_subject_t show_reading_subject_;
+    static lv_subject_t status_subject_; ///< ClogMeterStatus of the reading, for its colour
     static lv_subject_t value_subject_;
     static char value_buf_[64];
     static lv_subject_t target_subject_;

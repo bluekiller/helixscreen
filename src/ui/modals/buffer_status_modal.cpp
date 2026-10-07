@@ -29,6 +29,7 @@ lv_subject_t BufferStatusModal::unsupported_subject_;
 char BufferStatusModal::unsupported_buf_[128];
 char BufferStatusModal::description_buf_[128]{};
 lv_subject_t BufferStatusModal::show_reading_subject_;
+lv_subject_t BufferStatusModal::status_subject_;
 lv_subject_t BufferStatusModal::value_subject_;
 char BufferStatusModal::value_buf_[64]{};
 lv_subject_t BufferStatusModal::target_subject_;
@@ -65,6 +66,7 @@ void BufferStatusModal::init_subjects() {
     lv_subject_init_int(&show_espooler_subject_, 0);
     lv_subject_init_int(&show_flow_subject_, 0);
     lv_subject_init_int(&show_distance_subject_, 0);
+    lv_subject_init_int(&status_subject_, 0);
 
     lv_subject_init_string(&description_subject_, description_buf_, nullptr,
                            sizeof(description_buf_), "");
@@ -90,6 +92,7 @@ void BufferStatusModal::init_subjects() {
     lv_xml_register_subject(nullptr, "buf_show_distance", &show_distance_subject_);
     lv_xml_register_subject(nullptr, "buf_description", &description_subject_);
     lv_xml_register_subject(nullptr, "buf_show_reading", &show_reading_subject_);
+    lv_xml_register_subject(nullptr, "buf_status", &status_subject_);
     lv_xml_register_subject(nullptr, "buf_value", &value_subject_);
     lv_xml_register_subject(nullptr, "buf_target", &target_subject_);
     lv_xml_register_subject(nullptr, "buf_unsupported", &unsupported_subject_);
@@ -113,6 +116,7 @@ helix::BufferReading BufferStatusModal::populate(const helix::AmsSystemInfo& inf
     const helix::BufferReading r = helix::buffer_reading(info, effective_unit);
     lv_subject_set_int(&show_meter_subject_, r.has_slider ? 1 : 0);
     lv_subject_set_int(&show_reading_subject_, r.present() ? 1 : 0);
+    lv_subject_set_int(&status_subject_, static_cast<int>(r.status));
     lv_subject_copy_string(&description_subject_, helix::buffer_lean_text(r));
     const std::string value =
         r.has_slider ? fmt::format("{} {}", helix::buffer_label(r), helix::buffer_value_text(r))

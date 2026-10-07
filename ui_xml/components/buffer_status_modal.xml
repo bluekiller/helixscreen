@@ -23,35 +23,49 @@
       <clog_bar_body/>
     </lv_obj>
 
-    <!-- Content: the slider with its last minute scrolling out to the right,
-         then the reading in words and the backend's own rows. -->
+    <!-- Content: the tall slider on the left; beside it the reading, its last
+         minute in its own panel, and the backend's own rows. -->
     <lv_obj width="100%"
             height="content" style_pad_left="#space_lg" style_pad_right="#space_lg" style_pad_top="#space_sm"
-            style_pad_bottom="#space_lg" flex_flow="column" style_pad_gap="#space_sm">
+            style_pad_bottom="#space_lg" flex_flow="row" style_pad_gap="#space_lg">
 
       <!-- Drawn by UiBufferSlider; hidden for a reading with no set point to centre on. -->
-      <lv_obj name="buf_graphics"
-              width="100%" height="#buffer_graph_h" flex_flow="row" style_pad_all="0" style_pad_gap="0"
-              scrollable="false">
+      <lv_obj name="buf_slider"
+              width="#buffer_slider_tall_w" height="#buffer_graph_h" style_pad_all="0" scrollable="false">
         <bind_flag_if_eq subject="buf_show_meter" flag="hidden" ref_value="0"/>
-        <lv_obj name="buf_slider" width="#buffer_slider_w" height="100%" style_pad_all="0" scrollable="false"/>
-        <lv_obj name="buf_trace" width="1" height="100%" flex_grow="1" style_pad_all="0" scrollable="false"/>
       </lv_obj>
 
-      <lv_obj name="info_col" width="100%" height="content" flex_flow="column" style_pad_gap="#space_xs">
+      <lv_obj name="info_col" height="content" flex_grow="1" flex_flow="column" style_pad_gap="#space_xs">
 
-        <!-- The reading and its target: "FPS 62%  target 50%", "Sync +15%", "Pressure: 62%" -->
+        <!-- The reading, its target and its lean: "FPS 32%  target 50%  Running tight" -->
         <lv_obj name="reading_row"
-                width="100%" height="content" flex_flow="row" style_pad_gap="#space_sm" style_flex_cross_place="center">
+                width="100%" height="content" flex_flow="row" style_pad_gap="#space_md" style_flex_cross_place="end">
           <bind_flag_if_eq subject="buf_show_reading" flag="hidden" ref_value="0"/>
-          <text_body name="buf_value_label" bind_text="buf_value"/>
+          <text_body name="buf_value_label" bind_text="buf_value" style_text_font="#font_xl">
+            <bind_style_if_eq name="styles.buffer_ok" subject="buf_status" ref_value="0"/>
+            <bind_style_if_eq name="styles.buffer_warning" subject="buf_status" ref_value="1"/>
+            <bind_style_if_eq name="styles.buffer_danger" subject="buf_status" ref_value="2"/>
+          </text_body>
           <text_small name="buf_target_label" bind_text="buf_target" style_text_color="#text_muted"/>
+          <text_body name="bias_description"
+                     bind_text="buf_description" flex_grow="1" style_text_align="right" long_mode="wrap">
+            <bind_flag_if_eq subject="buf_show_meter" flag="hidden" ref_value="0"/>
+            <bind_style_if_eq name="styles.buffer_ok" subject="buf_status" ref_value="0"/>
+            <bind_style_if_eq name="styles.buffer_warning" subject="buf_status" ref_value="1"/>
+            <bind_style_if_eq name="styles.buffer_danger" subject="buf_status" ref_value="2"/>
+          </text_body>
         </lv_obj>
 
-        <!-- The lean in words (balanced / running tight / loose) -->
-        <text_small name="bias_description" width="100%" bind_text="buf_description" long_mode="wrap">
+        <!-- The last minute, drawn by UiBufferSlider into its own panel. -->
+        <lv_obj name="buf_trace" width="100%" height="#buffer_trace_h" scrollable="false">
+          <style name="styles.buffer_trace_panel"/>
           <bind_flag_if_eq subject="buf_show_meter" flag="hidden" ref_value="0"/>
-        </text_small>
+        </lv_obj>
+        <text_tiny name="buf_trace_caption"
+                   text="last 60 s · LOOSE up, TIGHT down" translation_tag="last 60 s · LOOSE up, TIGHT down"
+                   style_text_color="#text_muted">
+          <bind_flag_if_eq subject="buf_show_meter" flag="hidden" ref_value="0"/>
+        </text_tiny>
 
         <!-- ============ Unsupported system ============ -->
         <!-- buf_type 0 = no Happy Hare, AFC or pressure-sensor data. This section is the dialog's

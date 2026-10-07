@@ -3467,6 +3467,7 @@
   <translation tag="incompatible" ja="互換性なし"/>
   <translation tag="invalid" ja="不正"/>
   <translation tag="just now" ja="たった今"/>
+  <translation tag="last 60 s · LOOSE up, TIGHT down" ja="直近60秒 · 上が緩み、下が張り"/>
   <translation tag="layers" ja="レイヤー"/>
   <translation tag="left" ja="残り"/>
   <translation tag="loaded" ja="装填済み"/>
