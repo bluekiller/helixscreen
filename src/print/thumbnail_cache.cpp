@@ -1110,11 +1110,10 @@ void ThumbnailCache::process_and_callback(const std::string& png_lvgl_path,
 
 void ThumbnailCache::fetch(const ThumbnailRequest& req, ThumbnailLoadContext ctx,
                            SuccessCallback on_success, ErrorCallback on_error) {
-    // The caller's success callback runs only if no newer request superseded
-    // this one. The target comes from the request rather than being chosen
-    // here, which is what lets one method serve every call site — the per-view
-    // wrappers this replaced each picked their own and could not be told
-    // otherwise.
+    // The caller's callbacks run only if its owner is alive and no newer
+    // request superseded this one: error and success capture the same owner.
+    // The target comes from the request rather than being chosen here, which
+    // is what lets one method serve every call site.
     auto guarded_success = [ctx, on_success = std::move(on_success)](const std::string& path,
                                                                      bool degraded) {
         if (!ctx.is_valid()) {
@@ -1123,6 +1122,16 @@ void ThumbnailCache::fetch(const ThumbnailRequest& req, ThumbnailLoadContext ctx
         }
         if (on_success) {
             on_success(path, degraded);
+        }
+    };
+
+    auto guarded_error = [ctx, on_error = std::move(on_error)](const std::string& error) {
+        if (!ctx.is_valid()) {
+            spdlog::debug("[ThumbnailCache] Dropping stale fetch error: {}", error);
+            return;
+        }
+        if (on_error) {
+            on_error(error);
         }
     };
 
@@ -1136,12 +1145,12 @@ void ThumbnailCache::fetch(const ThumbnailRequest& req, ThumbnailLoadContext ctx
             [guarded_success](const std::string& path, bool /*degraded*/) {
                 guarded_success(path, /*degraded=*/false);
             },
-            std::move(on_error));
+            std::move(guarded_error));
         return;
     }
 
-    fetch_optimized(req.api, req.key, req.target, std::move(guarded_success), std::move(on_error),
-                    req.source_modified);
+    fetch_optimized(req.api, req.key, req.target, std::move(guarded_success),
+                    std::move(guarded_error), req.source_modified);
 }
 
 std::string ThumbnailCache::get_if_cached(const ThumbnailRequest& req) const {
