@@ -360,29 +360,13 @@ void SpoolmanListView::update_visible(const std::vector<SpoolInfo>& spools, int 
     sync_list_spacers(container_, leading_spacer_, trailing_spacer_, win, last_leading_height_,
                       last_trailing_height_);
 
-    // Assign pool rows to visible indices, skipping rows that already show correct data
-    size_t pool_idx = 0;
-    for (int spool_idx = first_visible; spool_idx < last_visible && pool_idx < pool_.size();
-         spool_idx++, pool_idx++) {
-        auto& rw = pool_[pool_idx];
-
-        if (data_changed || pool_indices_[pool_idx] != spool_idx) {
-            configure_row(rw, spools[spool_idx], active_spool_id);
-            pool_indices_[pool_idx] = spool_idx;
-        }
-
-        // Ensure row is in correct position (guard to avoid redundant relayout)
-        int target_index = static_cast<int>(pool_idx) + 1;
-        if (lv_obj_get_index(rw.root) != target_index) {
-            lv_obj_move_to_index(rw.root, target_index);
-        }
-    }
-
-    // Hide unused pool rows
-    for (; pool_idx < pool_.size(); pool_idx++) {
-        lv_obj_add_flag(pool_[pool_idx].root, LV_OBJ_FLAG_HIDDEN);
-        pool_indices_[pool_idx] = -1;
-    }
+    show_window(
+        container_, pool_indices_, first_visible, last_visible, data_changed,
+        [this](size_t slot) { return pool_[slot].root; },
+        [&](size_t slot, ssize_t spool_idx) {
+            configure_row(pool_[slot], spools[static_cast<size_t>(spool_idx)], active_spool_id);
+        },
+        [this](size_t slot) { lv_obj_add_flag(pool_[slot].root, LV_OBJ_FLAG_HIDDEN); });
 
     spdlog::debug("[SpoolmanListView] Spacers: leading={}px trailing={}px, visible rows={}, "
                   "container content_h={} child_count={}",
