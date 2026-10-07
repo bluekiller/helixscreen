@@ -70,7 +70,7 @@ struct HeaterState {
     // External graphs registered for this heater's temperature updates
     struct RegisteredGraph {
         ui_temp_graph_t* graph;
-        int series_id;
+        SeriesId series_id;
     };
     std::vector<RegisteredGraph> temp_graphs;
 
@@ -177,7 +177,8 @@ class TemperatureService {
     void setup_mini_combined_graph(lv_obj_t* container);
 
     // ── External graph registration ─────────────────────────────────────
-    void register_heater_graph(ui_temp_graph_t* graph, int series_id, const std::string& heater);
+    void register_heater_graph(ui_temp_graph_t* graph, SeriesId series_id,
+                               const std::string& heater);
     void unregister_heater_graph(ui_temp_graph_t* graph);
 
     // ── XML event callbacks (public static for XML registration) ────────

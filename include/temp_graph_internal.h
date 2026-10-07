@@ -69,6 +69,6 @@ std::vector<std::pair<int, int>> coalesce_target_runs(const int16_t* buf, int fr
  *
  * @return nullptr when no live slot carries that id.
  */
-const ui_temp_series_meta_t* find_meta_by_id(const ui_temp_graph_t* graph, int id);
+const ui_temp_series_meta_t* find_meta_by_id(const ui_temp_graph_t* graph, SeriesId id);
 
 } // namespace helix::temp_graph_internal

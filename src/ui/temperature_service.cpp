@@ -327,7 +327,7 @@ void TemperatureService::update_graphs(HeaterType type, float temp_deg, int64_t 
     auto& h = heaters_[idx(type)];
 
     for (const auto& reg : h.temp_graphs) {
-        if (ui_temp_graph_is_valid(reg.graph) && reg.series_id >= 0) {
+        if (ui_temp_graph_is_valid(reg.graph) && reg.series_id != SeriesId::None) {
             ui_temp_graph_update_series_with_time(reg.graph, reg.series_id, temp_deg, now_ms);
         }
     }
@@ -597,7 +597,7 @@ void TemperatureService::setup_mini_combined_graph(lv_obj_t* container) {
                   MINI_GRAPH_POINTS);
 }
 
-void TemperatureService::register_heater_graph(ui_temp_graph_t* graph, int series_id,
+void TemperatureService::register_heater_graph(ui_temp_graph_t* graph, SeriesId series_id,
                                                const std::string& heater) {
     if (heater.rfind("extruder", 0) == 0) {
         heaters_[idx(HeaterType::Nozzle)].temp_graphs.push_back({graph, series_id});

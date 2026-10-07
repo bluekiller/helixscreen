@@ -64,7 +64,7 @@ struct MiniGraphHarness {
         const auto* graph = TemperatureServiceTestAccess::mini_graph(*service);
         REQUIRE(graph != nullptr);
         REQUIRE(graph->is_valid());
-        REQUIRE(graph->series_id_for("heater_bed") >= 0);
+        REQUIRE(graph->series_id_for("heater_bed") != SeriesId::None);
         return *graph;
     }
 };
@@ -83,14 +83,14 @@ TEST_CASE_METHOD(LVGLTestFixture,
         REQUIRE_FALSE(h.state.get_discovery().has_chamber_sensor());
 
         const auto& graph = h.build(container);
-        CHECK(graph.series_id_for("temperature_sensor external_bme") >= 0);
+        CHECK(graph.series_id_for("temperature_sensor external_bme") != SeriesId::None);
     }
     SECTION("never a sensor the printer is set not to use") {
         h.discover("none", {"temperature_sensor chamber", "extruder", "heater_bed"});
         REQUIRE(h.state.get_discovery().has_chamber_sensor());
 
         const auto& graph = h.build(container);
-        CHECK(graph.series_id_for("temperature_sensor chamber") == -1);
+        CHECK(graph.series_id_for("temperature_sensor chamber") == SeriesId::None);
     }
     SECTION("a saved sensor the printer does not report charts the one it does") {
         h.discover("temperature_sensor box",
@@ -98,7 +98,7 @@ TEST_CASE_METHOD(LVGLTestFixture,
                     "heater_bed"});
 
         const auto& graph = h.build(container);
-        CHECK(graph.series_id_for("temperature_sensor chamber") >= 0);
-        CHECK(graph.series_id_for("temperature_sensor box") == -1);
+        CHECK(graph.series_id_for("temperature_sensor chamber") != SeriesId::None);
+        CHECK(graph.series_id_for("temperature_sensor box") == SeriesId::None);
     }
 }
