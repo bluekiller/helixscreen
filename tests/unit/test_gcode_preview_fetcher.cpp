@@ -357,6 +357,10 @@ TEST_CASE_METHOD(FetcherFixture, "Fetcher: a .3mf streams its extracted G-code f
         files = {temp_file("Benchy.gcode")};
         expected = "Benchy.gcode";
     }
+    SECTION("the extracted name in a different case") {
+        files = {temp_file("benchy.GCODE")};
+        expected = "benchy.GCODE";
+    }
 
     ThreeMfFetch fetch;
     fetch.start(fetcher_, "Benchy.gcode.3mf");

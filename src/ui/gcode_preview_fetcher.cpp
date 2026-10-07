@@ -124,11 +124,10 @@ void GcodePreviewFetcher::list_qidi_shadow(const RequestPtr& req) {
                 // active print. The active plate's shadow is (re)written at print
                 // start, so the newest-modified match is the best proxy for "the
                 // plate currently printing".
-                const std::string extract_name = helix::gcode::qidi_3mf_extract_name(req->filename);
                 const FileInfo* best = nullptr;
                 for (const auto& file : files) {
                     if (!helix::gcode::is_native_3mf_shadow(file.path) &&
-                        file.path != extract_name) {
+                        !helix::gcode::is_qidi_3mf_extract(file.path, req->filename)) {
                         continue;
                     }
                     if (best == nullptr || file.modified > best->modified) {
