@@ -517,50 +517,14 @@ void PrintSelectPanel::setup(lv_obj_t* panel, lv_obj_t* parent_screen) {
             // Preserve cached metadata from previous file list before replacing.
             // Without this, all metadata resets on every refresh, causing expensive
             // metadata re-fetches and metascans on every scroll cycle (8-15s per
-            // file on AD5M). We carry forward the entire old entry for files that
-            // already had metadata fetched, updating only the file listing fields
-            // (size, modified time) from the fresh data.
-            std::unordered_map<std::string, PrintFileData> old_state;
-            for (auto& f : panel->file_list_) {
-                if (f.metadata_fetched) {
-                    old_state.emplace(f.filename, std::move(f));
-                }
-            }
-
-            // Move data into panel (now safe - on main thread)
+            // file on AD5M).
+            std::vector<PrintFileData> previous = std::move(panel->file_list_);
             panel->file_list_ = std::move(c->files);
             panel->last_listing_applied_at_ = std::chrono::steady_clock::now();
 
-            // Merge old metadata into new file list
             const bool retry_missing = panel->retry_missing_thumbnails_on_refresh_;
             panel->retry_missing_thumbnails_on_refresh_ = false;
-            for (auto& f : panel->file_list_) {
-                auto it = old_state.find(f.filename);
-                if (it != old_state.end()) {
-                    auto& old = it->second;
-                    // Keep fresh listing data (size, modified time may have changed)
-                    time_t new_modified = f.modified_timestamp;
-                    size_t new_size = f.file_size_bytes;
-
-                    if (should_carry_forward_print_file_metadata(old, new_size, retry_missing)) {
-                        // File unchanged — carry forward all cached metadata
-                        f = std::move(old);
-                        f.modified_timestamp = new_modified;
-                        f.file_size_bytes = new_size;
-                    } else {
-                        // Carry-forward declined (size changed OR retry-missing-
-                        // thumbnail kicked in). The provider already preserved this
-                        // entry's metadata_fetched=true / thumbnail_path before our
-                        // decision ran, so without an explicit reset here the next
-                        // fetch_metadata_range would short-circuit on the stale
-                        // metadata_fetched flag and the placeholder would persist
-                        // (the bug the retry-on-activate flag was meant to fix —
-                        // 8dc2f8fde). Force a fresh fetch.
-                        f.metadata_fetched = false;
-                        f.thumbnail_path.clear();
-                    }
-                }
-            }
+            helix::carry_forward_print_file_metadata(panel->file_list_, previous, retry_missing);
 
             panel->apply_sort();
 
