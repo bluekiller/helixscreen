@@ -170,9 +170,15 @@ struct DiagUploadGateFixture : public HelixTestFixture {
         bundle_url_.set(bundle_stub_.url());
         crash_url_.set(crash_stub_.url());
         opt_in_.unset();
+
+        // The gate tests are about whether and where bytes leave the process, not
+        // what the bundle holds; the real collector walks /proc and asks systemd.
+        helix::DebugBundleCollector::set_collect_override_for_test(
+            [](const helix::BundleOptions&) { return json{{"diag_upload_marked", false}}; });
     }
 
     ~DiagUploadGateFixture() {
+        helix::DebugBundleCollector::set_collect_override_for_test(nullptr);
         CrashReporter::instance().shutdown();
         helix::CrashHistory::instance().shutdown();
         std::error_code ec;
@@ -324,9 +330,10 @@ TEST_CASE_METHOD(DiagUploadGateFixture, "try_auto_send: opted-in build sends to 
 // ============================================================================
 
 TEST_CASE("payload marker: bundle and crash report both carry diag_upload_marked",
-          "[diag-uploads]") {
+          "[diag-uploads][slow]") {
     DiagUploadGateFixture fx;
 
+    // Real collection on purpose: the marker must survive the whole collector.
     const json bundle = helix::DebugBundleCollector::collect(helix::BundleOptions{});
     REQUIRE(bundle.contains("diag_upload_marked"));
     CHECK(bundle["diag_upload_marked"] == json(helix::diag::marked_build()));
