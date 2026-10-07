@@ -112,7 +112,7 @@ The full file format is in the [Sound System developer docs](../../../devel/SOUN
 | **FlashForge AD5X** | The printer's speaker. Chords, full themes and music (including the startup jingle) played as tone sequences |
 | **FlashForge AD5M / AD5M Pro** | The printer's buzzer. Tones only: no startup music and no music themes |
 | **Other Klipper printers** | Beeps sent through Moonraker. Needs `[output_pin beeper]` in your Klipper config. Simple beeps only |
-| **Buzzer on a board's PWM pin** | A buzzer wired to a Raspberry Pi, BTT CB1 or other board. Louder single-tone chiptune, or on a Pi 4 or earlier, full sound through its audio. See [Buzzer on a PWM Pin](#buzzer-on-a-pwm-pin) |
+| **Buzzer on a board's PWM pin** | A buzzer wired to a Raspberry Pi, BTT CB1 or other board. UI sounds and alerts on the buzzer, or on a Pi 4 or earlier, full sound including music through its audio. See [Buzzer on a PWM Pin](#buzzer-on-a-pwm-pin) |
 
 If no sound hardware is found, the Sound row and page are hidden.
 
@@ -128,7 +128,7 @@ A small buzzer wired straight to your board's header can play HelixScreen's soun
 
 ### Drive the buzzer directly (any board)
 
-HelixScreen drives the pin itself. Only one note plays at a time: chords and music come out as fast Game Boy-style arpeggios.
+HelixScreen drives the pin itself. It's louder than the Pi audio option, but a buzzer plays one note at a time, so you get HelixScreen's button sounds and alerts, not music.
 
 1. **Turn the pin into a PWM output.** How depends on the board: a device-tree overlay on a Raspberry Pi or Armbian, or your vendor's pin-mux setting. On a Raspberry Pi 4 or earlier, add one line to `/boot/config.txt` (or `/boot/firmware/config.txt` on newer systems) and reboot:
    ```ini
