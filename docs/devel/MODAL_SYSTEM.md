@@ -275,12 +275,9 @@ The base container for all modal dialog cards. Registered as a custom LVGL XML w
 - Zero padding, zero border, zero shadow by default
 - Rounded corner clipping (for full-bleed bottom buttons)
 - Disabled state at 50% opacity
-- `LV_OBJ_FLAG_USER_1` flag for context-aware input styling. `ThemeManager`
-  answers "am I inside a dialog" by walking an object's parents looking for this
-  bit, so **nothing else may set it**, on any object, for any reason. It is one
-  of only four user flag bits; see the ledger in
-  [chapter 09 — Home panel widgets](architecture/09-home-widgets.md) before claiming
-  one
+
+Inputs need no dialog-specific styling: fields are unfilled and outlined, so they read on the
+dialog's `elevated_bg` the same way they read on a card or the screen.
 
 Usage in XML:
 

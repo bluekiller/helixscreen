@@ -39,8 +39,7 @@
         <text_small text="Role:" translation_tag="Role:"/>
         <lv_dropdown name="role_dropdown"
                      width="120" height="36" options="None&#10;Runout&#10;Toolhead&#10;Entry"
-                     options_tag="None&#10;Runout&#10;Toolhead&#10;Entry" style_radius="#border_radius"
-                     style_border_width="0"/>
+                     options_tag="None&#10;Runout&#10;Toolhead&#10;Entry" style_radius="#border_radius"/>
       </lv_obj>
       <!-- Enable Toggle -->
       <lv_obj height="content"

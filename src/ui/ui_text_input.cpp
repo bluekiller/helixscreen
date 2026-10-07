@@ -231,8 +231,8 @@ static void* ui_text_input_create(lv_xml_parser_state_t* state, const char** att
         lv_obj_set_style_pad_ver(textarea, padding, 0);
     }
 
-    // Note: Border and background styling is handled by theme_core's apply_cb
-    // which adds input_bg_style (elevated_bg color) to all textareas.
+    // Note: Border and background styling is handled by the theme's apply_cb,
+    // which adds the outlined InputBg style to all textareas.
     // We don't set inline styles here as they would override the theme.
 
     // One-line mode by default for form inputs
