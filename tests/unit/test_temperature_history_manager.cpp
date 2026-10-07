@@ -742,8 +742,10 @@ TEST_CASE_METHOD(TemperatureHistoryManagerTestFixture,
     auto& tsm = helix::sensors::TemperatureSensorManager::instance();
     tsm.init_subjects();
     tsm.set_sync_mode(true);
-    // The sensor count changing makes the manager resubscribe.
     tsm.discover({"heater_generic filament_dryer"});
+    // A manager built after discovery subscribes to what discovery found. (The
+    // fixture's was built before the sensor manager's subjects existed here.)
+    manager_ = std::make_unique<TemperatureHistoryManager>(printer_state_);
     UpdateQueueTestAccess::drain(helix::ui::UpdateQueue::instance());
 
     tsm.update_from_status({{"heater_generic filament_dryer", {{"target", 55.0}}}});
