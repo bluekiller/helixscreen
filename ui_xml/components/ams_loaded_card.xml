@@ -19,6 +19,9 @@
     with the material name: an unbounded column grows to fit its longest string
     and clips "Polymaker" to "Polymak".
 
+    Both meters drop their text label (mode name, FPS/Sync) below the medium
+    breakpoint, so the material name keeps the width on a small card.
+
     Slot info is shown in the section header above (bound to ams_current_slot_text).
     Color swatch updated by C++ via lv_obj_find_by_name(sidebar, "loaded_swatch").
     Clog arc size/stroke/color dynamically set by UiClogMeter C++ class via
@@ -73,7 +76,9 @@
       <!-- Mode label below arc -->
       <text_tiny name="clog_mode_text"
                  width="100%" bind_text="clog_meter_mode_text" style_text_color="#text_muted" style_text_align="center"
-                 long_mode="wrap"/>
+                 long_mode="wrap">
+        <bind_flag_if_lt subject="ui_breakpoint" flag="hidden" ref_value="3"/>
+      </text_tiny>
     </lv_obj>
     <!-- Filament buffer mini slider (right side, hidden without a reading). The
          slider shows only with a set point to centre on; the number always. The
@@ -90,7 +95,9 @@
       <text_tiny name="buffer_mini_value"
                  width="content" bind_text="buffer_short_text" style_text_align="center" long_mode="wrap"/>
       <text_tiny name="buffer_mini_label"
-                 width="content" bind_text="buffer_label" style_text_color="#text_muted" style_text_align="center"/>
+                 width="content" bind_text="buffer_label" style_text_color="#text_muted" style_text_align="center">
+        <bind_flag_if_lt subject="ui_breakpoint" flag="hidden" ref_value="3"/>
+      </text_tiny>
     </lv_obj>
   </view>
 </component>
