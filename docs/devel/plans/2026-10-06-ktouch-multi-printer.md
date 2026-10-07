@@ -96,6 +96,13 @@ its hooks synchronously, in whatever context the request arrived (usually an Upd
    discovery never lands on a live connection.
 3. land_home hook: `request_panel(Home, Queued)`, which hides every open overlay like a navbar tap.
 
+On the K-Touch the client's stop, destroy, init and start all run on one transport worker
+(`EspMoonrakerClient`, PSRAM stack): `disconnect()` and `connect()` take the handle out of `ws_`
+and return at once, events from a retired handle are dropped (its disconnect still fails the
+requests waiting on it), the stack check runs on the worker before each new task starts, and a
+job stuck past 5 s or a refused start hands off to the restart fallback. A host that resolves
+slowly while being torn down can therefore end in a restart, never a frozen UI.
+
 There is no UpdateQueue drain. What A can still deliver after step 2, and why it is safe:
 - Discovery queued from A's WS task carries A's HTTP epoch and is dropped on the UI thread.
 - REST downloads that finish after the switch reach `on_error` as CONNECTION_LOST.
