@@ -1315,7 +1315,7 @@
   <translation tag="Hardware saved to config" ja="ハードウェアを設定に保存しました"/>
   <translation tag="Hardware was present in previous session but is now missing" ja="前回のセッションにあったハードウェアが見つかりません"/>
   <translation tag="Have a piece of paper ready." ja="紙を1枚用意してください。"/>
-  <translation tag="Have your bed adjustment tool (screwdriver, hex-key, etc.) ready if your bed isn&apos;t adjusted with                              thumb wheels or some other built-in mechanism." ja="ベッドがサムホイールなどの内蔵機構で調整できない場合は、ベッド調整ツール（ドライバー、六角レンチなど）を用意してください。"/>
+  <translation tag="Have your bed adjustment tool (screwdriver, hex-key, etc.) ready if your bed isn&apos;t adjusted with thumb wheels or some other built-in mechanism." ja="ベッドがサムホイールなどの内蔵機構で調整できない場合は、ベッド調整ツール（ドライバー、六角レンチなど）を用意してください。"/>
   <translation tag="Heading" ja="見出し"/>
   <translation tag="Healthy" ja="正常"/>
   <translation tag="Heat Capacity" ja="熱容量"/>

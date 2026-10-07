@@ -1315,7 +1315,7 @@
   <translation tag="Hardware saved to config" fr="Matériel enregistré dans la config"/>
   <translation tag="Hardware was present in previous session but is now missing" fr="Matériel présent lors de la session précédente mais désormais absent"/>
   <translation tag="Have a piece of paper ready." fr="Préparez une feuille de papier."/>
-  <translation tag="Have your bed adjustment tool (screwdriver, hex-key, etc.) ready if your bed isn&apos;t adjusted with                              thumb wheels or some other built-in mechanism." fr="Préparez votre outil de réglage du plateau (tournevis, clé Allen, etc.) si votre plateau n&apos;est pas ajusté avec des molettes ou un autre mécanisme intégré."/>
+  <translation tag="Have your bed adjustment tool (screwdriver, hex-key, etc.) ready if your bed isn&apos;t adjusted with thumb wheels or some other built-in mechanism." fr="Préparez votre outil de réglage du plateau (tournevis, clé Allen, etc.) si votre plateau n&apos;est pas ajusté avec des molettes ou un autre mécanisme intégré."/>
   <translation tag="Heading" fr="Titre"/>
   <translation tag="Healthy" fr="En ordre"/>
   <translation tag="Heat Capacity" fr="Capacité thermique"/>
