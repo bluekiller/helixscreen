@@ -110,8 +110,12 @@ confirm_point() { # platform version
         exit 0
     fi
 
-    # --update is the decision, so it never asks.
-    if [ "${update_mode:-false}" != true ] && [ "$UI_TTY" = 1 ]; then
+    # --clean deletes what the Remove line lists, so its Continue? is the
+    # consent and defaults to no. Otherwise --update is the decision, so it
+    # never asks.
+    if [ "${clean_mode:-false}" = true ]; then
+        confirm_clean_install
+    elif [ "${update_mode:-false}" != true ] && [ "$UI_TTY" = 1 ]; then
         tty_confirm "Continue?" y || { printf '%s\n' "Nothing changed." >&2; exit 0; }
     fi
 

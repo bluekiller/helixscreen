@@ -299,9 +299,11 @@ log_open() {
 }
 
 # True when a question can reach a person: the controlling terminal opens, or
-# stdin is one.
+# stdin is one. The probes redirect into `true`, never `:`: a redirection that
+# fails on a special builtin ends a dash or BusyBox ash script, and /dev/tty
+# fails to open in any run without a controlling terminal.
 tty_can_ask() {
-    { : < "${HELIX_TTY_DEVICE:-/dev/tty}"; } 2>/dev/null || [ -t 0 ]
+    { true < "${HELIX_TTY_DEVICE:-/dev/tty}"; } 2>/dev/null || [ -t 0 ]
 }
 
 # Ask a yes/no question. Under `curl | sh` stdin is the script, so the answer
@@ -312,7 +314,7 @@ tty_confirm() { # question default(y|n)
     _tc_dev="${HELIX_TTY_DEVICE:-/dev/tty}"
     _tc_hint="[y/N]"; [ "$2" = y ] && _tc_hint="[Y/n]"
     _tc_ans=""
-    if { : < "$_tc_dev"; } 2>/dev/null; then
+    if { true < "$_tc_dev"; } 2>/dev/null; then
         printf '%s %s ' "$1" "$_tc_hint" >&2
         IFS= read -r _tc_ans < "$_tc_dev" || [ -n "$_tc_ans" ] || _tc_ans=n
     elif [ -t 0 ]; then

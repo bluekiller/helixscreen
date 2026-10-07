@@ -924,7 +924,8 @@ uninstall() {
     fi
 }
 
-# Gate --clean's irreversible sweep on explicit consent.
+# Gate --clean's irreversible sweep on explicit consent. confirm_point asks
+# it after the plan, before anything on the printer changes.
 #
 # A question nobody can answer is NOT consent. The documented invocation is
 # `curl … | sh -s -- --clean`, where stdin is the pipe carrying the script, so
@@ -940,8 +941,8 @@ confirm_clean_install() {
     fi
 
     if tty_can_ask; then
-        tty_confirm "Are you sure?" n && return 0
-        log_info "Clean install cancelled."
+        tty_confirm "Continue?" n && return 0
+        printf '%s\n' "Nothing changed." >&2
         exit 0
     fi
 
@@ -959,9 +960,7 @@ confirm_clean_install() {
 clean_old_installation() {
     local platform=$1
 
-    # The plan's Remove line lists what this deletes.
-    confirm_clean_install
-
+    # The plan's Remove line lists what this deletes; confirm_point asked.
     log_info "Cleaning old installation..."
 
     # Stop any running services

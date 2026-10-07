@@ -556,3 +556,88 @@ _fn_body() {
     platform=ad5m; eval "$line"
     [ ! -e "$AD5M_GCODES_ROOT/helixscreen-ad5m-v1.0.0.zip" ]
 }
+
+@test "--dry-run with --uninstall is refused, since the uninstall never reaches the plan" {
+    run parse_installer_args --uninstall --dry-run
+    [ "$status" -eq 1 ]
+    contains "--dry-run cannot be combined with --uninstall" "$output"
+    run parse_installer_args --dry-run --uninstall
+    [ "$status" -eq 1 ]
+}
+
+@test "--clean --dry-run shows the Remove line and stops without asking" {
+    _cp_setup
+    clean_mode=true DRY_RUN=true UI_TTY=0
+    HELIX_TTY_DEVICE=/nonexistent
+    run confirm_point pi v1.2.3 < /dev/null
+    [ "$status" -eq 0 ]
+    contains "  Remove     " "$output"
+    contains "Dry run, nothing changed." "$output"
+    lacks "Refusing" "$output"
+    [ ! -e "$TMP_DIR" ]
+}
+
+@test "--clean: the Continue? prompt is the consent and defaults to no" {
+    _cp_setup
+    clean_mode=true UI_TTY=1
+    HELIX_TTY_DEVICE="$BATS_TEST_TMPDIR/tty"
+    printf '\n' > "$HELIX_TTY_DEVICE"
+    run confirm_point pi v1.2.3 < /dev/null
+    [ "$status" -eq 0 ]
+    contains "Continue? [y/N]" "$output"
+    contains "Nothing changed." "$output"
+    lacks "Are you sure" "$output"
+    [ ! -e "$TMP_DIR" ]
+}
+
+@test "--clean: y at the prompt goes ahead, with no second question" {
+    _cp_setup
+    clean_mode=true UI_TTY=1
+    HELIX_TTY_DEVICE="$BATS_TEST_TMPDIR/tty"
+    printf 'y\n' > "$HELIX_TTY_DEVICE"
+    run confirm_point pi v1.2.3 < /dev/null
+    [ "$status" -eq 0 ]
+    [ "$(grep -c 'Continue?' <<< "$output")" -eq 1 ]
+    contains "Checked system" "$output"
+}
+
+@test "--clean with no terminal and no --yes refuses at the plan, before anything changes" {
+    _cp_setup
+    clean_mode=true UI_TTY=0
+    HELIX_TTY_DEVICE=/nonexistent
+    run confirm_point pi v1.2.3 < /dev/null
+    [ "$status" -eq 1 ]
+    contains "Refusing to run --clean without confirmation" "$output"
+    lacks "Checked system" "$output"
+    [ ! -e "$TMP_DIR" ]
+}
+
+@test "--clean --yes goes ahead with no terminal" {
+    _cp_setup
+    clean_mode=true UI_TTY=0 ASSUME_YES=true
+    HELIX_TTY_DEVICE=/nonexistent
+    run confirm_point pi v1.2.3 < /dev/null
+    [ "$status" -eq 0 ]
+    contains "Checked system" "$output"
+}
+
+@test "clean_old_installation does not ask again: confirm_point holds the consent" {
+    if _fn_body clean_old_installation "$LIB/uninstall.sh" | grep -q 'confirm_clean_install'; then
+        fail "clean_old_installation still asks, after the download and the UI stop"
+    fi
+}
+
+@test "tty_can_ask and tty_confirm survive a terminal that cannot open under dash and BusyBox ash" {
+    local ran=0 sh
+    for sh in dash "busybox ash"; do
+        $sh -c : 2>/dev/null || continue
+        ran=1
+        run $sh -c "set -eu; . '$LIB/common.sh'; HELIX_TTY_DEVICE=/nonexistent ASSUME_YES=false
+            tty_can_ask < /dev/null || echo cannot-ask
+            tty_confirm 'Continue?' n < /dev/null || echo default-no"
+        [ "$status" -eq 0 ] || fail "$sh ended the script: $output"
+        contains "cannot-ask" "$output"
+        contains "default-no" "$output"
+    done
+    [ "$ran" -eq 1 ] || skip "neither dash nor BusyBox ash is installed"
+}

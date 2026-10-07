@@ -509,3 +509,44 @@ $output"
         || fail "the kept log has no FAIL marker"
     matches_golden fail-enable 1
 }
+
+# The tree and the changing systemctl calls step <n>-<name> left, compared
+# with the step before it.
+_unchanged_since() { # before after
+    run diff -r --no-dereference -x 'e2e-*.log' "$(snap "$1")" "$(snap "$2")"
+    [ "$status" -eq 0 ] || fail "$2 changed the tree:
+$output"
+    [ "$(changing_systemctl_calls "$(snap "$1")")" = "$(changing_systemctl_calls "$(snap "$2")")" ] \
+        || fail "$2 made changing systemctl calls"
+}
+
+@test "install.sh e2e: --uninstall --dry-run is refused and removes nothing" {
+    run_scenario_status install uninstall-dry-run
+    contains "=== STEP 2: uninstall-dry-run exit=1" "$output"
+    contains "--dry-run cannot be combined with --uninstall" "$output"
+    _unchanged_since 1-install 2-uninstall-dry-run
+}
+
+@test "install.sh e2e: --clean --dry-run deletes nothing" {
+    run_scenario install clean-dry-run
+    contains "Dry run, nothing changed." "$output"
+    _unchanged_since 1-install 2-clean-dry-run
+}
+
+@test "install.sh e2e: --clean with no terminal and no --yes refuses before anything changes" {
+    run_scenario_status install clean-notty
+    contains "=== STEP 2: clean-notty exit=1" "$output"
+    contains "Refusing to run --clean without confirmation" "$output"
+    lacks "Checked system" "$(step_output 2 "$output")"
+    _unchanged_since 1-install 2-clean-notty
+}
+
+@test "install.sh e2e: answering n to --clean's prompt changes nothing" {
+    command -v script >/dev/null 2>&1 || skip "no script(1) for a pseudo-terminal"
+    run_scenario install clean-tty-no
+    lacks "SKIP no script" "$output"
+    contains "Continue? [y/N]" "$output"
+    contains "Nothing changed." "$output"
+    lacks "Are you sure" "$output"
+    _unchanged_since 1-install 2-clean-tty-no
+}

@@ -31,6 +31,10 @@
 #   update-beta-version  --update --version of release 3 from the stub CDN
 #   self-update    --update to release 2 under HELIX_SELF_UPDATE=1
 #   uninstall      --uninstall
+#   uninstall-dry-run    --uninstall --dry-run
+#   clean-dry-run  --clean --dry-run of release 2
+#   clean-notty    --clean of release 2 with no terminal and no --yes
+#   clean-tty-no   --clean of release 2 on a pseudo-terminal, answering n
 #   dry-run        --dry-run --version of release 3 (or $E2E_RELEASE_VERSION)
 #                  from the stub CDN
 #   install-tty-yes      fresh install of release 1 on a pseudo-terminal,
@@ -159,6 +163,23 @@ for step in "$@"; do
             ;;
         uninstall)
             run_installer --uninstall || rc=$?
+            ;;
+        uninstall-dry-run)
+            run_installer --uninstall --dry-run || rc=$?
+            ;;
+        clean-dry-run)
+            run_installer --clean --dry-run --local /mnt/release-2/helixscreen-x86-v1.0.1.tar.gz || rc=$?
+            ;;
+        clean-notty)
+            HELIX_TTY_DEVICE=/nonexistent run_installer --clean \
+                --local /mnt/release-2/helixscreen-x86-v1.0.1.tar.gz < /dev/null || rc=$?
+            ;;
+        clean-tty-no)
+            if ! command -v script >/dev/null 2>&1; then
+                echo "SKIP no script"
+            else
+                run_installer_tty n --clean --local /mnt/release-2/helixscreen-x86-v1.0.1.tar.gz || rc=$?
+            fi
             ;;
         dry-run)
             R2_BASE_URL=https://e2e.invalid HTTP_BASE_URL=http://e2e.invalid \

@@ -309,6 +309,13 @@ parse_installer_args() {
         log_error "--payload-root cannot be combined with --standalone"
         exit 1
     fi
+
+    # The uninstall branch never reaches the confirm point, where a dry run
+    # stops, so it would remove everything.
+    if [ "$uninstall_mode" = true ] && [ "$DRY_RUN" = true ]; then
+        log_error "--dry-run cannot be combined with --uninstall; nothing was removed"
+        exit 1
+    fi
 }
 
 # Auto-detect the payload contract: a bare install on a host the mod profile
