@@ -71,9 +71,10 @@ EXPLICIT_TAG_ATTRIBUTES = (
 # implied_tag_value()/collect_implied_tags() in lib/helix-xml/src/xml/lv_xml.c;
 # the extractor, the redundant-tag lint and the coverage gate all go through
 # implied_tags() so none of them can disagree with the engine on its own.
-# options_tag is never implied: code replaces a dropdown's options at runtime,
-# and a tagged dropdown puts its XML options back on every language change.
-NEVER_IMPLIED_TAGS = ("options_tag",)
+# options_tag and placeholder_tag are never implied: code replaces a dropdown's
+# options and an input's placeholder at runtime, and a tagged one puts its XML
+# value back on every language change.
+NEVER_IMPLIED_TAGS = ("options_tag", "placeholder_tag")
 
 # One element's open tag, capturing name and attribute blob.
 ELEMENT_RE = re.compile(r'<([A-Za-z_][\w.-]*)((?:\s+[\w:.-]+\s*=\s*"[^"]*")*)\s*/?>')
@@ -85,8 +86,9 @@ def implied_tag_value(attrs: Dict[str, str], tag: str) -> Optional[str]:
     """The raw literal an absent `tag` is implied from, or None.
 
     translation_tag pairs with text; any other X_tag with X, else X_text. An
-    explicit tag (empty included), bind_text, and a $prop / #const / ${}
-    value imply nothing."""
+    explicit tag (empty included), bind_text, a $prop / #const / ${} value,
+    and a literal should_skip_text() rejects imply nothing. The engine gets
+    that last verdict from helix::ui::is_translation_key()."""
     if tag in attrs or "bind_text" in attrs:
         return None
     if tag == "translation_tag":
@@ -97,6 +99,8 @@ def implied_tag_value(attrs: Dict[str, str], tag: str) -> Optional[str]:
     else:
         return None
     if not value or value[0] in "$#" or "${" in value:
+        return None
+    if should_skip_text(_decode_xml_entities(value)):
         return None
     return value
 
@@ -132,7 +136,7 @@ def component_tag_props(ui_xml_dir: Path) -> Dict[str, Set[str]]:
         for xml in ui_xml_dir.rglob("*.xml"):
             if "translations" in xml.relative_to(ui_xml_dir).parts:
                 continue
-            names = _TAG_PROP_RE.findall(xml.read_text(encoding="utf-8"))
+            names = _TAG_PROP_RE.findall(_blank_xml_comments(xml.read_text(encoding="utf-8")))
             if names:
                 props.setdefault(xml.stem, set()).update(names)
         _component_tag_props_cache[ui_xml_dir] = props

@@ -72,7 +72,8 @@
       <!-- Title -->
       <text_heading name="modal_title" width="100%" text="Add Hidden Network" style_text_align="center"/>
       <!-- SSID Input -->
-      <form_field label="Network Name (SSID)" input_name="ssid_input" placeholder="Enter network name"/>
+      <form_field label="Network Name (SSID)"
+                  input_name="ssid_input" placeholder="Enter network name" placeholder_tag="Enter network name"/>
       <!-- Security Dropdown -->
       <lv_obj width="100%" style_pad_all="0" flex_flow="column" style_pad_gap="#space_xs">
         <text_body width="100%" text="Security" style_text_align="left"/>

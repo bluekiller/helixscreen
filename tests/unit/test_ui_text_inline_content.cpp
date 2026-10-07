@@ -154,6 +154,38 @@ TEST_CASE_METHOD(XMLTestFixture, "a literal text attribute with no tag is transl
     lv_translation_set_language("en");
 }
 
+// helix::ui::is_translation_key() is the engine's key callback, so a literal it
+// rejects keeps its text even when some pack happens to carry it as a key.
+TEST_CASE_METHOD(XMLTestFixture, "a non-key literal implies no translation tag",
+                 "[xml][ui_text][translation][implied_tags]") {
+    lv_translation_pack_t* pack = lv_translation_add_dynamic();
+    REQUIRE(pack != nullptr);
+    lv_translation_add_language(pack, "en");
+    lv_translation_add_language(pack, "de");
+    lv_translation_tag_dsc_t* tag = lv_translation_add_tag(pack, "-7.25");
+    REQUIRE(tag != nullptr);
+    lv_translation_set_tag_translation(pack, tag, 0, "-7.25");
+    lv_translation_set_tag_translation(pack, tag, 1, "Zz non-key leaked zZ");
+    lv_translation_set_language("en");
+
+    const char* xml = R"(<component>
+  <view extends="lv_obj" width="300" height="300">
+    <text_muted name="msg" text="-7.25"/>
+  </view>
+</component>)";
+    REQUIRE(lv_xml_register_component_from_data("it_non_key_literal", xml) == LV_RESULT_OK);
+    lv_obj_t* root = create_component("it_non_key_literal");
+    REQUIRE(root != nullptr);
+    lv_obj_t* msg = lv_obj_find_by_name(root, "msg");
+    REQUIRE(msg != nullptr);
+
+    lv_translation_set_language("de");
+    process_lvgl(50);
+    CHECK(lv_streq(lv_label_get_text(msg), "-7.25"));
+
+    lv_translation_set_language("en");
+}
+
 // Modal::show and a theme switch run the palette walker over the tree, and the
 // walker writes a local text color onto every label. An author's inline color
 // is a local style too, so the walker must leave it alone (#1735).
