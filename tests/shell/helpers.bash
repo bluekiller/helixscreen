@@ -7,7 +7,11 @@ log_info() { :; }
 log_warn() { :; }
 log_error() { :; }
 log_success() { :; }
-export -f log_info log_warn log_error log_success
+log_note() { :; }
+export -f log_info log_warn log_error log_success log_note
+# The installer's log_info prints to the terminal only when verbose; tests
+# assert on its text, so they run verbose unless a test unsets this.
+export HELIX_INSTALL_VERBOSE=1
 
 # Ensure BATS_TEST_TMPDIR exists (added in bats 1.4.1, Ubuntu 22.04 ships 1.2.1)
 # Each bats test runs in a subshell, so this creates a fresh dir per test.
@@ -24,6 +28,11 @@ export HELIX_SYSTEMD_UNIT_DIR="$BATS_TEST_TMPDIR/etc/systemd/system"
 # installer's own. Source time runs builtins only: some tests source this
 # file under a PATH with no coreutils.
 export HELIX_PROC_ROOT="$BATS_TEST_TMPDIR/proc"
+
+# Where the installer opens the controlling terminal to ask a question. A
+# developer running bats from a terminal would otherwise be prompted, and the
+# test would wait on them. A test that wants an answer writes this file.
+export HELIX_TTY_DEVICE="$BATS_TEST_TMPDIR/no-tty"
 
 # Fake one process under HELIX_PROC_ROOT. The comm carries a space and a ')'
 # because the real field can, and the parser must split after the LAST ')'.

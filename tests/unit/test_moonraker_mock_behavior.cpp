@@ -2458,6 +2458,42 @@ TEST_CASE("MoonrakerClientMock M112 emergency stop sets error state", "[print][e
     }
 }
 
+TEST_CASE("MoonrakerClientMock M112 reports Klipper's shutdown reason until a restart",
+          "[print][emergency][mock][restart]") {
+    MockBehaviorTestFixture fixture;
+    MoonrakerClientMock mock(MoonrakerClientMock::PrinterType::VORON_24, 100.0);
+    mock.connect("ws://mock/websocket", []() {}, []() {});
+    mock.register_notify_update(fixture.create_capture_callback());
+    fixture.reset();
+
+    auto webhooks_with = [](const char* state) {
+        return [state](const json& n) {
+            return n.contains("params") && n["params"][0].contains("webhooks") &&
+                   n["params"][0]["webhooks"].value("state", "") == state;
+        };
+    };
+
+    mock.gcode_script("M112");
+    REQUIRE(fixture.wait_for_matching(webhooks_with("shutdown"), 500));
+    CHECK(mock.get_klippy_state() == MoonrakerClientMock::KlippyState::SHUTDOWN);
+    for (const auto& n : fixture.get_notifications()) {
+        if (webhooks_with("shutdown")(n)) {
+            const auto msg = n["params"][0]["webhooks"].value("state_message", "");
+            CHECK(msg.find("Shutdown due to M112 command") != std::string::npos);
+            CHECK(msg.find("Printer is ready") == std::string::npos);
+            break;
+        }
+    }
+
+    fixture.reset();
+    mock.gcode_script("FIRMWARE_RESTART");
+    REQUIRE(fixture.wait_for_matching(webhooks_with("ready"), 500));
+    CHECK(mock.get_klippy_state() == MoonrakerClientMock::KlippyState::READY);
+
+    mock.stop_temperature_simulation();
+    mock.disconnect();
+}
+
 // ============================================================================
 // Bed Mesh G-code Simulation Tests (Task 5)
 // ============================================================================

@@ -37,15 +37,8 @@ using namespace helix;
 // Global Instance
 // ============================================================================
 
-static std::unique_ptr<WizardWifiStep> g_wizard_wifi_step;
-
 WizardWifiStep* get_wizard_wifi_step() {
-    if (!g_wizard_wifi_step) {
-        g_wizard_wifi_step = std::make_unique<WizardWifiStep>();
-        StaticPanelRegistry::instance().register_destroy("WizardWifiStep",
-                                                         []() { g_wizard_wifi_step.reset(); });
-    }
-    return g_wizard_wifi_step.get();
+    return &helix::lazy_global<WizardWifiStep>("WizardWifiStep");
 }
 
 // ============================================================================

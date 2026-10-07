@@ -36,15 +36,8 @@ extern lv_subject_t connection_test_passed;
 // Global Instance
 // ============================================================================
 
-static std::unique_ptr<WizardInputShaperStep> g_wizard_input_shaper_step;
-
 WizardInputShaperStep* get_wizard_input_shaper_step() {
-    if (!g_wizard_input_shaper_step) {
-        g_wizard_input_shaper_step = std::make_unique<WizardInputShaperStep>();
-        StaticPanelRegistry::instance().register_destroy(
-            "WizardInputShaperStep", []() { g_wizard_input_shaper_step.reset(); });
-    }
-    return g_wizard_input_shaper_step.get();
+    return &helix::lazy_global<WizardInputShaperStep>("WizardInputShaperStep");
 }
 
 // ============================================================================

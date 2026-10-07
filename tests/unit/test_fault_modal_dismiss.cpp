@@ -429,3 +429,61 @@ TEST_CASE_METHOD(KlippyRecoveryFixture, "A shutdown with no reason text keeps th
     CHECK(helix::ui::tracked_fault_modal_count() == 1);
     CHECK_FALSE(fault_carrier_showing());
 }
+
+// ============================================================================
+// The dialog never shows a READY-era state_message under a fault title, in
+// either delivery order of the shutdown edge and the webhooks frame.
+// ============================================================================
+
+namespace {
+
+std::string recovery_message_text() {
+    lv_obj_t* recovery = lv_obj_find_by_name(lv_screen_active(), "klipper_recovery_card");
+    REQUIRE(recovery != nullptr);
+    lv_obj_t* message = lv_obj_find_by_name(recovery, "recovery_message");
+    REQUIRE(message != nullptr);
+    return lv_label_get_text(message);
+}
+
+void apply_webhooks(helix::PrinterState& ps, const char* state, const char* message) {
+    ps.network_state().apply_webhooks({{"state", state}, {"state_message", message}}, 0.0, false,
+                                      std::nullopt);
+}
+
+constexpr const char* kM112Reason = "Shutdown due to M112 command";
+
+} // namespace
+
+TEST_CASE_METHOD(KlippyRecoveryFixture,
+                 "A shutdown edge ahead of its reason shows generic text, then the reason",
+                 "[recovery][state_message][faultmodal]") {
+    apply_webhooks(state(), "ready", "Printer is ready");
+    settle();
+    settle();
+
+    // notify_klippy_shutdown applied before the webhooks frame carrying the reason.
+    state().set_klippy_state_sync(KlippyState::SHUTDOWN);
+    settle();
+    settle();
+    const std::string before = recovery_message_text();
+    CHECK(before.find("Printer is ready") == std::string::npos);
+    CHECK_FALSE(before.empty());
+
+    apply_webhooks(state(), "shutdown", kM112Reason);
+    settle();
+    settle();
+    CHECK(recovery_message_text().find(kM112Reason) != std::string::npos);
+}
+
+TEST_CASE_METHOD(KlippyRecoveryFixture, "A shutdown frame carrying its reason shows the reason",
+                 "[recovery][state_message][faultmodal]") {
+    apply_webhooks(state(), "ready", "Printer is ready");
+    settle();
+    settle();
+
+    apply_webhooks(state(), "shutdown", kM112Reason);
+    state().set_klippy_state_sync(KlippyState::SHUTDOWN);
+    settle();
+    settle();
+    CHECK(recovery_message_text().find(kM112Reason) != std::string::npos);
+}

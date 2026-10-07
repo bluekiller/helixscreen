@@ -59,7 +59,7 @@ setup() {
           _HELIX_PLATFORM_SOURCED _HELIX_REQUIREMENTS_SOURCED \
           _HELIX_FORGEX_SOURCED _HELIX_RELEASE_SOURCED \
           _HELIX_SERVICE_SOURCED _HELIX_MOONRAKER_SOURCED \
-          _HELIX_UNINSTALL_SOURCED _HELIX_MAIN_SOURCED
+          _HELIX_UNINSTALL_SOURCED _HELIX_PLAN_SOURCED _HELIX_MAIN_SOURCED
     export SUDO=""
 
     # Production module order (bundle-installer.sh), minus the modules this
@@ -922,6 +922,7 @@ esac
     mkdir -p "$SANDBOX/usr/data/config/mod_data"   # the mod's data dir, present on any real host
 
     mod_payload_mode_block >/dev/null 2>&1
+    record_payload_root_if_payload >/dev/null 2>&1
 
     local record="$SANDBOX/usr/data/config/mod_data/helixscreen_payload_root"
     [ -f "$record" ] || fail "no payload-root record was written"
@@ -938,6 +939,7 @@ esac
     INSTALL_DIR="$SANDBOX/opt/helixscreen"
 
     mod_payload_mode_block >/dev/null 2>&1
+    record_payload_root_if_payload >/dev/null 2>&1
 
     [ ! -e "$SANDBOX/usr/data/config/mod_data/helixscreen_payload_root" ] \
         || fail "non-payload install wrote a payload-root record"
@@ -1020,8 +1022,8 @@ esac
 
 # --- R3: --clean is not a terminating removal - it must not orphan the record ---
 #
-# install.sh --clean runs mod_payload_mode_block FIRST (which records the
-# resolved payload root), then clean_old_installation sweeps, then CONTINUES
+# install.sh --clean runs record_payload_root_if_payload FIRST (which records
+# the resolved payload root), then clean_old_installation sweeps, then CONTINUES
 # into a fresh install that never re-records. Consuming the record on the
 # clean step (round 2's addition) left the fresh payload unrecorded, so a
 # later FLAGLESS armed uninstall swept the probed default instead - R2a's
@@ -1041,8 +1043,9 @@ esac
     MOD_PAYLOAD_ROOT="$custom"
     INSTALL_DIR="$custom"
 
-    # install.sh main() order: the mode block records, then the clean runs.
+    # install.sh main() order: the mode block, the record, then the clean.
     mod_payload_mode_block >/dev/null 2>&1
+    record_payload_root_if_payload >/dev/null 2>&1
     [ "$(cat "$SANDBOX/usr/data/config/mod_data/helixscreen_payload_root")" = "$custom" ] \
         || fail "setup: the mode block did not record the payload root"
 
@@ -1081,6 +1084,7 @@ esac
     mkdir -p "$INSTALL_DIR"
 
     mod_payload_mode_block >/dev/null 2>&1
+    record_payload_root_if_payload >/dev/null 2>&1
     clean_old_installation ad5x >/dev/null 2>&1
 
     local record="$SANDBOX/usr/data/config/mod_data/helixscreen_payload_root"
@@ -1187,6 +1191,7 @@ seed_legacy_install() {
     payload_legacy_prompt_adopt() { return 0; }
 
     mod_payload_mode_block
+    record_payload_root_if_payload
 
     [ "$INSTALL_DIR" = "$HOST_LEGACY_INSTALL_ROOT" ] \
         || fail "INSTALL_DIR='$INSTALL_DIR' - the adopt did not take"
@@ -1223,8 +1228,9 @@ seed_legacy_install() {
     STANDALONE_INSTALL=""
     uninstall_mode=false
     seed_legacy_install
-    # No prompt override: bats runs with piped stdin, so the REAL prompt must
-    # decline - the curl|sh path this offer has to survive.
+    # No prompt override: bats has no terminal to ask (helpers.bash points
+    # HELIX_TTY_DEVICE at nothing), so the REAL prompt must decline - the
+    # unattended path this offer has to survive.
 
     mod_payload_mode_block
 
@@ -1368,6 +1374,7 @@ seed_legacy_install() {
     INSTALL_DIR="$HOST_INSTALL_ROOT"
 
     mod_payload_mode_block >/dev/null 2>&1
+    record_payload_root_if_payload >/dev/null 2>&1
     [ "$(cat "$SANDBOX/usr/data/config/mod_data/helixscreen_payload_root")" = "$HOST_INSTALL_ROOT" ] \
         || fail "setup: the mode block did not re-record this run's root"
 
@@ -1435,28 +1442,33 @@ seed_legacy_install() {
     esac
 }
 
-@test "payload-mode success epilogue names the service and how to start it" {
+@test "payload-mode success summary names the service and how to start it" {
     # A payload install writes its service into the mod's chroot, which the mod
     # runs at boot — so nothing is running when the installer exits. The
-    # epilogue has to say that, and name the script it actually installed.
+    # summary has to say that, and name the script it actually installed.
     seed_payload_root
+    # shellcheck disable=SC1090
+    . "$WORKTREE_ROOT/scripts/lib/installer/plan.sh"
     INIT_SCRIPT_DEST="/data/.mod/.forge-x/etc/init.d/S90helixscreen"
-    run print_post_install_commands "mod-managed"
+    run print_summary v1.2.3
     [ "$status" -eq 0 ]
     contains "Reboot" "$output"
+    lacks "is running" "$output"
     contains "$INIT_SCRIPT_DEST" "$output"
-    [[ "$output" == *"${INSTALL_DIR}/logs/launcher.log"* ]]
+    contains "${INSTALL_DIR}/logs/launcher.log" "$output"
 }
 
-@test "payload-mode epilogue coaches no host service manager" {
+@test "payload-mode summary coaches no host service manager" {
     # The service lives in the chroot and is started by the mod, so systemctl
     # and a bare host init path are both wrong advice here.
     seed_payload_root
+    # shellcheck disable=SC1090
+    . "$WORKTREE_ROOT/scripts/lib/installer/plan.sh"
     INIT_SCRIPT_DEST="/data/.mod/.forge-x/etc/init.d/S90helixscreen"
-    run print_post_install_commands "mod-managed"
+    run print_summary v1.2.3
     [ "$status" -eq 0 ]
     lacks "systemctl" "$output"
-    [[ "$output" != *"service helixscreen"* ]]
+    lacks "service helixscreen" "$output"
 }
 
 @test "a chroot without ldd does not abort the install (advisory check stays advisory)" {

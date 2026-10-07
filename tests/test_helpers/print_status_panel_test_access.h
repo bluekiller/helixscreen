@@ -49,6 +49,14 @@ class PrintStatusPanelTestAccess {
         return panel.is_active_;
     }
 
+    /// Open and close the exclude-object side list, as the objects button does.
+    static void show_exclude(PrintStatusPanel& panel) {
+        panel.show_exclude_map_view();
+    }
+    static void hide_exclude(PrintStatusPanel& panel) {
+        panel.hide_exclude_map_view();
+    }
+
     /// The G-code viewer the XML build found, or null once the tree is gone.
     static lv_obj_t* gcode_viewer(const PrintStatusPanel& panel) {
         return panel.gcode_viewer_;
@@ -80,6 +88,9 @@ class PrintStatusPanelTestAccess {
         return panel.printer_state_.print_state().get_print_identity_override();
     }
 
+    static std::string reprint_filename(const PrintStatusPanel& panel) {
+        return panel.reprint_filename();
+    }
     static const std::string& current_print_filename(const PrintStatusPanel& panel) {
         return panel.current_print_filename_;
     }

@@ -10,6 +10,7 @@
 #include "print_history_data.h"
 
 #include <atomic>
+#include <cstdint>
 #include <functional>
 #include <string>
 #include <unordered_map>
@@ -436,6 +437,25 @@ class PrintHistoryManager {
      */
     void notify_observers();
 
+    /// A job printed from a copy this app rewrote names the rewrite, whose file
+    /// (and thumbnails) are deleted when the print ends. When the name places
+    /// the original (gcode::trusted_original_path()), present the job as the
+    /// original's print: its name, and its existence, mtime and thumbnails from
+    /// one metadata request per original. Otherwise it reads as missing.
+    void adopt_original(PrintHistoryJob& job);
+
+    /// What the original's metadata answered. It reads as missing while the
+    /// request is out, and an original that fails to answer stays missing and
+    /// is not asked about again until the cache is invalidated.
+    struct OriginalFile {
+        bool exists = false;
+        double modified = 0.0;
+        std::vector<ThumbnailInfo> thumbnails;
+    };
+    static void apply_original(PrintHistoryJob& job, const OriginalFile& original);
+    void on_original_answered(const std::string& filename, uint64_t generation,
+                              OriginalFile original);
+
     /**
      * @brief Subscribe to the Moonraker notifications that stale the cache
      *
@@ -488,6 +508,9 @@ class PrintHistoryManager {
     // Cached data
     std::vector<PrintHistoryJob> cached_jobs_;
     std::unordered_map<std::string, PrintHistoryStats> filename_stats_;
+    std::unordered_map<std::string, OriginalFile> originals_;
+    /// Bumped by invalidate(), so an answer asked for before it is dropped.
+    uint64_t originals_generation_ = 0;
 
     // Observers (stored as pointers for reliable removal)
     std::vector<helix::HistoryChangedCallback*> observers_;

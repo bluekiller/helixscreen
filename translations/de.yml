@@ -1,5 +1,7 @@
 locale: de
 translations:
+  '%d-%d': '%d-%d'
+  '%d-%d°C': '%d-%d°C'
   ' (timed out)': ' (Zeitüberschreitung)'
   ' frames': ' Bilder'
   ' left': ' übrig'
@@ -879,16 +881,16 @@ translations:
   Danger: Gefahr
   Danger Zone: Gefahrenbereich
   Dark Mode: Dunkelmodus
-  Database: Datenbank
   Date (newest): Datum (neueste)
   Date (oldest): Datum (älteste)
   Day: Tag
   Debug: Debug
+  Deep Black: Tiefschwarz
   Default: 'Standard'
   Default Parameters: 'Standardparameter'
   Default border thickness: Standard-Rahmendicke
-  'Default: %d-%d°C nozzle, %d°C bed': 'Standard: %d-%d°C Düse, %d°C Bett'
-  'Default: %d-%d°C nozzle, %d°C bed, %d°C chamber': 'Standard: %d-%d°C Düse, %d°C Bett, %d°C Kammer'
+  'Default: %s nozzle, %d°C bed': 'Standard: %s Düse, %d°C Bett'
+  'Default: %s nozzle, %d°C bed, %d°C chamber': 'Standard: %s Düse, %d°C Bett, %d°C Kammer'
   Defaults restored: Standardeinstellungen wiederhergestellt
   Define macros in your printer.cfg: Makros in Ihrer printer.cfg definieren
   Delete: Löschen
@@ -2248,6 +2250,7 @@ translations:
   Options: Optionen
   Or Enter Manually: Oder manuell eingeben
   Or instead of turning the others: Oder statt die anderen zu drehen
+  Original file location unknown: Speicherort der Originaldatei unbekannt
   Oscillating... cycle %d/%d: Oszilliert... Zyklus %d/%d
   Outcome: Ergebnis
   Output Device: Ausgabegerät
@@ -2478,7 +2481,6 @@ translations:
   Printer command '{}' timed out after {}ms: Druckerbefehl '{}' nach {} ms abgelaufen
   Printer connection unavailable: Druckerverbindung nicht verfügbar
   Printer database format error: Formatfehler der Druckerdatenbank
-  Printer database is corrupt: Druckerdatenbank ist beschädigt
   Printer default: Druckerstandard
   Printer didn't respond — make sure it's on and in range: Drucker hat nicht reagiert
     — stellen Sie sicher, dass er eingeschaltet und in Reichweite ist

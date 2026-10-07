@@ -682,6 +682,8 @@ uninstall_mod_payload() {
 uninstall() {
     local platform=${1:-}
 
+    # The run's one header; log_note lines below say what went and what stayed.
+    printf '%b\n' "${BOLD}HelixScreen uninstaller${NC}" >&2
     log_info "Uninstalling HelixScreen..."
 
     # Drop sentinel BEFORE any destructive work.  helixscreen-update.service
@@ -833,7 +835,7 @@ uninstall() {
                 continue
             fi
             $SUDO rm -rf "$install_dir"
-            log_success "Removed ${install_dir}"
+            log_note "Removed $(display_path "$install_dir")"
             removed_dir="$install_dir"
             # Also remove the updater repo clone if present
             if [ -d "${install_dir}-repo" ]; then
@@ -893,6 +895,8 @@ uninstall() {
     # Sweep state dirs holding rolling config backups (out-of-INSTALL_DIR by
     # design).  Also sweeps the .uninstalling sentinel dropped at the top.
     clean_helix_state_dirs
+    # Our leftovers in the AD5M's gcodes root show in the print-file picker.
+    if [ "$platform" = "ad5m" ] && type cleanup_ad5m_gcodes_root >/dev/null 2>&1; then cleanup_ad5m_gcodes_root; fi
 
     # Strip the legacy [shell_command helix_recover] block from moonraker.conf
     # (dead since v0.99.61 — kept around on already-installed K2s until they
@@ -905,28 +909,29 @@ uninstall() {
         fi
     fi
 
-    log_success "HelixScreen uninstalled"
     if [ -n "$restored_xorg" ]; then
-        log_info "Re-enabled: $restored_xorg"
+        log_note "Re-enabled $restored_xorg"
     fi
     if [ -n "$restored_ui" ]; then
-        log_info "Re-enabled: $restored_ui"
-        log_info "Reboot to start the previous UI"
+        log_note "Re-enabled $restored_ui; reboot to start it"
     elif [ -z "$restore_warned" ]; then
         log_info "Note: No previous UI found to restore"
     fi
+    _log_write "OK HelixScreen uninstalled"
+    printf '\n%s\n' "HelixScreen uninstalled." >&2
     if [ -n "$restore_warned" ]; then
         log_warn "Previous UI restore incomplete: $restore_warned"
     fi
 }
 
-# Gate --clean's irreversible sweep on explicit consent.
+# Gate --clean's irreversible sweep on explicit consent. confirm_point asks
+# it after the plan, before anything on the printer changes.
 #
-# "stdin is not a terminal" is NOT consent. The documented invocation is
+# A question nobody can answer is NOT consent. The documented invocation is
 # `curl … | sh -s -- --clean`, where stdin is the pipe carrying the script, so
-# a bare `[ -t 0 ]` guard skipped the "PERMANENTLY DELETE your configuration"
-# prompt on exactly the path users actually take. Non-interactive runs must opt
-# in with --yes (ASSUME_YES, set by main.sh's argument parser).
+# the prompt goes to the controlling terminal (tty_confirm); with no terminal
+# at all, non-interactive runs must opt in with --yes (ASSUME_YES, set by
+# main.sh's argument parser).
 #
 # Returns 0 to proceed; otherwise exits (0 = user declined, 1 = no consent).
 confirm_clean_install() {
@@ -935,23 +940,15 @@ confirm_clean_install() {
         return 0
     fi
 
-    if [ -t 0 ]; then
-        printf "Are you sure? [y/N] "
-        read -r response
-        case "$response" in
-            [yY][eE][sS]|[yY])
-                return 0
-                ;;
-            *)
-                log_info "Clean install cancelled."
-                exit 0
-                ;;
-        esac
+    if tty_can_ask; then
+        tty_confirm "Continue?" n && return 0
+        printf '%s\n' "Nothing changed." >&2
+        exit 0
     fi
 
     log_error "Refusing to run --clean without confirmation."
-    log_error "stdin is not a terminal (a piped 'curl ... | sh' has the script on"
-    log_error "stdin), so the y/N prompt cannot be answered."
+    log_error "There is no terminal to answer the y/N prompt (a piped"
+    log_error "'curl ... | sh' with no controlling terminal)."
     log_error "Re-run with --yes to confirm the deletions listed above:"
     log_error "  curl -sSL https://releases.helixscreen.org/install.sh | sh -s -- --clean --yes"
     exit 1
@@ -963,19 +960,7 @@ confirm_clean_install() {
 clean_old_installation() {
     local platform=$1
 
-    log_warn "=========================================="
-    log_warn "  CLEAN INSTALL MODE"
-    log_warn "=========================================="
-    log_warn ""
-    log_warn "This will PERMANENTLY DELETE:"
-    log_warn "  - All HelixScreen files in ${INSTALL_DIR}"
-    log_warn "  - Your configuration (settings.json)"
-    log_warn "  - Rolling config backups (/var/lib/helixscreen + .helixscreen under the service user's home)"
-    log_warn "  - Thumbnail cache files"
-    log_warn ""
-
-    confirm_clean_install
-
+    # The plan's Remove line lists what this deletes; confirm_point asked.
     log_info "Cleaning old installation..."
 
     # Stop any running services

@@ -56,9 +56,11 @@ capture_logs() {
     export -f log_warn log_info
 }
 
-# The kill list of the single `for proc in ...` loop in $1.
+# The K1 kill list in $1: the hook's `for proc in ...` literal, or the list the
+# installer names once as K1_STOCK_UI_PROCS.
 extract_kill_list() {
-    grep -m1 'for proc in ' "$1" | sed 's/.*for proc in //; s/; do.*//; s/ *\\$//'
+    grep -m1 -e 'for proc in ' -e '^K1_STOCK_UI_PROCS=' "$1" \
+        | sed 's/.*for proc in //; s/; do.*//; s/ *\\$//; s/^K1_STOCK_UI_PROCS="//; s/"$//'
 }
 
 # Write an executable stock S99start_app into the mock root.
@@ -78,6 +80,17 @@ redirected_init_script() {
         -e "s|/etc/sysConfig|$MOCK_ROOT/etc/sysConfig|g" \
         -e "s|/tmp/creality|$MOCK_ROOT/tmp/creality|g" \
         "$INIT_SRC"
+}
+
+# The init script backgrounds each server, so `start` can return before a
+# launch reaches the log. Wait for at least <n> launches, bounded.
+wait_for_launches() { # <n>
+    local i
+    for i in $(seq 1 50); do
+        [ "$(grep -c "launched" "$BATS_TEST_TMPDIR/servers.log" 2>/dev/null)" -ge "$1" ] && return 0
+        sleep 0.1
+    done
+    return 1
 }
 
 # Fake backend binaries that record their launch.
@@ -213,6 +226,7 @@ write_fake_servers() {
     [ -x "$dest" ]
     grep -qF "sysv-created:$dest" "$DISABLED_SERVICES_FILE"
     # Started within the install: the fake trio recorded their launch.
+    wait_for_launches 3
     for name in master-server app-server web-server; do
         grep -q "launched $name" "$BATS_TEST_TMPDIR/servers.log"
     done
@@ -284,6 +298,7 @@ write_fake_servers() {
 
     run "$dest" start
     [ "$status" -eq 0 ]
+    wait_for_launches 3
     [ "$(grep -c "launched" "$BATS_TEST_TMPDIR/servers.log")" -eq 3 ]
 
     # A second start with everything reported running launches nothing new.
@@ -321,6 +336,7 @@ write_fake_servers() {
 
     run "$dest" start
     [ "$status" -eq 0 ]
+    wait_for_launches 2
     grep -q "launched master-server" "$BATS_TEST_TMPDIR/servers.log"
     grep -q "launched web-server" "$BATS_TEST_TMPDIR/servers.log"
     refute grep -q "launched app-server" "$BATS_TEST_TMPDIR/servers.log"

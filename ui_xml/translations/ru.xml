@@ -15,6 +15,8 @@
   <translation tag="%d slots" ru="%d слотов"/>
   <translation tag="%d toolheads" ru="%d печатающих головок"/>
   <translation tag="%d tools" ru="%d инструментов"/>
+  <translation tag="%d-%d" ru="%d-%d"/>
+  <translation tag="%d-%d°C" ru="%d-%d°C"/>
   <translation tag="%d:%02d left" ru="осталось %d:%02d"/>
   <translation tag="%dh" ru="%d ч"/>
   <translation tag="%dh %02dm" ru="%d ч %02d мин"/>
@@ -783,16 +785,16 @@
   <translation tag="Danger" ru="Опасность"/>
   <translation tag="Danger Zone" ru="Опасная зона"/>
   <translation tag="Dark Mode" ru="Тёмный режим"/>
-  <translation tag="Database" ru="База данных"/>
   <translation tag="Date (newest)" ru="Дата (новые)"/>
   <translation tag="Date (oldest)" ru="Дата (старые)"/>
   <translation tag="Day" ru="День"/>
   <translation tag="Debug" ru="Отладка"/>
+  <translation tag="Deep Black" ru="Глубокий чёрный"/>
   <translation tag="Default" ru="По умолчанию"/>
   <translation tag="Default Parameters" ru="Параметры по умолчанию"/>
   <translation tag="Default border thickness" ru="Толщина границы по умолчанию"/>
-  <translation tag="Default: %d-%d°C nozzle, %d°C bed" ru="По умолчанию: сопло %d-%d°C, стол %d°C"/>
-  <translation tag="Default: %d-%d°C nozzle, %d°C bed, %d°C chamber" ru="По умолчанию: сопло %d-%d°C, стол %d°C, камера %d°C"/>
+  <translation tag="Default: %s nozzle, %d°C bed" ru="По умолчанию: сопло %s, стол %d°C"/>
+  <translation tag="Default: %s nozzle, %d°C bed, %d°C chamber" ru="По умолчанию: сопло %s, стол %d°C, камера %d°C"/>
   <translation tag="Defaults restored" ru="Настройки по умолчанию восстановлены"/>
   <translation tag="Define macros in your printer.cfg" ru="Определите макросы в вашем printer.cfg"/>
   <translation tag="Delete" ru="Удалить"/>
@@ -2022,6 +2024,7 @@
   <translation tag="Options" ru="Параметры"/>
   <translation tag="Or Enter Manually" ru="Или введите вручную"/>
   <translation tag="Or instead of turning the others" ru="Или вместо вращения остальных винтов"/>
+  <translation tag="Original file location unknown" ru="Расположение исходного файла неизвестно"/>
   <translation tag="Oscillating... cycle %d/%d" ru="Осцилляция... цикл %d/%d"/>
   <translation tag="Outcome" ru="Результат"/>
   <translation tag="Output Device" ru="Устройство вывода"/>
@@ -2232,7 +2235,6 @@
   <translation tag="Printer command &apos;{}&apos; timed out after {}ms" ru="Время ожидания команды принтера &apos;{}&apos; истекло через {} мс"/>
   <translation tag="Printer connection unavailable" ru="Подключение к принтеру недоступно"/>
   <translation tag="Printer database format error" ru="Ошибка формата базы данных принтеров"/>
-  <translation tag="Printer database is corrupt" ru="База данных принтеров повреждена"/>
   <translation tag="Printer default" ru="По умолчанию для принтера"/>
   <translation tag="Printer didn&apos;t respond — make sure it&apos;s on and in range" ru="Принтер не ответил — убедитесь, что он включён и в зоне доступа"/>
   <translation tag="Printer doesn&apos;t expose the expected service — wrong device?" ru="Принтер не предоставляет ожидаемый сервис — не то устройство?"/>

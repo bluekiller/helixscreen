@@ -3,6 +3,7 @@
 
 #include "moonraker_client_mock.h"
 
+#include "ui_filename_utils.h"
 #include "ui_update_queue.h"
 
 #include "../tests/mocks/mock_printer_state.h"
@@ -114,6 +115,15 @@ bool is_registered_diagnostics_object(const std::string& token) {
     return false;
 }
 
+// webhooks.state_message as Klipper reports it after M112 (klippy.py's
+// message_shutdown appended to the reason).
+constexpr const char* kM112ShutdownMessage =
+    "Shutdown due to M112 command\n"
+    "Once the underlying issue is corrected, use the\n"
+    "\"FIRMWARE_RESTART\" command to reset the firmware, reload the\n"
+    "config, and restart the host software.\n"
+    "Printer is shutdown\n";
+
 } // namespace
 
 // Delegating constructor - uses default speedup of 1.0
@@ -173,6 +183,45 @@ MoonrakerClientMock::MoonrakerClientMock(PrinterType type, double speedup_factor
     mock_internal::register_queue_handlers(method_handlers_);
     spdlog::debug("[MoonrakerClientMock] Registered {} RPC method handlers",
                   method_handlers_.size());
+
+    // MedusaHC drives the real AmsBackendToolChanger, and klipper-toolchanger
+    // reports no material, colour, brand or weight - the override store is the
+    // whole of filament identity there. Without these records every lane renders
+    // at AMS_DEFAULT_SLOT_COLOR, which makes colour and ghost bugs invisible.
+    // Outer key style is T<n> (lane_key_style_for), inner "lane" is 0-based.
+    if (mock_medusa_variant() != MedusaVariant::NONE) {
+        // Each lane mirrors a spool from the mock Spoolman inventory - id,
+        // vendor, material, colour and weights - so the active-spool card and
+        // the lane it names cannot describe different filament.
+        struct Lane {
+            int spoolman_id;
+            const char* material;
+            const char* brand;
+            const char* spool_name;
+            const char* color;
+            double remaining_g;
+        };
+        static constexpr Lane kLanes[] = {
+            {2, "Silk PLA", "eSUN", "Silk Blue", "#26DCD9", 750.0},
+            {4, "ABS", "Flashforge", "Fire Engine Red", "#D20000", 100.0},
+            {13, "PETG", "Bambu Lab", "Translucent Green PETG", "#29A261", 1000.0},
+            {5, "PETG", "Kingroon", "Signal Yellow", "#F4E111", 1000.0},
+        };
+        for (int i = 0; i < static_cast<int>(std::size(kLanes)); ++i) {
+            const Lane& l = kLanes[i];
+            mock_db_set("lane_data",
+                        "T" + std::to_string(i), // DISPLAY_NUMBERING_OK: database key mirrors
+                                                 // the T<n> wire format, not a display label
+                        json{{"lane", std::to_string(i)},
+                             {"spoolman_id", l.spoolman_id},
+                             {"material", l.material},
+                             {"brand", l.brand},
+                             {"spool_name", l.spool_name},
+                             {"color", l.color},
+                             {"remaining_weight_g", l.remaining_g},
+                             {"total_weight_g", 1000.0}});
+        }
+    }
 
     // Populate hardware immediately (available for wizard without calling discover_printer())
     populate_hardware();
@@ -2565,6 +2614,25 @@ RequestId MoonrakerClientMock::send_jsonrpc(const std::string& method, const jso
         last_send_script_ = params["script"].get<std::string>();
     }
 
+    std::optional<MoonrakerError> injected_error;
+    {
+        std::lock_guard<std::mutex> lock(fault_mutex_);
+        ++call_counts_[method];
+        if (auto f = fail_next_.find(method); f != fail_next_.end()) {
+            injected_error = std::move(f->second);
+            fail_next_.erase(f);
+        } else if (defer_next_.erase(method) > 0) {
+            held_requests_[method] = HeldRequest{params, success_cb, error_cb};
+            return next_mock_request_id();
+        }
+    }
+    if (injected_error) {
+        if (error_cb) {
+            error_cb(*injected_error);
+        }
+        return next_mock_request_id();
+    }
+
     // Dispatch to method handler registry
     auto it = method_handlers_.find(method);
     if (it != method_handlers_.end()) {
@@ -2576,6 +2644,55 @@ RequestId MoonrakerClientMock::send_jsonrpc(const std::string& method, const jso
     spdlog::debug("[MoonrakerClientMock] Method '{}' not implemented - callbacks not invoked",
                   method);
     return next_mock_request_id();
+}
+
+void MoonrakerClientMock::fail_next(const std::string& method, MoonrakerError err) {
+    std::lock_guard<std::mutex> lock(fault_mutex_);
+    err.method = method;
+    fail_next_[method] = std::move(err);
+}
+
+void MoonrakerClientMock::defer_next(const std::string& method) {
+    std::lock_guard<std::mutex> lock(fault_mutex_);
+    defer_next_.insert(method);
+}
+
+void MoonrakerClientMock::fire_deferred(const std::string& method) {
+    std::optional<HeldRequest> held;
+    {
+        std::lock_guard<std::mutex> lock(fault_mutex_);
+        if (auto h = held_requests_.find(method); h != held_requests_.end()) {
+            held = std::move(h->second);
+            held_requests_.erase(h);
+        }
+    }
+    if (!held) {
+        return;
+    }
+    if (auto it = method_handlers_.find(method); it != method_handlers_.end()) {
+        it->second(this, held->params, held->success_cb, held->error_cb);
+    }
+}
+
+void MoonrakerClientMock::fire_deferred_error(const std::string& method,
+                                              const MoonrakerError& err) {
+    std::optional<HeldRequest> held;
+    {
+        std::lock_guard<std::mutex> lock(fault_mutex_);
+        if (auto h = held_requests_.find(method); h != held_requests_.end()) {
+            held = std::move(h->second);
+            held_requests_.erase(h);
+        }
+    }
+    if (held && held->error_cb) {
+        held->error_cb(err);
+    }
+}
+
+int MoonrakerClientMock::call_count(const std::string& method) const {
+    std::lock_guard<std::mutex> lock(fault_mutex_);
+    auto it = call_counts_.find(method);
+    return it == call_counts_.end() ? 0 : it->second;
 }
 
 // Removed old implementation - now handled by method_handlers_ registry:
@@ -2625,19 +2742,9 @@ bool MoonrakerClientMock::start_print_internal(const std::string& filename) {
     // Handle both bare filenames (e.g., "3DBenchy.gcode") and full paths
     std::string full_path;
 
-    // For modified temp files (.helix_temp/modified_xxx_OriginalName.gcode),
-    // extract the original filename to find the real test file for metadata
-    std::string lookup_filename = filename;
-    if (filename.find(".helix_temp/modified_") != std::string::npos) {
-        // Extract original filename: .helix_temp/modified_123456789_OriginalName.gcode
-        // -> OriginalName.gcode
-        size_t underscore_pos = filename.find('_', filename.find("modified_") + 9);
-        if (underscore_pos != std::string::npos) {
-            lookup_filename = filename.substr(underscore_pos + 1);
-            spdlog::debug("[MoonrakerClientMock] Modified temp file '{}' -> original '{}'",
-                          filename, lookup_filename);
-        }
-    }
+    // A staged rewrite names the original it was made from; that is the test
+    // file holding the metadata.
+    const std::string lookup_filename = helix::gcode::resolve_gcode_filename(filename);
 
     if (lookup_filename.find(RuntimeConfig::TEST_GCODE_DIR) == 0) {
         // Already a full path, use as-is
@@ -3064,7 +3171,12 @@ void MoonrakerClientMock::emergency_stop_internal() {
     print_state_.store(5); // error
     dispatch_print_state_notification("error");
 
-    // Set klippy state to SHUTDOWN (must defer to main thread)
+    // Klippy enters SHUTDOWN, reported both ways Moonraker does: a webhooks
+    // frame carrying the state with Klipper's reason, and notify_klippy_shutdown
+    // (which lands on the global PrinterState, so must defer to main thread).
+    klippy_state_.store(KlippyState::SHUTDOWN);
+    dispatch_status_update(
+        {{"webhooks", {{"state", "shutdown"}, {"state_message", kM112ShutdownMessage}}}});
     helix::ui::queue_update("MoonrakerClientMock::estop_shutdown", []() {
         get_printer_state().set_klippy_state_sync(helix::KlippyState::SHUTDOWN);
     });
@@ -3350,7 +3462,10 @@ void MoonrakerClientMock::dispatch_initial_state() {
           {"extrude_factor", flow / 100.0},
           {"homing_origin", {0.0, 0.0, z_offset, 0.0}}}},
         {"fan", {{"speed", fan / 255.0}}},
-        {"webhooks", {{"state", klippy_str}, {"state_message", "Printer is ready"}}},
+        {"webhooks",
+         {{"state", klippy_str},
+          {"state_message",
+           klippy == KlippyState::SHUTDOWN ? kM112ShutdownMessage : "Printer is ready"}}},
         {"print_stats", {{"state", print_state_str}, {"filename", filename}}},
         {"virtual_sdcard", {{"progress", progress}}},
         {"bed_mesh", bed_mesh_status()}};

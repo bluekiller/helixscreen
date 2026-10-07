@@ -41,6 +41,9 @@ struct PrintHistoryJob {
     double total_duration = 0.0; ///< Total job time including pauses
     double filament_used = 0.0;  ///< Filament in mm
     bool exists = false;         ///< File still exists on disk
+    /// Printed from a copy this app rewrote: `filename` and the file fields
+    /// below describe the recovered original, not what the printer ran.
+    bool from_rewrite = false;
 
     // Metadata from G-code file
     std::string filament_type; ///< PLA, PETG, ABS, etc.

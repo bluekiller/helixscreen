@@ -105,8 +105,6 @@ static void welcome_header_font_observer_cb(lv_observer_t* observer, lv_subject_
 // Global Instance
 // ============================================================================
 
-static std::unique_ptr<WizardLanguageChooserStep> g_wizard_language_chooser_step;
-
 // Flag to force language step to show (for visual testing)
 static bool g_force_language_step = false;
 
@@ -118,12 +116,7 @@ void force_language_chooser_step(bool force) {
 }
 
 WizardLanguageChooserStep* get_wizard_language_chooser_step() {
-    if (!g_wizard_language_chooser_step) {
-        g_wizard_language_chooser_step = std::make_unique<WizardLanguageChooserStep>();
-        StaticPanelRegistry::instance().register_destroy(
-            "WizardLanguageChooserStep", []() { g_wizard_language_chooser_step.reset(); });
-    }
-    return g_wizard_language_chooser_step.get();
+    return &helix::lazy_global<WizardLanguageChooserStep>("WizardLanguageChooserStep");
 }
 
 // ============================================================================

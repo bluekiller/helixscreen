@@ -323,6 +323,21 @@ class UpdateChecker {
      */
     static std::string download_filename_for_url(const std::string& url);
 
+    /**
+     * @brief The line of install.sh output the UI shows when an install fails.
+     * @param lines The install log, one entry per line.
+     * @return The last "[ERROR]" or "<command> failed (exit N):" line; else the
+     *         last line with ERROR or FAILED; else the last WARNING line; ANSI
+     *         color stripped. Empty if none. Only lines after the last
+     *         completed step ("... ok") count.
+     *
+     * The installer's step line ("[n/N] <title> ... FAILED") comes after the
+     * lines that explain it, so a plain last-match would show the step's name
+     * instead of its cause. Best-effort steps log errors and carry on, so an
+     * error before a completed step is not the cause.
+     */
+    static std::string install_failure_detail(const std::vector<std::string>& lines);
+
     std::string get_platform_asset_name() const;
 
     /// Single source of truth for the release asset name Moonraker's update

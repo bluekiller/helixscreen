@@ -63,36 +63,4 @@ void SafetySettingsOverlay::register_callbacks() {
     });
 }
 
-void SafetySettingsOverlay::on_activate() {
-    OverlayBase::on_activate();
-
-    init_estop_toggle();
-    init_completion_alert_dropdown();
-}
-
-void SafetySettingsOverlay::init_estop_toggle() {
-    auto& safety_settings = SafetySettingsManager::instance();
-
-    lv_obj_t* estop_row = lv_obj_find_by_name(overlay_root_, "row_estop_confirm");
-    if (estop_row) {
-        lv_obj_t* toggle = lv_obj_find_by_name(estop_row, "toggle");
-        if (toggle) {
-            if (safety_settings.get_estop_require_confirmation()) {
-                lv_obj_add_state(toggle, LV_STATE_CHECKED);
-            } else {
-                lv_obj_remove_state(toggle, LV_STATE_CHECKED);
-            }
-            spdlog::trace("[{}] E-Stop confirmation toggle initialized", get_name());
-        }
-    }
-}
-
-void SafetySettingsOverlay::init_completion_alert_dropdown() {
-    lv_obj_t* row = helix::ui::find_required(overlay_root_, "row_completion_alert", get_name());
-    if (lv_obj_t* dropdown = helix::ui::find_required(row, "dropdown", get_name())) {
-        auto mode = AudioSettingsManager::instance().get_completion_alert_mode();
-        lv_dropdown_set_selected(dropdown, static_cast<uint32_t>(mode));
-    }
-}
-
 } // namespace helix::settings

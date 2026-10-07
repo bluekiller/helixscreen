@@ -1,5 +1,7 @@
 locale: es
 translations:
+  '%d-%d': '%d-%d'
+  '%d-%d°C': '%d-%d°C'
   ' (timed out)': ' (tiempo agotado)'
   ' frames': ' fotogramas'
   ' left': ' restante'
@@ -875,16 +877,16 @@ translations:
   Danger: Peligro
   Danger Zone: Zona de peligro
   Dark Mode: Modo Oscuro
-  Database: Base de Datos
   Date (newest): Fecha (más reciente)
   Date (oldest): Fecha (más antiguo)
   Day: Día
   Debug: Depuración
+  Deep Black: Negro profundo
   Default: 'Predeterminado'
   Default Parameters: 'Parámetros predeterminados'
   Default border thickness: Grosor de borde predeterminado
-  'Default: %d-%d°C nozzle, %d°C bed': 'Predeterminado: boquilla %d-%d°C, cama %d°C'
-  'Default: %d-%d°C nozzle, %d°C bed, %d°C chamber': 'Predeterminado: boquilla %d-%d°C, cama %d°C, cámara %d°C'
+  'Default: %s nozzle, %d°C bed': 'Predeterminado: boquilla %s, cama %d°C'
+  'Default: %s nozzle, %d°C bed, %d°C chamber': 'Predeterminado: boquilla %s, cama %d°C, cámara %d°C'
   Defaults restored: Valores predeterminados restaurados
   Define macros in your printer.cfg: Defina macros en su printer.cfg
   Delete: Eliminar
@@ -2240,6 +2242,7 @@ translations:
   Options: Opciones
   Or Enter Manually: O Ingrese Manualmente
   Or instead of turning the others: O en lugar de girar los demás
+  Original file location unknown: Ubicación del archivo original desconocida
   Oscillating... cycle %d/%d: Oscilando... ciclo %d/%d
   Outcome: Resultado
   Output Device: Dispositivo de salida
@@ -2469,7 +2472,6 @@ translations:
   Printer command '{}' timed out after {}ms: El comando de impresora '{}' agotó el tiempo tras {} ms
   Printer connection unavailable: Conexión con la impresora no disponible
   Printer database format error: Error de formato de la base de datos de impresoras
-  Printer database is corrupt: La base de datos de impresoras está corrupta
   Printer default: Valor por defecto de la impresora
   Printer didn't respond — make sure it's on and in range: La impresora no respondió
     — asegúrate de que esté encendida y al alcance

@@ -1022,12 +1022,14 @@ void app_store_argv(int /*argc*/, char** /*argv*/) {
 // but don't need real network/hardware connections.
 
 // Stub for app_globals_init_subjects (creates test notification + edit mode subjects)
+#include "platform_capabilities.h"
 #include "platform_info.h"
 
 static lv_subject_t s_test_notification_subject;
 static lv_subject_t s_test_home_edit_mode_subject;
 static lv_subject_t s_test_wizard_active_subject;
 static lv_subject_t s_test_host_power_supported_subject;
+static lv_subject_t s_test_platform_tier_subject;
 // Mirrors app_globals.cpp's g_platform_extras_subject: 1 on every non-ESP32
 // build, 0 only on the ESP32 v1 cut. Registered into the XML global scope so
 // bindings like btn_camera's platform_extras_available cond resolve in tests.
@@ -1062,6 +1064,11 @@ void app_globals_init_subjects() {
             lv_xml_register_subject(nullptr, "platform_host_power_supported",
                                     &s_test_host_power_supported_subject);
         }
+        lv_subject_init_int(&s_test_platform_tier_subject,
+                            static_cast<int>(helix::PlatformCapabilities::detect().tier));
+        if (!lv_xml_get_subject(nullptr, "platform_tier")) {
+            lv_xml_register_subject(nullptr, "platform_tier", &s_test_platform_tier_subject);
+        }
         spdlog::debug("[Test Stub] app_globals_init_subjects: subjects initialized");
     }
 }
@@ -1073,6 +1080,7 @@ void app_globals_deinit_subjects() {
         lv_subject_deinit(&s_test_home_edit_mode_subject);
         lv_subject_deinit(&s_test_wizard_active_subject);
         lv_subject_deinit(&s_test_host_power_supported_subject);
+        lv_subject_deinit(&s_test_platform_tier_subject);
         lv_subject_deinit(&s_test_platform_extras_subject);
         s_test_notification_subject_initialized = false;
         spdlog::debug("[Test Stub] app_globals_deinit_subjects: subjects deinitialized");

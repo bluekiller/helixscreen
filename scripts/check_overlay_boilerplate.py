@@ -6,11 +6,12 @@
 OverlayBase::show() owns the create-once lifecycle and helix::lazy_global<T>
 owns the process-wide instance. Two patterns mean someone wrote either by hand:
 
-  already_exists   a string containing "already exists": the guard log every
-                   hand-rolled create() carried ("create() called but overlay
-                   already exists").
-  static_unique    a `static std::unique_ptr<`: a hand-rolled global accessor
-                   slot instead of lazy_global<T>.
+  already_exists   a log line containing "already exists": the guard log every
+                   hand-rolled create() carries ("create() called but overlay
+                   already exists"). User-facing strings do not count.
+  static_unique    a `static std::unique_ptr<T> name` variable: a hand-rolled
+                   global accessor slot instead of lazy_global<T>. A function
+                   returning a unique_ptr does not count.
 
 Counts are taken from code only (comments are ignored). A RATCHET: the baseline
 holds today's counts, the gate fails when either one grows and says when the
@@ -31,8 +32,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from check_required_names import strip_comments  # noqa: E402
 
 PATTERNS = {
-    "already_exists": re.compile(r"already exists"),
-    "static_unique": re.compile(r"\bstatic\s+std::unique_ptr\s*<"),
+    "already_exists": re.compile(r"spdlog::\w+\([^;]*already exists"),
+    "static_unique": re.compile(r"\bstatic\s+std::unique_ptr\s*<[^;()]*>\s*\w+\s*[;={]"),
 }
 
 

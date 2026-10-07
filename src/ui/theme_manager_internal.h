@@ -117,10 +117,6 @@ void register_color_pairs(lv_xml_component_scope_t* scope, bool dark_mode);
 /// counterpart. A null `old_palette` leaves both maps empty.
 void set_swap_maps(const helix::ModePalette* old_palette, const helix::ModePalette& new_palette);
 
-/// True when `obj` sits in a dialog or on a container whose opaque background
-/// is the elevated surface colour, where inputs need overlay_bg for contrast.
-bool is_on_elevated_surface(lv_obj_t* obj);
-
 /// The subjects the theme publishes to XML. deinit() tears them all down before
 /// lv_deinit() so no widget deletion fires a stale observer callback.
 struct ThemeSubjects {

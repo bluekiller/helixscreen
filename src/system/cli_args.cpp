@@ -152,7 +152,8 @@ static void print_help(const char* program_name) {
     printf("  --test               Enable test mode (uses all mocks by default)\n");
     printf("    --real-wifi        Use real WiFi hardware (requires --test)\n");
     printf("    --real-ethernet    Use real Ethernet hardware (requires --test)\n");
-    printf("    --real-moonraker   Connect to real printer (requires --test)\n");
+    printf("    --real-moonraker   Connect to real printer (requires --test, implies "
+           "--real-ams)\n");
     printf("    --real-files       Use real files from printer (requires --test)\n");
     printf("    --real-ams         Use real AMS backend (requires --test)\n");
     printf("    --real-sensors     Use real sensor data (requires --test)\n");
@@ -727,6 +728,16 @@ bool parse_cli_args(int argc, char** argv, CliArgs& args, int& screen_width, int
     // the standalone IFS module mode (real AmsBackendAd5xIfs) and the CFS
     // modes. The creator5_zmod printer persona is the same deal keyed on the
     // printer env var instead; an explicit HELIX_MOCK_AMS still wins.
+    // A real printer behind a mock AMS would see the mock's fabricated spool ids:
+    // a mock tool change sets them active and a lane save PATCHes them, on the
+    // printer's real Spoolman. A real printer means its real AMS, whatever
+    // HELIX_MOCK_AMS asks for.
+    if (config.test_mode && config.use_real_moonraker && !config.use_real_ams) {
+        config.use_real_ams = true;
+        spdlog::info("[CLI] --real-moonraker implies --real-ams (a mock AMS would write its "
+                     "spool ids to the real printer)");
+    }
+
     if (config.test_mode && !config.use_real_ams) {
         if (const char* ams_env = std::getenv("HELIX_MOCK_AMS"); ams_env && ams_env[0]) {
             const std::string mode = helix::text_io::to_lower(ams_env);

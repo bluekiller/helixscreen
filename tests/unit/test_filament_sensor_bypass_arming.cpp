@@ -56,7 +56,6 @@ class BypassArmingTestAccess {
     static void reset(FilamentSensorManager& mgr) {
         std::lock_guard<std::recursive_mutex> lock(mgr.mutex_);
         mgr.sensors_.clear();
-        mgr.states_.clear();
         mgr.bypass_armed_.clear();
         mgr.master_enabled_ = true;
         mgr.sync_mode_ = true;
@@ -347,8 +346,8 @@ class CfsPublishFixture : public HelixTestFixture {
     /// load would have left it.
     void seed_record(int index, const helix::ams::FilamentSlotOverride& ovr) {
         CfsTestAccess::seed_override(*backend, index, ovr);
-        api->mock_set_db_value("lane_data", "lane" + std::to_string(index + 1),
-                               helix::ams::to_lane_data_record(index, ovr));
+        client.mock_db_set("lane_data", "lane" + std::to_string(index + 1),
+                           helix::ams::to_lane_data_record(index, ovr));
     }
 
     static SlotInfo asa() {
@@ -376,7 +375,7 @@ TEST_CASE("CFS external spool lane: stock publishes past the highest bay any cha
     fx.backend->publish_external_spool_lane(&spool);
     helix::ui::UpdateQueue::instance().drain();
 
-    auto rec = fx.api->mock_get_db_value("lane_data", lane_key);
+    auto rec = fx.client.mock_db_get("lane_data", lane_key);
     REQUIRE_FALSE(rec.is_null());
     CHECK(rec["helix_external"] == true);
     CHECK(rec["helix_material"] == "ASA");
@@ -386,7 +385,7 @@ TEST_CASE("CFS external spool lane: stock publishes past the highest bay any cha
     SECTION("clear removes the lane") {
         fx.backend->publish_external_spool_lane(nullptr);
         helix::ui::UpdateQueue::instance().drain();
-        CHECK(fx.api->mock_get_db_value("lane_data", lane_key).is_null());
+        CHECK(fx.client.mock_db_get("lane_data", lane_key).is_null());
     }
 
     SECTION("black is a real pick — publishes, unlike the gray default") {
@@ -395,7 +394,7 @@ TEST_CASE("CFS external spool lane: stock publishes past the highest bay any cha
         black.material.clear();
         fx.backend->publish_external_spool_lane(&black);
         helix::ui::UpdateQueue::instance().drain();
-        auto rec2 = fx.api->mock_get_db_value("lane_data", lane_key);
+        auto rec2 = fx.client.mock_db_get("lane_data", lane_key);
         REQUIRE_FALSE(rec2.is_null());
         CHECK(rec2["color"] == "#000000");
     }
@@ -404,7 +403,7 @@ TEST_CASE("CFS external spool lane: stock publishes past the highest bay any cha
         SlotInfo blank; // default gray, no material, no spoolman
         fx.backend->publish_external_spool_lane(&blank);
         helix::ui::UpdateQueue::instance().drain();
-        CHECK(fx.api->mock_get_db_value("lane_data", lane_key).is_null());
+        CHECK(fx.client.mock_db_get("lane_data", lane_key).is_null());
     }
 }
 
@@ -419,11 +418,11 @@ TEST_CASE("CFS external spool lane: fork publishes at the firmware's external sl
     const SlotInfo spool = CfsPublishFixture::asa();
     fx.backend->publish_external_spool_lane(&spool);
     helix::ui::UpdateQueue::instance().drain();
-    const auto rec = fx.api->mock_get_db_value("lane_data", "lane5");
+    const auto rec = fx.client.mock_db_get("lane_data", "lane5");
     REQUIRE_FALSE(rec.is_null());
     CHECK(rec["lane"] == "4");
     CHECK(rec["helix_external"] == true);
-    CHECK(fx.api->mock_get_db_value("lane_data", "lane17").is_null());
+    CHECK(fx.client.mock_db_get("lane_data", "lane17").is_null());
 }
 
 // With box 3 off the bus the fork's external slot is 8, box 3 bay A's key. That
@@ -436,18 +435,18 @@ TEST_CASE("CFS external spool lane: a bay record on the fork's external key is l
     box3a.material = "PETG";
     box3a.spool_name = "Box 3 A spool";
     fx.seed_record(8, box3a);
-    const json before = fx.api->mock_get_db_value("lane_data", "lane9");
+    const json before = fx.client.mock_db_get("lane_data", "lane9");
     REQUIRE_FALSE(before.is_null());
 
     fx.send_fork_frame(8);
     const SlotInfo spool = CfsPublishFixture::asa();
     fx.backend->publish_external_spool_lane(&spool);
     helix::ui::UpdateQueue::instance().drain();
-    CHECK(fx.api->mock_get_db_value("lane_data", "lane9") == before);
+    CHECK(fx.client.mock_db_get("lane_data", "lane9") == before);
 
     fx.backend->publish_external_spool_lane(nullptr);
     helix::ui::UpdateQueue::instance().drain();
-    CHECK(fx.api->mock_get_db_value("lane_data", "lane9") == before);
+    CHECK(fx.client.mock_db_get("lane_data", "lane9") == before);
 }
 
 // A mirror written before the mark existed carries no mark. When it names the
@@ -468,7 +467,7 @@ TEST_CASE("CFS external spool lane: an old unmarked mirror naming the saved spoo
 
         fx.backend->publish_external_spool_lane(&spool);
         helix::ui::UpdateQueue::instance().drain();
-        auto rec = fx.api->mock_get_db_value("lane_data", "lane5");
+        auto rec = fx.client.mock_db_get("lane_data", "lane5");
         REQUIRE_FALSE(rec.is_null());
         CHECK(rec["helix_external"] == true);
 
@@ -477,7 +476,7 @@ TEST_CASE("CFS external spool lane: an old unmarked mirror naming the saved spoo
         next.color_rgb = 0x0A2989;
         fx.backend->publish_external_spool_lane(&next);
         helix::ui::UpdateQueue::instance().drain();
-        rec = fx.api->mock_get_db_value("lane_data", "lane5");
+        rec = fx.client.mock_db_get("lane_data", "lane5");
         REQUIRE_FALSE(rec.is_null());
         CHECK(rec["helix_material"] == "PETG");
     }
@@ -488,14 +487,14 @@ TEST_CASE("CFS external spool lane: an old unmarked mirror naming the saved spoo
         other.color_rgb = 0xFFFFFF;
         other.color_set = true;
         fx.seed_record(4, other);
-        const json before = fx.api->mock_get_db_value("lane_data", "lane5");
+        const json before = fx.client.mock_db_get("lane_data", "lane5");
 
         fx.backend->publish_external_spool_lane(&spool);
         helix::ui::UpdateQueue::instance().drain();
-        CHECK(fx.api->mock_get_db_value("lane_data", "lane5") == before);
+        CHECK(fx.client.mock_db_get("lane_data", "lane5") == before);
         fx.backend->publish_external_spool_lane(nullptr);
         helix::ui::UpdateQueue::instance().drain();
-        CHECK(fx.api->mock_get_db_value("lane_data", "lane5") == before);
+        CHECK(fx.client.mock_db_get("lane_data", "lane5") == before);
     }
 }
 
@@ -537,7 +536,7 @@ TEST_CASE("CFS external spool lane: our marked mirror is updated, an unmarked re
         fx.seed_record(16, old_mirror);
         fx.backend->publish_external_spool_lane(&spool);
         helix::ui::UpdateQueue::instance().drain();
-        const auto rec = fx.api->mock_get_db_value("lane_data", "lane17");
+        const auto rec = fx.client.mock_db_get("lane_data", "lane17");
         REQUIRE_FALSE(rec.is_null());
         CHECK(rec["helix_material"] == "ASA");
         CHECK(rec["helix_external"] == true);
@@ -547,13 +546,13 @@ TEST_CASE("CFS external spool lane: our marked mirror is updated, an unmarked re
         helix::ams::FilamentSlotOverride other;
         other.material = "PLA";
         fx.seed_record(16, other);
-        const json before = fx.api->mock_get_db_value("lane_data", "lane17");
+        const json before = fx.client.mock_db_get("lane_data", "lane17");
         fx.backend->publish_external_spool_lane(&spool);
         helix::ui::UpdateQueue::instance().drain();
-        CHECK(fx.api->mock_get_db_value("lane_data", "lane17") == before);
+        CHECK(fx.client.mock_db_get("lane_data", "lane17") == before);
         fx.backend->publish_external_spool_lane(nullptr);
         helix::ui::UpdateQueue::instance().drain();
-        CHECK(fx.api->mock_get_db_value("lane_data", "lane17") == before);
+        CHECK(fx.client.mock_db_get("lane_data", "lane17") == before);
     }
 }
 
@@ -595,7 +594,7 @@ TEST_CASE("External spool mirror: one kept as a bay's record stops being ours",
     REQUIRE(CfsTestAccess::get_override(*fx.backend, 8).has_value());
     CHECK_FALSE(CfsTestAccess::get_override(*fx.backend, 8)->external_mirror);
     helix::ui::UpdateQueue::instance().drain();
-    const json persisted = fx.api->mock_get_db_value("lane_data", "lane9");
+    const json persisted = fx.client.mock_db_get("lane_data", "lane9");
     REQUIRE_FALSE(persisted.is_null());
     CHECK_FALSE(persisted.contains("helix_external"));
 
@@ -604,13 +603,13 @@ TEST_CASE("External spool mirror: one kept as a bay's record stops being ours",
     const SlotInfo spool = CfsPublishFixture::asa();
     fx.backend->publish_external_spool_lane(&spool);
     helix::ui::UpdateQueue::instance().drain();
-    CHECK(fx.api->mock_get_db_value("lane_data", "lane9") == persisted);
+    CHECK(fx.client.mock_db_get("lane_data", "lane9") == persisted);
 
     // Box 3 back: the external slot moves to 12 and 8 is box 3 bay A again.
     fx.send_fork_frame(12);
     fx.backend->publish_external_spool_lane(&spool);
     helix::ui::UpdateQueue::instance().drain();
-    CHECK(fx.api->mock_get_db_value("lane_data", "lane9") == persisted);
+    CHECK(fx.client.mock_db_get("lane_data", "lane9") == persisted);
 }
 
 // Our mirror's key turning into a reported bay in any frame makes the record
@@ -626,14 +625,14 @@ TEST_CASE("CFS external spool lane: our mirror on a returning box's bay becomes 
     spool.spool_name = "External ASA";
     fx.backend->publish_external_spool_lane(&spool);
     helix::ui::UpdateQueue::instance().drain();
-    REQUIRE(fx.api->mock_get_db_value("lane_data", "lane9")["helix_external"] == true);
+    REQUIRE(fx.client.mock_db_get("lane_data", "lane9")["helix_external"] == true);
 
     // Box 3 returns within the session: 8 is its bay A.
     fx.send_fork_frame(12);
     helix::ui::UpdateQueue::instance().drain();
     REQUIRE(CfsTestAccess::get_override(*fx.backend, 8).has_value());
     CHECK_FALSE(CfsTestAccess::get_override(*fx.backend, 8)->external_mirror);
-    CHECK_FALSE(fx.api->mock_get_db_value("lane_data", "lane9").contains("helix_external"));
+    CHECK_FALSE(fx.client.mock_db_get("lane_data", "lane9").contains("helix_external"));
 
     SlotInfo edit = fx.backend->get_slot_info(8);
     edit.spool_name = "Box 3 A spool";
@@ -642,10 +641,10 @@ TEST_CASE("CFS external spool lane: our mirror on a returning box's bay becomes 
 
     fx.backend->publish_external_spool_lane(&spool);
     helix::ui::UpdateQueue::instance().drain();
-    const json rec = fx.api->mock_get_db_value("lane_data", "lane9");
+    const json rec = fx.client.mock_db_get("lane_data", "lane9");
     REQUIRE_FALSE(rec.is_null());
     CHECK_FALSE(rec.contains("helix_external"));
-    CHECK_FALSE(fx.api->mock_get_db_value("lane_data", "lane13").is_null());
+    CHECK_FALSE(fx.client.mock_db_get("lane_data", "lane13").is_null());
 }
 
 // The old key is cleared only where we hold our own marked mirror; a key we
@@ -661,12 +660,12 @@ TEST_CASE("CFS external spool lane: an old key we hold no record for is not clea
     // Someone else's record lands on the old key without passing through us.
     CfsTestAccess::erase_override(*fx.backend, 8);
     const json foreign = json{{"lane", "8"}, {"material", "PLA"}};
-    fx.api->mock_set_db_value("lane_data", "lane9", foreign);
+    fx.client.mock_db_set("lane_data", "lane9", foreign);
 
     fx.send_fork_frame(12);
     fx.backend->publish_external_spool_lane(&spool);
     helix::ui::UpdateQueue::instance().drain();
-    CHECK(fx.api->mock_get_db_value("lane_data", "lane9") == foreign);
+    CHECK(fx.client.mock_db_get("lane_data", "lane9") == foreign);
 }
 
 // When the fork's external slot moves (the top box returns), the mirror at the
@@ -679,14 +678,14 @@ TEST_CASE("CFS external spool lane: a moved external slot clears our old mirror 
     const SlotInfo spool = CfsPublishFixture::asa();
     fx.backend->publish_external_spool_lane(&spool);
     helix::ui::UpdateQueue::instance().drain();
-    REQUIRE_FALSE(fx.api->mock_get_db_value("lane_data", "lane9").is_null());
+    REQUIRE_FALSE(fx.client.mock_db_get("lane_data", "lane9").is_null());
 
     SECTION("our mirror at the old key is cleared") {
         fx.send_fork_frame(12);
         fx.backend->publish_external_spool_lane(&spool);
         helix::ui::UpdateQueue::instance().drain();
-        CHECK(fx.api->mock_get_db_value("lane_data", "lane9").is_null());
-        CHECK_FALSE(fx.api->mock_get_db_value("lane_data", "lane13").is_null());
+        CHECK(fx.client.mock_db_get("lane_data", "lane9").is_null());
+        CHECK_FALSE(fx.client.mock_db_get("lane_data", "lane13").is_null());
     }
 
     SECTION("a record that is not ours at the old key is untouched") {
@@ -694,11 +693,11 @@ TEST_CASE("CFS external spool lane: a moved external slot clears our old mirror 
         box3a.material = "PETG";
         box3a.spool_name = "Box 3 A spool";
         fx.seed_record(8, box3a);
-        const json before = fx.api->mock_get_db_value("lane_data", "lane9");
+        const json before = fx.client.mock_db_get("lane_data", "lane9");
         fx.send_fork_frame(12);
         fx.backend->publish_external_spool_lane(&spool);
         helix::ui::UpdateQueue::instance().drain();
-        CHECK(fx.api->mock_get_db_value("lane_data", "lane9") == before);
+        CHECK(fx.client.mock_db_get("lane_data", "lane9") == before);
     }
 }
 
@@ -713,8 +712,8 @@ TEST_CASE("CFS external spool lane: never publishes without bypass support",
     spool.color_rgb = 0x1A2B3C;
     fx.backend->publish_external_spool_lane(&spool);
     helix::ui::UpdateQueue::instance().drain();
-    CHECK(fx.api->mock_get_db_value("lane_data", "lane1").is_null());
-    CHECK(fx.api->mock_get_db_value("lane_data", "lane17").is_null());
+    CHECK(fx.client.mock_db_get("lane_data", "lane1").is_null());
+    CHECK(fx.client.mock_db_get("lane_data", "lane17").is_null());
 }
 
 // ---------------------------------------------------------------------------
@@ -744,7 +743,7 @@ void seed_store_and_publish(helix::ams::LaneKeyStyle style, const char* expect_o
     CHECK(helix::ams::publish_external_lane(&store, lane_index, &spool, "test"));
     helix::ui::UpdateQueue::instance().drain();
 
-    auto rec = api.mock_get_db_value("lane_data", expect_outer);
+    auto rec = client.mock_db_get("lane_data", expect_outer);
     REQUIRE_FALSE(rec.is_null());
     CHECK(rec["lane"] == "4"); // inner field authoritative, 0-based string
     CHECK(rec["helix_material"] == "ASA");
@@ -781,7 +780,7 @@ TEST_CASE("AFC external spool lane: publishes T{N} one past the last lane",
 
     // AFC's own lane_data convention is T<n> since its virtual-tools
     // firmware — the extern entry rides the same style at T4.
-    auto rec = api.mock_get_db_value("lane_data", "T4");
+    auto rec = client.mock_db_get("lane_data", "T4");
     REQUIRE_FALSE(rec.is_null());
     CHECK(rec["lane"] == "4");
     CHECK(rec["helix_material"] == "ASA");
@@ -789,7 +788,7 @@ TEST_CASE("AFC external spool lane: publishes T{N} one past the last lane",
     SECTION("null spool clears the lane") {
         backend.publish_external_spool_lane(nullptr);
         helix::ui::UpdateQueue::instance().drain();
-        CHECK(api.mock_get_db_value("lane_data", "T4").is_null());
+        CHECK(client.mock_db_get("lane_data", "T4").is_null());
     }
 }
 
@@ -817,6 +816,6 @@ TEST_CASE("IFS external spool lane: no bypass fitted, so nothing publishes",
     helix::ui::UpdateQueue::instance().drain();
 
     // The publish path is gated on the capability, so no lane record appears.
-    CHECK(api.mock_get_db_value("lane_data", "lane5").is_null());
-    CHECK(api.mock_get_db_value("lane_data", "T4").is_null());
+    CHECK(client.mock_db_get("lane_data", "lane5").is_null());
+    CHECK(client.mock_db_get("lane_data", "T4").is_null());
 }

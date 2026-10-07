@@ -279,11 +279,6 @@ static void helix_theme_apply(lv_theme_t* theme, lv_obj_t* obj) {
     if (lv_obj_check_type(obj, &lv_textarea_class)) {
         lv_obj_add_style(obj, tm.get_style(StyleRole::InputBg), LV_PART_MAIN);
         lv_obj_add_style(obj, tm.get_style(StyleRole::Focused), LV_STATE_FOCUSED);
-
-        // On elevated surfaces (dialogs, raised cards), override to overlay_bg for contrast
-        if (is_on_elevated_surface(obj)) {
-            lv_obj_set_style_bg_color(obj, tm.current_palette().overlay_bg, LV_PART_MAIN);
-        }
     }
 #endif
 
@@ -298,14 +293,12 @@ static void helix_theme_apply(lv_theme_t* theme, lv_obj_t* obj) {
         // Local styles always win over added styles, so this guarantees
         // dropdowns render at the theme's border_radius.
         lv_obj_set_style_radius(obj, tm.current_palette().border_radius, LV_PART_MAIN);
-
-        // On elevated surfaces (dialogs, raised cards), override to overlay_bg for contrast
-        if (is_on_elevated_surface(obj)) {
-            lv_obj_set_style_bg_color(obj, tm.current_palette().overlay_bg, LV_PART_MAIN);
-        }
     }
     if (lv_obj_check_type(obj, &lv_dropdownlist_class)) {
         lv_obj_add_style(obj, tm.get_style(StyleRole::InputBg), LV_PART_MAIN);
+        // The popup floats over other content, so unlike the field it needs a fill.
+        lv_obj_set_style_bg_color(obj, tm.current_palette().elevated_bg, LV_PART_MAIN);
+        lv_obj_set_style_bg_opa(obj, LV_OPA_COVER, LV_PART_MAIN);
 
         // Clip highlight rectangles to rounded corners
         lv_obj_set_style_clip_corner(obj, true, LV_PART_MAIN);
@@ -348,11 +341,6 @@ static void helix_theme_apply(lv_theme_t* theme, lv_obj_t* obj) {
 #if LV_USE_SPINBOX
     if (lv_obj_check_type(obj, &lv_spinbox_class)) {
         lv_obj_add_style(obj, tm.get_style(StyleRole::InputBg), LV_PART_MAIN);
-
-        // On elevated surfaces (dialogs, raised cards), override to overlay_bg for contrast
-        if (is_on_elevated_surface(obj)) {
-            lv_obj_set_style_bg_color(obj, tm.current_palette().overlay_bg, LV_PART_MAIN);
-        }
     }
 #endif
 

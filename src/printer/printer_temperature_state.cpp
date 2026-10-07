@@ -251,59 +251,48 @@ std::string extruder_display_name(size_t index, bool multi) {
 } // namespace
 
 void PrinterTemperatureState::init_extruders(const std::vector<std::string>& heaters) {
-    // Signal subject death FIRST — sets the pointed-to bool to false so that
-    // ALL ObserverGuards (including those in other services that still hold
-    // shared_ptr copies) detect the subject as dead and skip lv_observer_remove()
-    // on the about-to-be-freed observers. (#816)
-    for (auto& [name, info] : extruders_) {
-        if (info.temp_lifetime)
-            *info.temp_lifetime = false;
-        info.temp_lifetime.reset();
-        if (info.target_lifetime)
-            *info.target_lifetime = false;
-        info.target_lifetime.reset();
-        if (info.power_lifetime)
-            *info.power_lifetime = false;
-        info.power_lifetime.reset();
-    }
-
-    // Now safe to deinit existing per-extruder subjects
-    for (auto& [name, info] : extruders_) {
-        if (info.temp_subject) {
-            lv_subject_deinit(info.temp_subject.get());
-        }
-        if (info.target_subject) {
-            lv_subject_deinit(info.target_subject.get());
-        }
-        if (info.power_subject) {
-            lv_subject_deinit(info.power_subject.get());
-        }
-    }
-    extruders_.clear();
-
-    // Filter for extruder* names and count them
+    // Accept "extruder" and "extruderN" (digit suffix), reject "extruder_stepper" etc.
     std::vector<std::string> extruder_names;
     for (const auto& name : heaters) {
-        // Accept "extruder" and "extruderN" (digit suffix), reject "extruder_stepper" etc.
         if (is_extruder_name(name)) {
             extruder_names.push_back(name);
         }
     }
-    // Sort so the "Nozzle N" suffix matches the lexical (and numeric, for N < 10)
-    // order — both the chip row and the config modal sort by name elsewhere, so
-    // skipping the sort here would otherwise misalign labels with extruder index
-    // when Klipper returns heaters in a non-deterministic order.
-    std::sort(extruder_names.begin(), extruder_names.end());
 
-    bool multi = extruder_names.size() > 1;
+    // Discovery re-runs on every klippy ready. A tool still present keeps its
+    // subjects and lifetimes, so every observer bound to it stays live; only a
+    // tool that disappeared is freed.
+    bool changed = false;
+    for (auto it = extruders_.begin(); it != extruders_.end();) {
+        if (std::find(extruder_names.begin(), extruder_names.end(), it->first) !=
+            extruder_names.end()) {
+            ++it;
+            continue;
+        }
+        // Signal subject death FIRST - sets the pointed-to bool to false so that
+        // ALL ObserverGuards (including those in other services that still hold
+        // shared_ptr copies) detect the subject as dead and skip
+        // lv_observer_remove() on the about-to-be-freed observers. (#816)
+        auto& info = it->second;
+        for (auto* lt : {&info.temp_lifetime, &info.target_lifetime, &info.power_lifetime}) {
+            if (*lt)
+                **lt = false;
+            lt->reset();
+        }
+        for (auto* subj : {&info.temp_subject, &info.target_subject, &info.power_subject}) {
+            if (*subj)
+                lv_subject_deinit(subj->get());
+        }
+        it = extruders_.erase(it);
+        changed = true;
+    }
 
-    extruders_.reserve(extruder_names.size());
-    for (size_t i = 0; i < extruder_names.size(); ++i) {
-        const auto& name = extruder_names[i];
+    for (const auto& name : extruder_names) {
+        if (extruders_.count(name) != 0) {
+            continue;
+        }
         ExtruderInfo info;
         info.name = name;
-
-        info.display_name = extruder_display_name(i, multi);
 
         // Create heap-allocated subjects (stable across rehash)
         info.temp_subject = std::make_unique<lv_subject_t>();
@@ -320,15 +309,23 @@ void PrinterTemperatureState::init_extruders(const std::vector<std::string>& hea
         lv_subject_init_int(info.power_subject.get(), -1);
         info.power_lifetime = std::make_shared<bool>(true);
 
-        spdlog::trace("[PrinterTemperatureState] Registered extruder: {} -> \"{}\"", name,
-                      info.display_name);
+        spdlog::trace("[PrinterTemperatureState] Registered extruder: {}", name);
         extruders_.emplace(name, std::move(info));
+        changed = true;
     }
 
-    // Bump version to notify UI of extruder list change
-    lv_subject_set_int(&extruder_version_, lv_subject_get_int(&extruder_version_) + 1);
-    spdlog::debug("[PrinterTemperatureState] Initialized {} extruders (version {})",
-                  extruders_.size(), lv_subject_get_int(&extruder_version_));
+    // The tool count decides between "Nozzle" and "Nozzle N", so a survivor's
+    // label can change when another tool comes or goes.
+    refresh_display_names();
+
+    // The version tells consumers the extruder SET changed; an unchanged set
+    // leaves every binding valid, so it does not bump.
+    if (changed) {
+        lv_subject_set_int(&extruder_version_, lv_subject_get_int(&extruder_version_) + 1);
+    }
+    spdlog::debug("[PrinterTemperatureState] Initialized {} extruders (version {}{})",
+                  extruders_.size(), lv_subject_get_int(&extruder_version_),
+                  changed ? "" : ", unchanged");
 }
 
 void PrinterTemperatureState::refresh_display_names() {

@@ -468,15 +468,18 @@ print('ok')
 
     # `help` has no prerequisites: it prints the database without make first
     # deciding whether the default goal can be built, which on a host with no
-    # compiled dependencies it cannot.
+    # compiled dependencies it cannot. Only APPLIED_STAMPS feeds the id, so a
+    # stamp variable defined but left out of it watches nothing.
     local db
-    db="$(make -pn help 2>/dev/null)"
+    db="$(make -pn help 2>/dev/null | grep '^APPLIED_STAMPS := ')"
     # Anchored: a path that merely starts with the name is a different file,
     # and make would be watching something the gate never writes.
     grep -qE 'modules/lvgl/helix-patches-applied\.json( |$)' <<<"$db" \
         || problems="${problems}no lvgl applied-stamp in the make database; "
     grep -qE 'modules/libhv/helix-patches-applied\.json( |$)' <<<"$db" \
-        || problems="${problems}no libhv applied-stamp in the make database"
+        || problems="${problems}no libhv applied-stamp in the make database; "
+    grep -qE 'modules/lib/lua/helix-patches-applied\.json( |$)' <<<"$db" \
+        || problems="${problems}no lua applied-stamp in the make database"
 
     [ -z "$problems" ] || { echo "$problems"; false; }
 }

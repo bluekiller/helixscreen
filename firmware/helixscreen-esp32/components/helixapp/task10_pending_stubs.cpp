@@ -243,15 +243,4 @@ void MoonrakerSpoolmanAPI::delete_spoolman_filament(int, SuccessCallback, ErrorC
     task10_unimplemented_err("MoonrakerSpoolmanAPI::delete_spoolman_filament", err);
 }
 
-void MoonrakerSpoolmanAPI::get_spoolman_external_vendors(helix::VendorListCallback,
-                                                         ErrorCallback err) {
-    task10_unimplemented_err("MoonrakerSpoolmanAPI::get_spoolman_external_vendors", err);
-}
-
-void MoonrakerSpoolmanAPI::get_spoolman_external_filaments(const std::string&,
-                                                           helix::FilamentListCallback,
-                                                           ErrorCallback err) {
-    task10_unimplemented_err("MoonrakerSpoolmanAPI::get_spoolman_external_filaments", err);
-}
-
 // (further symbols appended here as later tasks' link passes demand them)

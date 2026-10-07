@@ -1,5 +1,7 @@
 locale: zh
 translations:
+  '%d-%d': '%d-%d'
+  '%d-%d°C': '%d-%d°C'
   ' (timed out)': （超时）
   ' frames': ' 帧'
   ' left': ' 剩余'
@@ -804,16 +806,16 @@ translations:
   Danger: 危险
   Danger Zone: 危险区域
   Dark Mode: 深色模式
-  Database: 数据库
   Date (newest): 日期（最新）
   Date (oldest): 日期（最早）
   Day: 日
   Debug: 调试
+  Deep Black: 深黑色
   Default: '默认'
   Default Parameters: '默认参数'
   Default border thickness: 默认边框厚度
-  'Default: %d-%d°C nozzle, %d°C bed': '默认: 喷嘴 %d-%d°C,热床 %d°C'
-  'Default: %d-%d°C nozzle, %d°C bed, %d°C chamber': '默认: 喷嘴 %d-%d°C,热床 %d°C,腔体 %d°C'
+  'Default: %s nozzle, %d°C bed': '默认: 喷嘴 %s,热床 %d°C'
+  'Default: %s nozzle, %d°C bed, %d°C chamber': '默认: 喷嘴 %s,热床 %d°C,腔体 %d°C'
   Defaults restored: 已恢复默认设置
   Define macros in your printer.cfg: 在 printer.cfg 中定义宏
   Delete: 删除
@@ -2094,6 +2096,7 @@ translations:
   Options: 选项
   Or Enter Manually: 或手动输入
   Or instead of turning the others: 或者，无需转动其他螺丝
+  Original file location unknown: 原始文件位置未知
   Oscillating... cycle %d/%d: 振荡中... 循环 %d/%d
   Outcome: 结果
   Output Device: 输出设备
@@ -2312,7 +2315,6 @@ translations:
   Printer command '{}' timed out after {}ms: 打印机命令 '{}' 在 {} 毫秒后超时
   Printer connection unavailable: 打印机连接不可用
   Printer database format error: 打印机数据库格式错误
-  Printer database is corrupt: 打印机数据库已损坏
   Printer default: 打印机默认
   Printer didn't respond — make sure it's on and in range: 打印机无响应 — 请确保已开机且在范围内
   Printer doesn't expose the expected service — wrong device?: 打印机未提供预期的服务 — 设备是否有误？

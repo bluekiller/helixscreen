@@ -15,6 +15,8 @@
   <translation tag="%d slots" zh="%d 个槽位"/>
   <translation tag="%d toolheads" zh="%d 个工具头"/>
   <translation tag="%d tools" zh="%d 个工具"/>
+  <translation tag="%d-%d" zh="%d-%d"/>
+  <translation tag="%d-%d°C" zh="%d-%d°C"/>
   <translation tag="%d:%02d left" zh="剩余 %d:%02d"/>
   <translation tag="%dh" zh="%d小时"/>
   <translation tag="%dh %02dm" zh="%d小时%02d分"/>
@@ -783,16 +785,16 @@
   <translation tag="Danger" zh="危险"/>
   <translation tag="Danger Zone" zh="危险区域"/>
   <translation tag="Dark Mode" zh="深色模式"/>
-  <translation tag="Database" zh="数据库"/>
   <translation tag="Date (newest)" zh="日期（最新）"/>
   <translation tag="Date (oldest)" zh="日期（最早）"/>
   <translation tag="Day" zh="日"/>
   <translation tag="Debug" zh="调试"/>
+  <translation tag="Deep Black" zh="深黑色"/>
   <translation tag="Default" zh="默认"/>
   <translation tag="Default Parameters" zh="默认参数"/>
   <translation tag="Default border thickness" zh="默认边框厚度"/>
-  <translation tag="Default: %d-%d°C nozzle, %d°C bed" zh="默认: 喷嘴 %d-%d°C,热床 %d°C"/>
-  <translation tag="Default: %d-%d°C nozzle, %d°C bed, %d°C chamber" zh="默认: 喷嘴 %d-%d°C,热床 %d°C,腔体 %d°C"/>
+  <translation tag="Default: %s nozzle, %d°C bed" zh="默认: 喷嘴 %s,热床 %d°C"/>
+  <translation tag="Default: %s nozzle, %d°C bed, %d°C chamber" zh="默认: 喷嘴 %s,热床 %d°C,腔体 %d°C"/>
   <translation tag="Defaults restored" zh="已恢复默认设置"/>
   <translation tag="Define macros in your printer.cfg" zh="在 printer.cfg 中定义宏"/>
   <translation tag="Delete" zh="删除"/>
@@ -2022,6 +2024,7 @@
   <translation tag="Options" zh="选项"/>
   <translation tag="Or Enter Manually" zh="或手动输入"/>
   <translation tag="Or instead of turning the others" zh="或者，无需转动其他螺丝"/>
+  <translation tag="Original file location unknown" zh="原始文件位置未知"/>
   <translation tag="Oscillating... cycle %d/%d" zh="振荡中... 循环 %d/%d"/>
   <translation tag="Outcome" zh="结果"/>
   <translation tag="Output Device" zh="输出设备"/>
@@ -2232,7 +2235,6 @@
   <translation tag="Printer command &apos;{}&apos; timed out after {}ms" zh="打印机命令 &apos;{}&apos; 在 {} 毫秒后超时"/>
   <translation tag="Printer connection unavailable" zh="打印机连接不可用"/>
   <translation tag="Printer database format error" zh="打印机数据库格式错误"/>
-  <translation tag="Printer database is corrupt" zh="打印机数据库已损坏"/>
   <translation tag="Printer default" zh="打印机默认"/>
   <translation tag="Printer didn&apos;t respond — make sure it&apos;s on and in range" zh="打印机无响应 — 请确保已开机且在范围内"/>
   <translation tag="Printer doesn&apos;t expose the expected service — wrong device?" zh="打印机未提供预期的服务 — 设备是否有误？"/>

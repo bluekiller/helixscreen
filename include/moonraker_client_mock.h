@@ -5,6 +5,7 @@
 
 #include "axis.h"
 #include "moonraker_client.h"
+#include "moonraker_client_mock_spoolman.h"
 #include "moonraker_types.h"
 
 #include <array>
@@ -947,6 +948,11 @@ class MoonrakerClientMock : public helix::MoonrakerClient {
         return mock_spoolman_enabled_;
     }
 
+    /// The Spoolman server behind server.spoolman.*, for tests to seed and inspect
+    MockSpoolmanServer& spoolman_mock() {
+        return spoolman_;
+    }
+
     /// The webcams server.webcams.list answers with (HELIX_MOCK_WEBCAMS)
     [[nodiscard]] const std::vector<WebcamInfo>& mock_webcams() const {
         return mock_webcams_;
@@ -1630,6 +1636,33 @@ class MoonrakerClientMock : public helix::MoonrakerClient {
         return last_send_script_;
     }
 
+    /// Test helper: the next send of @p method answers @p err through its error
+    /// callback without reaching the handler, so nothing the handler would
+    /// change has changed. One-shot. Works for any method in the registry.
+    void fail_next(const std::string& method,
+                   MoonrakerError err = MoonrakerError::unknown("mock: injected failure"));
+
+    /// Test helper: the next send of @p method is held unanswered until
+    /// fire_deferred() runs it through its handler or fire_deferred_error()
+    /// fails it. Until then the handler has not run. One-shot; firing with
+    /// nothing held is a no-op.
+    void defer_next(const std::string& method);
+    void fire_deferred(const std::string& method);
+    void fire_deferred_error(const std::string& method, const MoonrakerError& err);
+
+    /// Test inspection: sends of @p method so far, failed and deferred included.
+    [[nodiscard]] int call_count(const std::string& method) const;
+
+    /// Test helper: the Moonraker database the server.database.* handlers serve.
+    /// Keys are dotted the way Moonraker's are ("a.b" is member b of record a).
+    void mock_db_set(const std::string& ns, const std::string& key, const json& value);
+    /// The value at a dotted key, or null when absent.
+    [[nodiscard]] json mock_db_get(const std::string& ns, const std::string& key);
+    /// Every namespace, for the handlers.
+    json& mock_db() {
+        return mock_db_;
+    }
+
     /// Test helper: force the next matching printer.gcode.script RPC to invoke its
     /// error callback (instead of success) with the given error type/message. This
     /// simulates an RPC-layer timeout while Klipper still processes the gcode — the
@@ -1779,6 +1812,24 @@ class MoonrakerClientMock : public helix::MoonrakerClient {
     // Intent of the in-flight send_jsonrpc() dispatch, read by the method
     // handlers via current_send_intent().
     helix::rpc_error_policy::CallerIntent current_send_intent_{};
+
+    // Generic fault injection (fail_next / defer_next) and per-method send
+    // counts. Guarded by fault_mutex_; callbacks never run under it.
+    struct HeldRequest {
+        json params;
+        std::function<void(const json&)> success_cb;
+        std::function<void(const MoonrakerError&)> error_cb;
+    };
+    std::map<std::string, MoonrakerError> fail_next_;
+    std::set<std::string> defer_next_;
+    std::map<std::string, HeldRequest> held_requests_;
+    std::map<std::string, int> call_counts_;
+    mutable std::mutex fault_mutex_;
+
+    // Unlocked: the handlers answer on the calling thread, and every caller of
+    // the database and Spoolman routes is on the main thread.
+    json mock_db_ = json::object();
+    MockSpoolmanServer spoolman_;
 
     // One-shot forced error injection for printer.gcode.script (test helper).
     struct ForcedGcodeError {

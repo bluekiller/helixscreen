@@ -477,7 +477,7 @@ void SpoolmanManager::refresh_spoolman_weights() {
     std::lock_guard<std::recursive_mutex> lock(mutex_);
 
     // Mock mode polls too. AmsBackendMock seeds spoolman_id = lane + 1 to mirror
-    // MoonrakerSpoolmanAPIMock::init_mock_spools() (ids 1-7), so those ids resolve
+    // MockSpoolmanServer::init_mock_spools() (ids 1-7), so those ids resolve
     // against the mock API and the identity cache fills exactly as it does on real
     // hardware. The old guard here predated that alignment and skipped the poll on
     // the premise that mock ids were fabricated; keeping it would have made every

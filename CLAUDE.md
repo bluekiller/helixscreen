@@ -103,7 +103,7 @@ scripts/zeus-run.sh sweep                   # make unit-sweep on zeus
 
 # Worktrees — MUST use for MAJOR work. Always in .worktrees/ (project root).
 scripts/setup-worktree.sh feature/my-branch  # Symlinks shared deps, builds fast
-#   lib/lvgl, lib/libhv and lib/helix-xml get a PRIVATE checkout per worktree
+#   lib/lvgl, lib/libhv, lib/lua and lib/helix-xml get a PRIVATE checkout per worktree
 #   (patches/ is per-branch); everything else in lib/ is a symlink shared with
 #   the main tree. Also writes .claude/settings.local.json with PROJECT_DIR set
 #   to the MAIN tree so claude-recall writes lessons and stats there.
@@ -201,6 +201,10 @@ What is shared here:
 - **The main working tree is live.** Other sessions commit in it. Never let git autostash
   (`-c merge.autoStash=false`), and commit your own edits promptly, with explicit pathspecs.
   Pushing main pushes peers' commits too: read `git log origin/main..main` and push only when their gates are green.
+- **Whoever moves main pushes it, in the same claim.** Gate the branch first, then
+  `take worktree:main`, merge or fast-forward, push, verify `origin/main == main`, release.
+  Never leave main ahead of origin: no other session will push work that is not theirs, so
+  an unpushed main stalls every merge behind it until its owner is found.
 - **`MM` does not mean a peer is mid-commit.** It is ambiguous, and one command settles it:
   `git diff HEAD -- <path>`. Empty means the committed content is what is on disk, only the
   INDEX holds an older copy, and nothing is in flight. A `git commit -- <paths>` whose

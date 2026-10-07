@@ -555,6 +555,8 @@ class PrintStatusPanel : public OverlayBase {
     void animate_print_error();     ///< Error animation when print fails
     void show_exclude_map_view();   ///< Show overhead map view of print objects
     void hide_exclude_map_view();   ///< Destroy map view and restore thumbnail/gradient
+    void
+    refresh_render_badges(); ///< Push numbered object badges to the viewer while exclude is open
 
     //
     // === Instance Handlers ===
@@ -566,7 +568,9 @@ class PrintStatusPanel : public OverlayBase {
     void recompute_paused_overlay_visibility();
     void handle_tune_button();
     void handle_reprint_button(); ///< Reprint the cancelled file
-    void handle_files_click();    ///< Open print select while this overlay holds the screen
+    /// The file Reprint starts: the original, never a rewritten temp copy.
+    [[nodiscard]] std::string reprint_filename() const;
+    void handle_files_click(); ///< Open print select while this overlay holds the screen
     void handle_resize();
 
     /// @brief Tool indices used by the currently-loaded G-code (for U1 native pre-send).

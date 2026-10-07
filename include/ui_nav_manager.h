@@ -7,7 +7,7 @@
 #include "ui_nav_backdrop.h"
 #include "ui_nav_panel_registry.h"
 #include "ui_nav_printer_badge.h"
-#include "ui_nav_rail_button.h"
+#include "ui_navbar_button.h"
 #include "ui_observer_guard.h"
 #include "ui_widget_ref.h"
 
@@ -111,23 +111,23 @@ class NavigationManager {
     void wire_events(lv_obj_t* navbar);
 
     /// The panel button under @p point, or nullptr. How a tap on the
-    /// backdrop's snapshot of the rail reaches the live rail under an overlay.
+    /// backdrop's snapshot of the navbar reaches the live navbar under an overlay.
     [[nodiscard]] static lv_obj_t* navbar_target_at(lv_obj_t* navbar, const lv_point_t& point);
 
     /// The keyboard's top edge in screen coordinates while it is open, or -1
-    /// once it closes. Beside a side rail the E-stop moves up the rail column
-    /// to clear it and back to its slot after; under a portrait bottom bar the
+    /// once it closes. Beside a side navbar the E-stop moves up the navbar column
+    /// to clear it and back to its slot after; under a portrait bottom navbar the
     /// keyboard covers it.
-    void set_rail_estop_keyboard_top(int32_t top);
+    void set_navbar_estop_keyboard_top(int32_t top);
 
-    /// The E-stop kept over the rail's nav_estop_slot, or nullptr.
-    [[nodiscard]] lv_obj_t* rail_estop() const {
-        return rail_estop_.widget();
+    /// The E-stop kept over the navbar's nav_estop_slot, or nullptr.
+    [[nodiscard]] lv_obj_t* navbar_estop() const {
+        return navbar_estop_.widget();
     }
 
-    /// The spools-on-the-bed button kept over the rail's nav_drying_slot, or nullptr.
-    [[nodiscard]] lv_obj_t* rail_drying() const {
-        return rail_drying_.widget();
+    /// The spools-on-the-bed button kept over the navbar's nav_drying_slot, or nullptr.
+    [[nodiscard]] lv_obj_t* navbar_drying() const {
+        return navbar_drying_.widget();
     }
 
     /**
@@ -637,6 +637,9 @@ class NavigationManager {
     // inside a queue callback (go_back, close_overlay).
     void go_back_now();
 
+    // Cancel every queued push of @p panel and retire it as if it had closed.
+    void cancel_pending_push(lv_obj_t* panel);
+
     // Animation helpers
     void overlay_animate_slide_in(lv_obj_t* panel);
     void overlay_animate_slide_out(lv_obj_t* panel);
@@ -672,7 +675,7 @@ class NavigationManager {
     static void overlay_delete_event_cb(lv_event_t* e);
     // Create the darkened backdrop over `screen` and adopt it as
     // the primary backdrop, wiring its click handlers. `arriving` (the overlay
-    // being pushed) and the rail E-stop are hidden for the snapshot: both sit
+    // being pushed) and the navbar E-stop are hidden for the snapshot: both sit
     // above the backdrop, and a dimmed copy baked into the image would trail
     // the live overlay wherever it does not cover it. The backdrop is a child
     // of `screen`, so any path that deletes the screen frees it without going
@@ -697,8 +700,9 @@ class NavigationManager {
      */
     void refresh_overlay_backdrop();
 
-    helix::ui::RailButton rail_estop_{"nav_estop_slot", "rail_estop", "nav_btn_estop", true};
-    helix::ui::RailButton rail_drying_{"nav_drying_slot", "rail_drying", "nav_btn_drying", false};
+    helix::ui::NavbarButton navbar_estop_{"nav_estop_slot", "navbar_estop", "nav_btn_estop", true};
+    helix::ui::NavbarButton navbar_drying_{"nav_drying_slot", "navbar_drying", "nav_btn_drying",
+                                           false};
 
     // Event callbacks
     static void backdrop_click_event_cb(lv_event_t* e);
@@ -748,7 +752,14 @@ class NavigationManager {
 
     // Panel stack: tracks ALL visible panels in z-order
     std::vector<lv_obj_t*> panel_stack_;
-    std::vector<lv_obj_t*> pending_pushes_; // push_overlay() targets not yet pushed
+    // push_overlay() targets not yet pushed. A queued push runs only while its
+    // serial is still listed, so removing an entry cancels that push.
+    struct PendingPush {
+        lv_obj_t* panel;
+        uint64_t serial;
+    };
+    std::vector<PendingPush> pending_pushes_;
+    uint64_t next_push_serial_ = 0;
 
     // Overlay close callbacks (called when overlay is popped from stack)
     std::unordered_map<lv_obj_t*, helix::OverlayCloseCallback> overlay_close_callbacks_;

@@ -15,6 +15,8 @@
   <translation tag="%d slots" es="%d ranuras"/>
   <translation tag="%d toolheads" es="%d cabezales"/>
   <translation tag="%d tools" es="%d herramientas"/>
+  <translation tag="%d-%d" es="%d-%d"/>
+  <translation tag="%d-%d°C" es="%d-%d°C"/>
   <translation tag="%d:%02d left" es="quedan %d:%02d"/>
   <translation tag="%dh" es="%d h"/>
   <translation tag="%dh %02dm" es="%d h %02d min"/>
@@ -783,16 +785,16 @@
   <translation tag="Danger" es="Peligro"/>
   <translation tag="Danger Zone" es="Zona de peligro"/>
   <translation tag="Dark Mode" es="Modo Oscuro"/>
-  <translation tag="Database" es="Base de Datos"/>
   <translation tag="Date (newest)" es="Fecha (más reciente)"/>
   <translation tag="Date (oldest)" es="Fecha (más antiguo)"/>
   <translation tag="Day" es="Día"/>
   <translation tag="Debug" es="Depuración"/>
+  <translation tag="Deep Black" es="Negro profundo"/>
   <translation tag="Default" es="Predeterminado"/>
   <translation tag="Default Parameters" es="Parámetros predeterminados"/>
   <translation tag="Default border thickness" es="Grosor de borde predeterminado"/>
-  <translation tag="Default: %d-%d°C nozzle, %d°C bed" es="Predeterminado: boquilla %d-%d°C, cama %d°C"/>
-  <translation tag="Default: %d-%d°C nozzle, %d°C bed, %d°C chamber" es="Predeterminado: boquilla %d-%d°C, cama %d°C, cámara %d°C"/>
+  <translation tag="Default: %s nozzle, %d°C bed" es="Predeterminado: boquilla %s, cama %d°C"/>
+  <translation tag="Default: %s nozzle, %d°C bed, %d°C chamber" es="Predeterminado: boquilla %s, cama %d°C, cámara %d°C"/>
   <translation tag="Defaults restored" es="Valores predeterminados restaurados"/>
   <translation tag="Define macros in your printer.cfg" es="Defina macros en su printer.cfg"/>
   <translation tag="Delete" es="Eliminar"/>
@@ -2022,6 +2024,7 @@
   <translation tag="Options" es="Opciones"/>
   <translation tag="Or Enter Manually" es="O Ingrese Manualmente"/>
   <translation tag="Or instead of turning the others" es="O en lugar de girar los demás"/>
+  <translation tag="Original file location unknown" es="Ubicación del archivo original desconocida"/>
   <translation tag="Oscillating... cycle %d/%d" es="Oscilando... ciclo %d/%d"/>
   <translation tag="Outcome" es="Resultado"/>
   <translation tag="Output Device" es="Dispositivo de salida"/>
@@ -2232,7 +2235,6 @@
   <translation tag="Printer command &apos;{}&apos; timed out after {}ms" es="El comando de impresora &apos;{}&apos; agotó el tiempo tras {} ms"/>
   <translation tag="Printer connection unavailable" es="Conexión con la impresora no disponible"/>
   <translation tag="Printer database format error" es="Error de formato de la base de datos de impresoras"/>
-  <translation tag="Printer database is corrupt" es="La base de datos de impresoras está corrupta"/>
   <translation tag="Printer default" es="Valor por defecto de la impresora"/>
   <translation tag="Printer didn&apos;t respond — make sure it&apos;s on and in range" es="La impresora no respondió — asegúrate de que esté encendida y al alcance"/>
   <translation tag="Printer doesn&apos;t expose the expected service — wrong device?" es="La impresora no expone el servicio esperado — ¿dispositivo equivocado?"/>

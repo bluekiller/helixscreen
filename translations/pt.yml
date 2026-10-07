@@ -1,5 +1,7 @@
 locale: pt
 translations:
+  '%d-%d': '%d-%d'
+  '%d-%d°C': '%d-%d°C'
   ' (timed out)': ' (tempo esgotado)'
   ' frames': ' quadros'
   ' left': ' restante'
@@ -875,16 +877,16 @@ translations:
   Danger: Perigo
   Danger Zone: Zona de Perigo
   Dark Mode: Modo Escuro
-  Database: Banco de Dados
   Date (newest): Data (mais recente)
   Date (oldest): Data (mais antigo)
   Day: Dia
   Debug: Depuração
+  Deep Black: Preto profundo
   Default: 'Padrão'
   Default Parameters: 'Parâmetros padrão'
   Default border thickness: Espessura padrão da borda
-  'Default: %d-%d°C nozzle, %d°C bed': 'Padrão: %d-%d°C bico, %d°C mesa'
-  'Default: %d-%d°C nozzle, %d°C bed, %d°C chamber': 'Padrão: %d-%d°C bico, %d°C mesa, %d°C câmara'
+  'Default: %s nozzle, %d°C bed': 'Padrão: %s bico, %d°C mesa'
+  'Default: %s nozzle, %d°C bed, %d°C chamber': 'Padrão: %s bico, %d°C mesa, %d°C câmara'
   Defaults restored: Padrões restaurados
   Define macros in your printer.cfg: Defina macros no seu printer.cfg
   Delete: Excluir
@@ -2241,6 +2243,7 @@ translations:
   Options: Opções
   Or Enter Manually: Ou Digite Manualmente
   Or instead of turning the others: Ou, em vez de girar os outros
+  Original file location unknown: Local do arquivo original desconhecido
   Oscillating... cycle %d/%d: Oscilando... ciclo %d/%d
   Outcome: Resultado
   Output Device: Dispositivo de Saída
@@ -2470,7 +2473,6 @@ translations:
   Printer command '{}' timed out after {}ms: O comando da impressora '{}' expirou após {} ms
   Printer connection unavailable: Conexão com a impressora indisponível
   Printer database format error: Erro de formato do banco de dados de impressoras
-  Printer database is corrupt: O banco de dados de impressoras está corrompido
   Printer default: Padrão da impressora
   Printer didn't respond — make sure it's on and in range: A impressora não respondeu
     — certifique-se de que está ligada e ao alcance

@@ -621,8 +621,8 @@ void ActivePrintMediaManager::load_thumbnail_for_file(const std::string& filenam
                                     }
                                     if (failure != helix::ThumbnailDecodeFailure::OutOfMemory) {
                                         spdlog::warn("[ActivePrintMediaManager] Thumbnail {} "
-                                                     "is not a decodable PNG; keeping the "
-                                                     "placeholder",
+                                                     "is corrupt or too large to decode; "
+                                                     "keeping the placeholder",
                                                      resolved_thumb_path);
                                         return;
                                     }

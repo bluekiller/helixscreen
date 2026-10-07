@@ -39,11 +39,18 @@ LuaPanelWidget::~LuaPanelWidget() {
 }
 
 void LuaPanelWidget::on_size_changed(int colspan, int rowspan, int width_px, int height_px) {
-    // The grid speaks tracks; a plugin's widget is authored in whole cells.
+    // The grid speaks tracks; a plugin hears cells. A whole cell arrives as a
+    // Lua integer and only a half-cell span as a float (1.5).
     constexpr int kTracks = helix::GridLayout::TRACKS_PER_CELL;
+    auto push_cells = [](lua_State* co, int tracks) {
+        if (tracks % kTracks == 0)
+            lua_pushinteger(co, tracks / kTracks);
+        else
+            lua_pushnumber(co, static_cast<lua_Number>(tracks) / kTracks);
+    };
     run(WidgetHook::Size, [=](lua_State* co) {
-        lua_pushinteger(co, colspan / kTracks);
-        lua_pushinteger(co, rowspan / kTracks);
+        push_cells(co, colspan);
+        push_cells(co, rowspan);
         lua_pushinteger(co, width_px);
         lua_pushinteger(co, height_px);
         return 4;

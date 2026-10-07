@@ -127,6 +127,10 @@ struct DecodedThumbnail {
 /**
  * @brief Decodes @p png into an RGB565A8 image fitted inside @p max_w x @p max_h.
  *
+ * With @p into, the image is written there (it must hold @p into_capacity >=
+ * the fitted image) and the decode allocates only its working memory;
+ * result.pixels is then @p into, which the caller still owns.
+ *
  * @p Inflate wraps a miniz tinfl-compatible streaming inflater (the ESP32 ROM's
  * on the firmware) and the allocator the decode uses:
  *   - `Decompressor` and `static constexpr size_t WINDOW` (32KB for tinfl);
@@ -139,7 +143,8 @@ struct DecodedThumbnail {
  *     decode that would leave less than THUMBNAIL_PSRAM_FLOOR is not started.
  */
 template <class Inflate>
-DecodedThumbnail decode_png_thumbnail(const uint8_t* png, size_t size, int max_w, int max_h) {
+DecodedThumbnail decode_png_thumbnail(const uint8_t* png, size_t size, int max_w, int max_h,
+                                      uint8_t* into = nullptr, size_t into_capacity = 0) {
     DecodedThumbnail result;
     PngHeader header;
     if (!read_png_header(png, size, header)) {
@@ -150,7 +155,11 @@ DecodedThumbnail decode_png_thumbnail(const uint8_t* png, size_t size, int max_w
         return result;
     }
     result.dims = fit_thumbnail(header.width, header.height, max_w, max_h);
-    if (!thumbnail_decode_fits(Inflate::largest_free(), rgb565a8_size(result.dims),
+    if (into && into_capacity < rgb565a8_size(result.dims)) {
+        result.failure = ThumbnailDecodeFailure::Unsupported; // the slot is smaller than the box
+        return result;
+    }
+    if (!thumbnail_decode_fits(Inflate::largest_free(), into ? 0 : rgb565a8_size(result.dims),
                                thumbnail_decode_working_bytes(header.width, result.dims))) {
         result.failure = ThumbnailDecodeFailure::OutOfMemory;
         return result;
@@ -162,13 +171,14 @@ DecodedThumbnail decode_png_thumbnail(const uint8_t* png, size_t size, int max_w
             Inflate::free(p);
         }
     } out, inflater, window;
-    out.p = Inflate::alloc(rgb565a8_size(result.dims));
+    out.p = into ? nullptr : Inflate::alloc(rgb565a8_size(result.dims));
+    uint8_t* const pixels = into ? into : static_cast<uint8_t*>(out.p);
     inflater.p = Inflate::alloc(sizeof(typename Inflate::Decompressor));
     window.p = Inflate::alloc(Inflate::WINDOW);
-    auto* scaler = new (std::nothrow)
-        RowDownscaler(header.width, header.height, result.dims, static_cast<uint8_t*>(out.p));
+    auto* scaler =
+        new (std::nothrow) RowDownscaler(header.width, header.height, result.dims, pixels);
     std::unique_ptr<RowDownscaler> scaler_owner(scaler);
-    if (!out.p || !inflater.p || !window.p || !scaler || !scaler->ok()) {
+    if (!pixels || !inflater.p || !window.p || !scaler || !scaler->ok()) {
         result.failure = ThumbnailDecodeFailure::OutOfMemory;
         return result;
     }
@@ -226,7 +236,7 @@ DecodedThumbnail decode_png_thumbnail(const uint8_t* png, size_t size, int max_w
         return result;
     }
     result.failure = ThumbnailDecodeFailure::None;
-    result.pixels = static_cast<uint8_t*>(out.p);
+    result.pixels = pixels;
     out.p = nullptr;
     return result;
 }

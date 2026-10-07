@@ -37,7 +37,7 @@
 
 # Commands that address the host by name. Keep this list and the gate test's
 # copy in step - the gate fails if they diverge.
-HELIX_SANDBOX_COMMANDS="killall pkill pidof reboot shutdown halt poweroff telinit launchctl crontab mount umount diskutil mkfs addr2line"
+HELIX_SANDBOX_COMMANDS="killall pkill pidof reboot shutdown halt poweroff telinit launchctl crontab mount umount diskutil mkfs addr2line systemctl"
 
 setup_suite() {
     # The installer bundles are generated, never committed. Build them once per

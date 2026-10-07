@@ -6,9 +6,9 @@
 #include "async_lifetime_guard.h"
 #include "humidity_sensor_types.h"
 #include "lvgl.h"
+#include "sensor_collection.h"
 #include "subject_managed_panel.h"
 
-#include <map>
 #include <mutex>
 #include <optional>
 #include <string>
@@ -238,19 +238,6 @@ class HumiditySensorManager {
                             HumiditySensorType& type) const;
 
     /**
-     * @brief Find config by Klipper name
-     * @return Pointer to config, or nullptr if not found
-     */
-    HumiditySensorConfig* find_config(const std::string& klipper_name);
-    const HumiditySensorConfig* find_config(const std::string& klipper_name) const;
-
-    /**
-     * @brief Find config by assigned role
-     * @return Pointer to config, or nullptr if no sensor has this role
-     */
-    const HumiditySensorConfig* find_config_by_role(HumiditySensorRole role) const;
-
-    /**
      * @brief Update all LVGL subjects from current state
      * @note Internal method - MUST only be called from main LVGL thread
      */
@@ -259,11 +246,7 @@ class HumiditySensorManager {
     // Recursive mutex for thread-safe state access
     mutable std::recursive_mutex mutex_;
 
-    // Configuration
-    std::vector<HumiditySensorConfig> sensors_;
-
-    // Runtime state (keyed by klipper_name)
-    std::map<std::string, HumiditySensorState> states_;
+    SensorCollection<HumiditySensorConfig, HumiditySensorState> sensors_;
 
     // Test mode: when true, update_from_status() calls update_subjects() synchronously
     bool sync_mode_ = false;

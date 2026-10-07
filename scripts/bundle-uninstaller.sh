@@ -141,11 +141,11 @@ _start_restored_ui() {
     local label="$1"
     shift
     if [ "$found_ui" = true ]; then
-        log_info "Re-enabled: $label (not started, another UI already running)"
+        log_note "Re-enabled: $label (not started, another UI already running)"
         return 0
     fi
     if "$@" 2>/dev/null; then
-        log_success "Re-enabled and started: $label"
+        log_note "Re-enabled and started: $label"
     else
         log_warn "Re-enabled but failed to start: $label"
         log_warn "You may need to reboot"
@@ -217,7 +217,7 @@ reenable_previous_ui() {
     if type restore_previous_ui_platform >/dev/null 2>&1; then
         restore_previous_ui_platform "$platform"
         if [ -n "$HELIX_RESTORED_UI" ]; then
-            log_success "Re-enabled: $HELIX_RESTORED_UI"
+            log_note "Re-enabled: $HELIX_RESTORED_UI"
             found_ui=true
         fi
         [ -n "$HELIX_RESTORED_XORG" ] && restored_xorg=true
@@ -239,7 +239,7 @@ reenable_previous_ui() {
                 log_info "Re-enabling GuppyScreen for K1..."
                 $SUDO chmod +x "$k1_ui" 2>/dev/null || true
                 if "$k1_ui" start 2>/dev/null; then
-                    log_success "Re-enabled and started: $k1_ui"
+                    log_note "Re-enabled and started: $k1_ui"
                     found_ui=true
                     break
                 fi
@@ -261,7 +261,7 @@ reenable_previous_ui() {
         log_info "Found previous UI: $PREVIOUS_UI_SCRIPT"
         $SUDO chmod +x "$PREVIOUS_UI_SCRIPT" 2>/dev/null || true
         if "$PREVIOUS_UI_SCRIPT" start 2>/dev/null; then
-            log_success "Re-enabled and started: $PREVIOUS_UI_SCRIPT"
+            log_note "Re-enabled and started: $PREVIOUS_UI_SCRIPT"
             found_ui=true
         else
             log_warn "Re-enabled but failed to start: $PREVIOUS_UI_SCRIPT"
@@ -297,7 +297,7 @@ reenable_previous_ui() {
     fi
 
     if [ "$restored_xorg" = true ]; then
-        log_info "Re-enabled: Xorg (/etc/init.d/S40xorg)"
+        log_note "Re-enabled: Xorg (/etc/init.d/S40xorg)"
     fi
 }
 
@@ -338,21 +338,21 @@ remove_service() {
         if [ -f "/etc/systemd/system/helixscreen.service" ]; then
             $SUDO rm -f "/etc/systemd/system/helixscreen.service"
             $SUDO systemctl daemon-reload
-            log_success "Removed systemd service"
+            log_note "Removed systemd service"
         fi
     fi
 
     # Remove configured init script
     if [ -n "$INIT_SCRIPT_DEST" ] && [ -f "$INIT_SCRIPT_DEST" ]; then
         $SUDO rm -f "$INIT_SCRIPT_DEST"
-        log_success "Removed SysV init script: $INIT_SCRIPT_DEST"
+        log_note "Removed SysV init script: $INIT_SCRIPT_DEST"
     fi
 
     # Also check and remove from all possible locations
     for init_script in $HELIX_INIT_SCRIPTS; do
         if [ -f "$init_script" ]; then
             $SUDO rm -f "$init_script"
-            log_success "Removed SysV init script: $init_script"
+            log_note "Removed SysV init script: $init_script"
         fi
     done
 }
@@ -373,12 +373,12 @@ remove_installation() {
         # has no business deleting it (same rule as install.sh's entry gate).
         host_refuse_mod_owned "uninstall of" "$INSTALL_DIR"
         $SUDO rm -rf "$INSTALL_DIR"
-        log_success "Removed $INSTALL_DIR"
+        log_note "Removed $INSTALL_DIR"
         removed_any=true
         # Also remove updater repo clone if present
         if [ -d "${INSTALL_DIR}-repo" ]; then
             $SUDO rm -rf "${INSTALL_DIR}-repo"
-            log_success "Removed ${INSTALL_DIR}-repo"
+            log_note "Removed ${INSTALL_DIR}-repo"
         fi
     fi
 
@@ -392,11 +392,11 @@ remove_installation() {
                 continue
             fi
             $SUDO rm -rf "$install_dir"
-            log_success "Removed $install_dir"
+            log_note "Removed $install_dir"
             removed_any=true
             if [ -d "${install_dir}-repo" ]; then
                 $SUDO rm -rf "${install_dir}-repo"
-                log_success "Removed ${install_dir}-repo"
+                log_note "Removed ${install_dir}-repo"
             fi
         fi
     done
@@ -427,6 +427,8 @@ remove_installation() {
     # Sweep state dirs holding rolling config backups (out-of-INSTALL_DIR by design).
     # Defined in lib/installer/common.sh; bundled into this script.
     clean_helix_state_dirs
+    # Our leftovers in the AD5M's gcodes root show in the print-file picker.
+    if [ "${platform:-}" = "ad5m" ] && type cleanup_ad5m_gcodes_root >/dev/null 2>&1; then cleanup_ad5m_gcodes_root; fi
 }
 
 # Refuse to run if $0 lives inside $INSTALL_DIR — we're about to delete
@@ -513,11 +515,8 @@ main() {
         esac
     done
 
-    echo ""
-    echo "${CYAN}========================================${NC}"
-    echo "${CYAN}     HelixScreen Uninstaller${NC}"
-    echo "${CYAN}========================================${NC}"
-    echo ""
+    # The run's one header; log_note lines below say what went.
+    printf '%b\n' "${BOLD}HelixScreen uninstaller${NC}" >&2
 
     # Probe the host before set_install_paths' install-dir gate runs —
     # its mod-ownership guard needs HOST_MOD_ROOT already probed.
@@ -568,7 +567,7 @@ main() {
             [yY][eE][sS]|[yY])
                 ;;
             *)
-                log_info "Uninstall cancelled"
+                log_note "Uninstall cancelled"
                 exit 0
                 ;;
         esac
@@ -610,14 +609,8 @@ main() {
     remove_installation
     reenable_previous_ui
 
-    echo ""
-    echo "${GREEN}========================================${NC}"
-    echo "${GREEN}    Uninstall Complete!${NC}"
-    echo "${GREEN}========================================${NC}"
-    echo ""
-    log_info "HelixScreen has been removed."
-    log_info "A reboot is recommended to ensure clean state."
-    echo ""
+    log_note "HelixScreen has been removed."
+    log_note "A reboot is recommended to ensure clean state."
 }
 
 # Only run when executed directly (not when sourced for testing)

@@ -8,7 +8,6 @@
 #include "ui_utils.h"
 
 #include "color_utils.h"
-#include "display_numbering.h"
 #include "observer_factory.h"
 #include "printer_state.h"
 #include "theme_manager.h"
@@ -116,19 +115,33 @@ void ExcludeObjectSideList::create(lv_obj_t* parent, PrinterState* printer_state
         lv_obj_set_x(root_, slide_distance);
     }
 
-    populate_rows();
+    rebuild_rows();
 
-    auto repopulate = [](ExcludeObjectSideList* self, int) {
-        if (self->root_) {
-            self->populate_rows();
-        }
-    };
     excluded_version_obs_ = observe<int>(
         printer_state_->excluded_objects_state().get_excluded_objects_version_subject(), this,
-        repopulate, printer_state_->get_subjects_lifetime());
-    defined_version_obs_ =
-        observe<int>(printer_state_->excluded_objects_state().get_defined_objects_version_subject(),
-                     this, repopulate, printer_state_->get_subjects_lifetime());
+        [](ExcludeObjectSideList* self, int) {
+            if (self->root_) {
+                self->update_row_states();
+            }
+        },
+        printer_state_->get_subjects_lifetime());
+    defined_version_obs_ = observe<int>(
+        printer_state_->excluded_objects_state().get_defined_objects_version_subject(), this,
+        [](ExcludeObjectSideList* self, int) {
+            if (self->root_) {
+                self->rebuild_rows();
+            }
+        },
+        printer_state_->get_subjects_lifetime());
+    const auto restyle = [](ExcludeObjectSideList* self, int) {
+        if (self->root_) {
+            self->restyle_rows_if_stale();
+        }
+    };
+    theme_obs_ =
+        observe<int>(theme_manager_get_changed_subject(), this, restyle, subject_never_freed());
+    breakpoint_obs_ =
+        observe<int>(theme_manager_get_breakpoint_subject(), this, restyle, subject_never_freed());
 
     lv_anim_t a;
     lv_anim_init(&a);
@@ -167,6 +180,8 @@ void ExcludeObjectSideList::destroy() {
     // down with their parent before any further input can dispatch.
     excluded_version_obs_.reset();
     defined_version_obs_.reset();
+    theme_obs_.reset();
+    breakpoint_obs_.reset();
     lifetime_.invalidate();
 
     // Cancel the slide-in animation (no slide-out — the lv_obj_delete_async
@@ -174,6 +189,10 @@ void ExcludeObjectSideList::destroy() {
     // on row taps during the out-anim window).
     lv_anim_delete(root_, nullptr);
     lv_obj_delete_async(root_);
+    // Deinit detaches the rows still bound to these subjects, so the widgets
+    // may outlive them until the async delete runs.
+    row_states_.reclaim();
+    row_names_.clear();
 
     root_ = nullptr;
     rows_container_ = nullptr;
@@ -191,19 +210,12 @@ void ExcludeObjectSideList::on_close_clicked(lv_event_t* /*e*/) {
     }
 }
 
-void ExcludeObjectSideList::populate_rows() {
+void ExcludeObjectSideList::rebuild_rows() {
     if (!rows_container_ || !printer_state_) {
         return;
     }
 
-    // Observers above are observe<int> (deferred via UpdateQueue), so child
-    // teardown must go through the async-clean helper to stay outside the batch
-    // (CLAUDE.md § "No sync widget deletion in queued callbacks").
-    helix::ui::safe_clean_children(rows_container_);
-
     const auto& defined = printer_state_->excluded_objects_state().get_defined_objects();
-    const auto& excluded = printer_state_->excluded_objects_state().get_excluded_objects();
-    const auto& current = printer_state_->excluded_objects_state().get_current_object();
 
     if (empty_state_) {
         if (defined.empty()) {
@@ -213,42 +225,68 @@ void ExcludeObjectSideList::populate_rows() {
         }
     }
 
-    int index = 0;
-    for (const auto& name : defined) {
-        bool is_excluded = excluded.count(name) > 0;
-        bool is_current = (name == current);
-        create_row(rows_container_, index, name, is_excluded, is_current);
-        ++index;
+    if (defined == row_names_) {
+        update_row_states();
+        return;
+    }
+
+    // Observers above are observe<int> (deferred via UpdateQueue), so child
+    // teardown must go through the async-clean helper to stay outside the batch
+    // (CLAUDE.md § "No sync widget deletion in queued callbacks").
+    helix::ui::safe_clean_children(rows_container_);
+
+    row_names_ = defined;
+    row_states_.ensure_size(row_names_.size());
+    // States first, so each row binds to its real state on creation.
+    update_row_states();
+
+    rows_look_ = resolve_badge_look({});
+    for (const auto& badge :
+         compute_object_badges(printer_state_->excluded_objects_state(), nullptr)) {
+        create_row(rows_container_, badge);
     }
 }
 
-void ExcludeObjectSideList::create_row(lv_obj_t* parent, int index, const std::string& name,
-                                       bool is_excluded, bool is_current) {
-    const bool clickable = !is_excluded && manager_;
-
-    char num_buf[8];
-    snprintf(num_buf, sizeof(num_buf), "%d", lane_number(index));
-    const std::string badge_color =
-        helix::color_to_hex_string(lv_color_to_u32(color_for_index(index)));
-
-    const char* status_text = "";
-    const char* status_color = "#text_muted";
-    if (is_excluded) {
-        status_text = lv_tr("Excluded");
-    } else if (is_current) {
-        status_text = lv_tr("Printing now");
-        status_color = "#success";
+void ExcludeObjectSideList::restyle_rows_if_stale() {
+    if (!rows_container_ || badge_look_current(rows_look_)) {
+        return;
     }
+    // The container keeps its own scroll offset across the swap of children.
+    row_names_.clear(); // forces rebuild_rows() past its unchanged-list shortcut
+    rebuild_rows();
+}
+
+void ExcludeObjectSideList::update_row_states() {
+    if (!printer_state_) {
+        return;
+    }
+    // Rows are matched to objects by position, which only holds while they
+    // show the current list. A rebuild for the new list is already queued and
+    // publishes the states itself.
+    if (printer_state_->excluded_objects_state().get_defined_objects() != row_names_) {
+        return;
+    }
+    const auto badges = compute_object_badges(printer_state_->excluded_objects_state(), nullptr);
+    for (size_t i = 0; i < badges.size(); ++i) {
+        const int state = badges[i].excluded ? 2 : (badges[i].current ? 1 : 0);
+        if (lv_subject_get_int(row_states_.at(i)) != state) {
+            row_states_.set_int(i, state);
+        }
+    }
+}
+
+void ExcludeObjectSideList::create_row(lv_obj_t* parent, const ObjectBadge& badge) {
+    const std::string& name = badge.name;
+    const lv_color_t fill = object_badge_color(badge.defined_index);
+    const std::string badge_color = helix::color_to_hex_string(lv_color_to_u32(fill));
+    const std::string badge_text_color =
+        helix::color_to_hex_string(lv_color_to_u32(object_badge_text_color(fill)));
+    const std::string state_subject = "exclude_row_state_" + std::to_string(badge.defined_index);
 
     const char* attrs[] = {
-        "badge_text",    num_buf,
-        "badge_color",   badge_color.c_str(),
-        "name_color",    is_excluded ? "#text_muted" : "#text",
-        "status_text",   status_text,
-        "status_color",  status_color,
-        "row_opa",       is_excluded ? "150" : "255",
-        "row_clickable", clickable ? "true" : "false",
-        nullptr,
+        "badge_text",        badge.number.c_str(),  "badge_color",
+        badge_color.c_str(), "badge_text_color",    badge_text_color.c_str(),
+        "state_subject",     state_subject.c_str(), nullptr,
     };
     lv_obj_t* row = static_cast<lv_obj_t*>(lv_xml_create(parent, "exclude_object_row", attrs));
     if (!row) {
@@ -257,8 +295,9 @@ void ExcludeObjectSideList::create_row(lv_obj_t* parent, int index, const std::s
     helix::ui::set_row_label_text(row, "object_name", name.c_str());
 
     // L069: the row is a plain lv_obj, so the user_data slot is ours. The
-    // helper owns the copy and frees it on LV_EVENT_DELETE.
-    if (clickable && helix::ui::set_owned_user_string(row, name)) {
+    // helper owns the copy and frees it on LV_EVENT_DELETE. An excluded row
+    // drops its clickable flag through state_subject, so it never sees a click.
+    if (helix::ui::set_owned_user_string(row, name)) {
         lv_obj_add_event_cb(row, on_row_clicked, LV_EVENT_CLICKED, this);
     }
 }
@@ -283,10 +322,6 @@ void ExcludeObjectSideList::on_row_clicked(lv_event_t* e) {
     }
 
     self->manager_->request_exclude(std::string(name));
-}
-
-lv_color_t ExcludeObjectSideList::color_for_index(int index) {
-    return theme_manager_get_object_palette_color(index);
 }
 
 } // namespace helix::ui
