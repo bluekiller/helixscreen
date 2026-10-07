@@ -114,8 +114,9 @@
                  width="100%" height="content" style_pad_all="#space_sm" flex_flow="row" style_pad_gap="#space_sm"
                  style_flex_cross_place="center">
           <lv_obj name="summary_color_swatch"
-                  width="28" height="28" style_radius="14" style_bg_color="#card_bg" style_bg_opa="255"
-                  style_border_width="1" style_border_color="#border"/>
+                  width="28" height="28" style_radius="14" style_bg_color="#card_bg" style_bg_opa="255">
+            <style name="styles.filament_swatch_edge"/>
+          </lv_obj>
           <lv_obj height="content"
                   flex_grow="1" flex_flow="column" style_pad_all="0" style_pad_gap="0" scrollable="false">
             <text_small name="summary_vendor" bind_text="wizard_summary_vendor"/>

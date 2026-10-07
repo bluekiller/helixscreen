@@ -82,7 +82,7 @@
 
     <!-- Actions: secondary = Delete / Restore Defaults (hidden in Add mode), primary = Save -->
     <modal_button_row secondary_text="@filament_product_secondary_text"
-                      secondary_callback="filament_product_secondary_cb" primary_text="Save" primary_tag="Save"
-                      primary_callback="filament_product_save_cb"/>
+                      secondary_variant="primary" secondary_callback="filament_product_secondary_cb" primary_text="Save"
+                      primary_tag="Save" primary_callback="filament_product_save_cb"/>
   </view>
 </component>

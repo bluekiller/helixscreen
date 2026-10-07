@@ -103,7 +103,8 @@
             scrollable="false">
       <bind_flag_if_not_eq subject="bed_mesh_calibrate_state" flag="hidden" ref_value="2"/>
       <!-- Cancel button -->
-      <ui_button name="btn_cancel" height="100%" flex_grow="1" style_radius="0" text="Cancel" translation_tag="Cancel">
+      <ui_button name="btn_cancel"
+                 height="100%" variant="secondary" flex_grow="1" style_radius="0" text="Cancel" translation_tag="Cancel">
         <event_cb trigger="clicked" callback="on_bed_mesh_calibrate_cancel"/>
       </ui_button>
       <!-- Vertical divider -->

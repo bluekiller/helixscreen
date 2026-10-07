@@ -58,7 +58,8 @@
          jobs — job_queue_count drives the secondary's visibility, the
          job_queue_start_next_text subject its label. -->
     <modal_button_row primary_text="OK"
-                      primary_callback="on_print_complete_ok" secondary_subject="job_queue_start_next_text"
-                      secondary_show_subject="job_queue_count" secondary_callback="on_print_complete_start_next"/>
+                      secondary_variant="primary" primary_callback="on_print_complete_ok"
+                      secondary_subject="job_queue_start_next_text" secondary_show_subject="job_queue_count"
+                      secondary_callback="on_print_complete_start_next"/>
   </view>
 </component>

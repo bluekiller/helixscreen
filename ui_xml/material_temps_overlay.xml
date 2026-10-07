@@ -13,7 +13,8 @@
       <!-- Column header (fixed, doesn't scroll) -->
       <lv_obj name="material_list_header"
               width="100%" height="content" scrollable="false" flex_flow="row" style_pad_left="#space_sm"
-              style_pad_right="#space_sm" style_pad_top="#space_sm" style_pad_bottom="#space_xs" style_pad_gap="0">
+              style_pad_right="#space_sm" style_margin_right="#space_md" style_pad_top="#space_sm"
+              style_pad_bottom="#space_xs" style_pad_gap="0">
         <bind_flag_if_not_eq subject="material_editing" flag="hidden" ref_value="0"/>
         <text_muted text="Material" translation_tag="Material" flex_grow="1"/>
         <text_muted text="Nozzle / Bed" translation_tag="Nozzle / Bed"/>
@@ -24,8 +25,11 @@
       <!-- ================================================================== -->
       <!-- LIST VIEW (shown when not editing) -->
       <!-- ================================================================== -->
+      <!-- pad_right keeps the scrollbar off the right-aligned values; the
+           header's matching margin keeps its column labels over them. -->
       <lv_obj name="material_list_view"
-              width="100%" flex_grow="1" scrollable="true" flex_flow="column" style_pad_all="0" style_pad_gap="0">
+              width="100%" flex_grow="1" scrollable="true" flex_flow="column" style_pad_all="0"
+              style_pad_right="#space_md" style_pad_gap="0">
         <bind_flag_if_not_eq subject="material_editing" flag="hidden" ref_value="0"/>
         <!-- Populated programmatically with material rows -->
       </lv_obj>

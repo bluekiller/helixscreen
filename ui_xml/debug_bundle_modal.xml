@@ -96,7 +96,8 @@
     <lv_obj name="consent_buttons"
             width="100%" height="#button_height" style_pad_all="0" style_pad_gap="0" flex_flow="row">
       <bind_flag_if_not_eq subject="debug_bundle_state" flag="hidden" ref_value="0"/>
-      <ui_button name="btn_cancel" height="100%" text="Cancel" translation_tag="Cancel" flex_grow="1" style_radius="0">
+      <ui_button name="btn_cancel"
+                 height="100%" variant="secondary" text="Cancel" translation_tag="Cancel" flex_grow="1" style_radius="0">
         <event_cb trigger="clicked" callback="on_debug_bundle_cancel"/>
       </ui_button>
       <divider_vertical/>

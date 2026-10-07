@@ -53,7 +53,8 @@
     <!-- Button row -->
     <lv_obj width="100%" height="#button_height" style_pad_all="0" style_pad_gap="0" flex_flow="row">
       <ui_button name="modal_cancel_btn"
-                 height="100%" text="Dismiss" translation_tag="Dismiss" flex_grow="1" style_radius="0">
+                 height="100%" variant="secondary" text="Dismiss" translation_tag="Dismiss" flex_grow="1"
+                 style_radius="0">
         <event_cb trigger="clicked" callback="on_crash_report_dismiss"/>
       </ui_button>
       <divider_vertical/>
