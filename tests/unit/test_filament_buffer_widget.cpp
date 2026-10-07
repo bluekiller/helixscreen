@@ -35,6 +35,22 @@ std::string text(lv_obj_t* obj) {
     REQUIRE(obj != nullptr);
     return lv_label_get_text(obj);
 }
+bool shown(lv_obj_t* obj) {
+    for (; obj; obj = lv_obj_get_parent(obj)) {
+        if (lv_obj_has_flag(obj, LV_OBJ_FLAG_HIDDEN)) {
+            return false;
+        }
+    }
+    return true;
+}
+/// At least a pixel of clear space between the two.
+bool apart(lv_obj_t* a, lv_obj_t* b) {
+    lv_area_t p;
+    lv_area_t q;
+    lv_obj_get_coords(a, &p);
+    lv_obj_get_coords(b, &q);
+    return q.x1 > p.x2 + 1 || q.x2 < p.x1 - 1 || q.y1 > p.y2 + 1 || q.y2 < p.y1 - 1;
+}
 } // namespace
 
 TEST_CASE("filament_buffer is one cell, growable to two wide", "[widget_size][filament_buffer]") {
@@ -63,11 +79,12 @@ TEST_CASE_METHOD(LVGLUITestFixture, "filament_buffer: what each size and reading
 
     AmsStateTestAccess::sync_buffer(ams, test::fps_units({0.71f}), 0);
 
-    SECTION("1x1: slider, label and number, no trace") {
+    SECTION("1x1: slider, number and label, no trace or target") {
         h.resize(def->colspan, def->rowspan, 112, 112);
-        CHECK_FALSE(hidden(h.child("buffer_graphics")));
+        CHECK_FALSE(hidden(h.child("buffer_slider_box")));
         CHECK(hidden(h.child("buffer_trace")));
         CHECK(hidden(h.child("buffer_lean")));
+        CHECK(hidden(h.child("buffer_target")));
         CHECK(text(h.child("buffer_label")) == "FPS");
         CHECK(text(h.child("buffer_value_short")) == "71%");
     }
@@ -77,12 +94,16 @@ TEST_CASE_METHOD(LVGLUITestFixture, "filament_buffer: what each size and reading
         CHECK_FALSE(hidden(h.child("buffer_trace")));
         CHECK_FALSE(hidden(h.child("buffer_lean")));
         CHECK(text(h.child("buffer_lean")) == "Running loose");
+        CHECK_FALSE(hidden(h.child("buffer_target")));
+        CHECK(text(h.child("buffer_target")) == "target 50%");
     }
 
     SECTION("no set point: the number alone") {
         h.resize(2 * kCell, def->rowspan, 240, 112);
         AmsStateTestAccess::sync_buffer(ams, test::fps_units({0.71f}, -1.0f), 0);
-        CHECK(hidden(h.child("buffer_graphics")));
+        CHECK(hidden(h.child("buffer_slider_box")));
+        CHECK(hidden(h.child("buffer_trace")));
+        CHECK(hidden(h.child("buffer_target")));
         CHECK(hidden(h.child("buffer_label")));
         CHECK(text(h.child("buffer_value")) == "Pressure: 71%");
     }
@@ -97,12 +118,46 @@ TEST_CASE_METHOD(LVGLUITestFixture, "filament_buffer: what each size and reading
     SECTION("1x1 with no set point: the short number alone") {
         h.resize(def->colspan, def->rowspan, 112, 112);
         AmsStateTestAccess::sync_buffer(ams, test::fps_units({0.71f}, -1.0f), 0);
-        CHECK(hidden(h.child("buffer_graphics")));
+        CHECK(hidden(h.child("buffer_slider_box")));
         CHECK_FALSE(hidden(h.child("buffer_label")));
         CHECK(text(h.child("buffer_label")) == "FPS");
         CHECK_FALSE(hidden(h.child("buffer_value_short")));
         CHECK(text(h.child("buffer_value_short")) == "71%");
         CHECK(hidden(h.child("buffer_value")));
+    }
+
+    AmsStateTestAccess::sync_buffer(ams, AmsSystemInfo{}, 0);
+    AmsStateTestAccess::clear_buffer_traces(ams);
+}
+
+TEST_CASE_METHOD(LVGLUITestFixture, "filament_buffer: nothing is drawn over or against the slider",
+                 "[filament_buffer]") {
+    PanelWidgetManager::instance().init_widget_subjects();
+    auto& ams = AmsState::instance();
+    ams.init_subjects(true);
+    PanelWidgetHarness<FilamentBufferWidget> h(test_screen());
+    REQUIRE(h.root() != nullptr);
+    AmsStateTestAccess::sync_buffer(ams, test::fps_units({0.32f}), 0);
+
+    // The measured cells at 800x480 and 480x320, one and two wide.
+    struct Size {
+        int cols, w, h;
+    };
+    for (const Size size :
+         {Size{1, 114, 113}, Size{1, 82, 76}, Size{2, 233, 113}, Size{2, 166, 76}}) {
+        CAPTURE(size.cols, size.w, size.h);
+        h.resize(size.cols * kCell, kCell, size.w, size.h);
+        lv_obj_t* slider = h.child("buffer_slider_box");
+        REQUIRE(shown(slider));
+        CHECK(shown(h.child("buffer_trace")) == (size.cols == 2));
+        for (const char* name : {"buffer_trace", "buffer_value_short", "buffer_value",
+                                 "buffer_target", "buffer_label", "buffer_lean"}) {
+            lv_obj_t* obj = h.child(name);
+            if (obj && shown(obj)) {
+                CAPTURE(name);
+                CHECK(apart(slider, obj));
+            }
+        }
     }
 
     AmsStateTestAccess::sync_buffer(ams, AmsSystemInfo{}, 0);

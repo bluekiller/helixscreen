@@ -94,6 +94,7 @@ TEST_CASE_METHOD(LVGLTestFixture, "AmsState publishes the system-level buffer re
         AmsSystemInfo info = test::fps_units({0.62f});
         AmsStateTestAccess::sync_buffer(ams, info, 1000);
         REQUIRE(subject_int(ams.get_buffer_slider_subject()) == 1);
+        CHECK(text_of(ams.get_buffer_target_text_subject()) == "target 50%");
 
         info.units[0].buffer_health->fps_set_point = -1.0f;
         info.sync_feedback_bias = info.pressure_sensor_bias();
@@ -104,6 +105,7 @@ TEST_CASE_METHOD(LVGLTestFixture, "AmsState publishes the system-level buffer re
         CHECK(subject_int(ams.get_buffer_status_subject()) == 0);
         CHECK(text_of(ams.get_buffer_value_text_subject()) == "Pressure: 62%");
         CHECK(text_of(ams.get_buffer_short_text_subject()) == "62%");
+        CHECK(text_of(ams.get_buffer_target_text_subject()).empty());
         const auto w = ams.buffer_trace(-1).window(2000);
         REQUIRE(w.size() == 2);
         CHECK_FALSE(w.back().valid);

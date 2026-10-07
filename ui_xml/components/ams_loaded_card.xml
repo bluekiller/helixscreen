@@ -100,7 +100,11 @@
         <bind_flag_if_eq subject="buffer_slider" flag="hidden" ref_value="0"/>
       </lv_obj>
       <text_tiny name="buffer_mini_value"
-                 width="content" bind_text="buffer_short_text" style_text_align="center" long_mode="wrap"/>
+                 width="content" bind_text="buffer_short_text" style_text_align="center" long_mode="wrap">
+        <bind_style_if_eq name="styles.buffer_ok" subject="buffer_status" ref_value="0"/>
+        <bind_style_if_eq name="styles.buffer_warning" subject="buffer_status" ref_value="1"/>
+        <bind_style_if_eq name="styles.buffer_danger" subject="buffer_status" ref_value="2"/>
+      </text_tiny>
       <text_tiny name="buffer_mini_label"
                  width="content" bind_text="buffer_label" style_text_color="#text_muted" style_text_align="center">
         <bind_flag_if_lt subject="ui_breakpoint" flag="hidden" ref_value="3"/>
