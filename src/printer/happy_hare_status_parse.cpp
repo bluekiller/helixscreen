@@ -89,7 +89,6 @@ EncoderDelta read_encoder(const nlohmann::json& encoder) {
     d.detection_length = ams::read_field<float>(encoder, "detection_length");
     d.headroom = ams::read_field<float>(encoder, "headroom");
     d.min_headroom = ams::read_field<float>(encoder, "min_headroom");
-    d.detection_mode = ams::read_integer_field(encoder, "detection_mode");
     return d;
 }
 
@@ -102,6 +101,7 @@ FlowguardDelta read_flowguard(const nlohmann::json& fg) {
     d.max_clog = ams::read_field<float>(fg, "max_clog");
     d.max_tangle = ams::read_field<float>(fg, "max_tangle");
     d.encoder_mode = ams::read_field<int>(fg, "encoder_mode");
+    d.buffer_data = fg.contains("level") || fg.contains("trigger") || fg.contains("max_clog");
     return d;
 }
 
@@ -119,8 +119,14 @@ MmuSensorsDelta read_sensors(const nlohmann::json& sensors) {
             }
         }
     }
-    d.has_toolhead_sensor = sensors.contains("toolhead");
-    d.has_extruder_sensor = sensors.contains("extruder");
+    // v4 publishes a disabled sensor as null, and its parameter guards treat
+    // a disabled sensor as not fitted.
+    auto fitted = [&sensors](const char* key) {
+        const auto it = sensors.find(key);
+        return it != sensors.end() && !it->is_null();
+    };
+    d.has_toolhead_sensor = fitted("toolhead");
+    d.has_extruder_sensor = fitted("extruder");
     if (sensors.contains("mmu_pre_gate")) {
         d.aggregate_pre_gate =
             sensors["mmu_pre_gate"].is_boolean() && sensors["mmu_pre_gate"].get<bool>();
@@ -143,39 +149,58 @@ DryingObjectDelta read_drying_object(const nlohmann::json& drying) {
 enum class ParamScope { Machine, Unit, Toolhead };
 
 struct ParamRow {
-    std::string_view v3;
-    std::string_view v4; ///< empty: v4 has no such parameter
+    std::string_view key;  ///< HelixScreen's name
+    std::string_view v3;   ///< before 3.42
+    std::string_view v342; ///< 3.42 to 3.x
+    std::string_view v4;
     ParamScope scope;
+    double since = 0; ///< the first v3 version accepting it, 0 for all
 };
 
 // Every tunable the backend reads from configfile or sends through
-// MMU_TEST_CONFIG. v4 sources: mmu_machine_parameters.py (Machine),
-// unit/mmu_unit_parameters.py and the selector parameter classes, which read
-// [mmu_unit_parameters] too (Unit), unit/mmu_toolhead_wrapper.py (Toolhead).
+// MMU_TEST_CONFIG, checked against each release's MMU_TEST_CONFIG and config
+// readers. v3 refuses a parameter that is not one of its own attributes
+// (cmd_MMU_TEST_CONFIG illegal_params). v4 sources: mmu_machine_parameters.py
+// (Machine), unit/mmu_unit_parameters.py and the selector parameter classes,
+// which read [mmu_unit_parameters] too (Unit), unit/mmu_toolhead_wrapper.py
+// (Toolhead).
 constexpr ParamRow kParams[] = {
-    {"form_tip_macro", "form_tip_macro", ParamScope::Machine},
-    {"extruder_load_speed", "extruder_load_speed", ParamScope::Machine},
-    {"extruder_unload_speed", "extruder_unload_speed", ParamScope::Machine},
-    {"gear_from_spool_speed", "gear_load_speed", ParamScope::Unit},
-    {"gear_from_buffer_speed", "gear_from_filament_buffer_speed", ParamScope::Unit},
-    {"gear_unload_speed", "gear_unload_speed", ParamScope::Unit},
-    {"selector_move_speed", "selector_move_speed", ParamScope::Unit},
-    {"sync_to_extruder", "sync_to_extruder", ParamScope::Unit},
-    {"heater_max_temp", "heater_max_temp", ParamScope::Unit},
-    // v4's encoder mode keeps v3's clog_detection values: 0 off, 1 static
-    // (manual), 2 automatic. In static mode v4 detects over
-    // flowguard_encoder_max_motion, v3 over the encoder's detection_length.
-    {"clog_detection", "flowguard_encoder_mode", ParamScope::Unit},
-    {"detection_length", "flowguard_encoder_max_motion", ParamScope::Unit},
-    {"toolhead_sensor_to_nozzle", "toolhead_sensor_to_nozzle", ParamScope::Toolhead},
-    {"toolhead_extruder_to_nozzle", "toolhead_extruder_to_nozzle", ParamScope::Toolhead},
-    {"toolhead_entry_to_extruder", "toolhead_entry_to_extruder", ParamScope::Toolhead},
-    {"toolhead_ooze_reduction", "toolhead_ooze_reduction", ParamScope::Toolhead},
+    {"form_tip_macro", "form_tip_macro", "form_tip_macro", "form_tip_macro", ParamScope::Machine},
+    {"extruder_load_speed", "extruder_load_speed", "extruder_load_speed", "extruder_load_speed",
+     ParamScope::Machine},
+    {"extruder_unload_speed", "extruder_unload_speed", "extruder_unload_speed",
+     "extruder_unload_speed", ParamScope::Machine},
+    {"gear_from_spool_speed", "gear_from_spool_speed", "gear_from_spool_speed", "gear_load_speed",
+     ParamScope::Unit},
+    {"gear_from_buffer_speed", "gear_from_buffer_speed", "gear_from_buffer_speed",
+     "gear_from_filament_buffer_speed", ParamScope::Unit},
+    {"gear_unload_speed", "gear_unload_speed", "gear_unload_speed", "gear_unload_speed",
+     ParamScope::Unit, 3.10},
+    {"selector_move_speed", "selector_move_speed", "selector_move_speed", "selector_move_speed",
+     ParamScope::Unit},
+    {"sync_to_extruder", "sync_to_extruder", "sync_to_extruder", "sync_to_extruder",
+     ParamScope::Unit},
+    {"heater_max_temp", "heater_max_temp", "heater_max_temp", "heater_max_temp", ParamScope::Unit},
+    // Clog detection mode, 0 off, 1 static (manual), 2 automatic, in every
+    // version. In static mode the length is the calibrated clog length before
+    // 3.42 and the encoder's maximum motion from 3.42 on.
+    {"clog_detection", "enable_clog_detection", "flowguard_encoder_mode", "flowguard_encoder_mode",
+     ParamScope::Unit},
+    {"detection_length", "mmu_calibration_clog_length", "flowguard_encoder_max_motion",
+     "flowguard_encoder_max_motion", ParamScope::Unit},
+    {"toolhead_sensor_to_nozzle", "toolhead_sensor_to_nozzle", "toolhead_sensor_to_nozzle",
+     "toolhead_sensor_to_nozzle", ParamScope::Toolhead},
+    {"toolhead_extruder_to_nozzle", "toolhead_extruder_to_nozzle", "toolhead_extruder_to_nozzle",
+     "toolhead_extruder_to_nozzle", ParamScope::Toolhead},
+    {"toolhead_entry_to_extruder", "toolhead_entry_to_extruder", "toolhead_entry_to_extruder",
+     "toolhead_entry_to_extruder", ParamScope::Toolhead},
+    {"toolhead_ooze_reduction", "toolhead_ooze_reduction", "toolhead_ooze_reduction",
+     "toolhead_ooze_reduction", ParamScope::Toolhead},
 };
 
 const ParamRow* find_param_row(std::string_view key) {
     for (const auto& row : kParams) {
-        if (row.v3 == key) {
+        if (row.key == key) {
             return &row;
         }
     }
@@ -370,8 +395,8 @@ MachineLayout read_machine_layout(const nlohmann::json& settings,
             }
         }
     }
-    const auto major = tio::parse_leading<int>(layout.version);
-    layout.v4 = major && *major >= 4;
+    layout.version_number = tio::parse_leading<double>(layout.version).value_or(0.0);
+    layout.v4 = layout.version_number >= 4;
     if (!layout.v4) {
         return layout;
     }
@@ -412,12 +437,19 @@ MachineLayout read_machine_layout(const nlohmann::json& settings,
     return layout;
 }
 
-std::string_view param_name(std::string_view key, bool v4) {
-    if (!v4) {
+std::string_view param_name(std::string_view key, const MachineLayout& layout) {
+    const ParamRow* row = find_param_row(key);
+    if (!row) {
         return key;
     }
-    const ParamRow* row = find_param_row(key);
-    return row ? row->v4 : key;
+    if (layout.v4) {
+        return row->v4;
+    }
+    // An unknown version is not refused anything.
+    if (layout.version_number > 0 && layout.version_number < row->since) {
+        return {};
+    }
+    return layout.version_number >= 3.42 ? row->v342 : row->v3;
 }
 
 bool param_is_per_unit(std::string_view key) {
@@ -427,12 +459,16 @@ bool param_is_per_unit(std::string_view key) {
 
 const nlohmann::json* find_config_param(const nlohmann::json& settings, const MachineLayout& layout,
                                         std::string_view key) {
+    const std::string name(param_name(key, layout));
+    if (name.empty()) {
+        return nullptr;
+    }
     if (!layout.v4) {
         const auto* mmu = find_member(settings, "mmu");
-        return mmu ? find_member(*mmu, std::string(key)) : nullptr;
+        return mmu ? find_member(*mmu, name) : nullptr;
     }
     const ParamRow* row = find_param_row(key);
-    if (!row || row->v4.empty()) {
+    if (!row) {
         return nullptr;
     }
     std::string section;
@@ -448,7 +484,7 @@ const nlohmann::json* find_config_param(const nlohmann::json& settings, const Ma
         break;
     }
     const auto* params = find_member(settings, section);
-    return params ? find_member(*params, std::string(row->v4)) : nullptr;
+    return params ? find_member(*params, name) : nullptr;
 }
 
 std::optional<float> read_config_number(const nlohmann::json* v) {

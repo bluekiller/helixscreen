@@ -2507,6 +2507,17 @@ class AmsBackend {
     }
 
     /**
+     * @brief The detection length (mm) a manual clog mode write sets, as the
+     *        printer is configured.
+     *
+     * @return nullopt when the backend reports none; callers then show the
+     *         live encoder length
+     */
+    [[nodiscard]] virtual std::optional<float> clog_detection_length_setting() const {
+        return std::nullopt;
+    }
+
+    /**
      * @brief Execute a device action
      *
      * @param action_id The action ID from get_device_actions()

@@ -86,7 +86,9 @@
    "gear_unload_speed": 110.0,
    "selector_move_speed": 220.0,
    "sync_to_extruder": 0,
-   "heater_max_temp": 65.0
+   "heater_max_temp": 65.0,
+   "flowguard_encoder_max_motion": 25.0,
+   "flowguard_encoder_mode": 2
   },
   "mmu_unit_parameters bt": {
    "gear_load_speed": 70.0,

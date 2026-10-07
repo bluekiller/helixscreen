@@ -71,7 +71,6 @@ struct EncoderDelta {
     std::optional<float> detection_length;
     std::optional<float> headroom;
     std::optional<float> min_headroom;
-    std::optional<int> detection_mode; ///< 0 off, 1 static, 2 automatic
 };
 
 struct FlowguardDelta {
@@ -82,6 +81,10 @@ struct FlowguardDelta {
     std::optional<float> max_clog;
     std::optional<float> max_tangle;
     std::optional<int> encoder_mode;
+    /// The object carries buffer FlowGuard's own readings (level, trigger,
+    /// max_clog). An encoder-only v4 unit publishes just {active, enabled,
+    /// encoder_mode}: the encoder's clog detection, not buffer FlowGuard.
+    bool buffer_data = false;
 };
 
 /// The v4 extended status: eSpooler, sync feedback, clog detection, counters.
@@ -127,8 +130,8 @@ struct MmuSensorsDelta {
     /// The aggregate `mmu_pre_gate` of EMU boxes, which only knows the active
     /// gate.
     std::optional<bool> aggregate_pre_gate;
-    /// Whether the toolhead / extruder-entry sensors are fitted: the dict
-    /// carries their key (null when disabled) whenever they are.
+    /// Whether the toolhead / extruder-entry sensors are fitted and enabled:
+    /// the dict carries their key whenever they are fitted, null when disabled.
     bool has_toolhead_sensor = false;
     bool has_extruder_sensor = false;
 };
@@ -169,6 +172,7 @@ struct MmuStatusDelta {
 /// publishes `happy_hare_version` on `mmu_machine`, which v3 never does.
 struct MachineLayout {
     std::string version;             ///< happy_hare_version; empty when neither source names one
+    double version_number = 0;       ///< the version as a number (3.42, 4.0); 0 when unknown
     bool v4 = false;                 ///< version 4 or later: the split layout
     int num_units = 1;               ///< mmu_machine.num_units, v4 only
     std::string unit_params_section; ///< "mmu_unit_parameters <unit 0>", v4 only
@@ -233,9 +237,12 @@ enum class UnitObjectKind { Heater, EnvironmentSensor };
 [[nodiscard]] MachineLayout read_machine_layout(const nlohmann::json& settings,
                                                 const nlohmann::json& live_mmu_machine);
 
-/// The name an install accepts for the tunable @p key, which callers spell the
-/// way Happy Hare 3 does. Empty when a v4 install has no such parameter.
-[[nodiscard]] std::string_view param_name(std::string_view key, bool v4);
+/// The name the install @p layout describes accepts for the tunable @p key,
+/// which callers spell the way HelixScreen does. Clog detection is named three
+/// ways: ENABLE_CLOG_DETECTION / MMU_CALIBRATION_CLOG_LENGTH before 3.42,
+/// FLOWGUARD_ENCODER_MODE / FLOWGUARD_ENCODER_MAX_MOTION from 3.42 on. Empty
+/// when that version has no such parameter.
+[[nodiscard]] std::string_view param_name(std::string_view key, const MachineLayout& layout);
 
 /// Whether v4 keeps tunable @p key (v3 spelling) per unit, so a multi-unit
 /// MMU_TEST_CONFIG setting it needs UNIT=.

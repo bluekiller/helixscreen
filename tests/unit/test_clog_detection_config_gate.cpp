@@ -36,26 +36,27 @@
 // 1. The gcode decision itself
 // ============================================================================
 
-TEST_CASE("Detection-mode gcode is emitted for Happy Hare", "[clog][gate]") {
+TEST_CASE("Detection-mode gcode is emitted for Happy Hare of unknown version", "[clog][gate]") {
+    // Before the connect-time query names a version, the pre-3.42 names.
     helix::AmsBackendHappyHare hh(nullptr, nullptr);
     using M = ClogDetectionConfigModal;
 
     SECTION("auto mode carries no detection length") {
         REQUIRE(M::build_detection_mode_gcode(&hh, 2, 12.0f) ==
-                std::optional<std::string>("MMU_TEST_CONFIG clog_detection=2"));
+                std::optional<std::string>("MMU_TEST_CONFIG enable_clog_detection=2"));
     }
     SECTION("manual mode carries the detection length") {
-        REQUIRE(
-            M::build_detection_mode_gcode(&hh, 1, 12.0f) ==
-            std::optional<std::string>("MMU_TEST_CONFIG clog_detection=1 detection_length=12.0"));
+        REQUIRE(M::build_detection_mode_gcode(&hh, 1, 12.0f) ==
+                std::optional<std::string>(
+                    "MMU_TEST_CONFIG enable_clog_detection=1 mmu_calibration_clog_length=12.0"));
     }
     SECTION("manual mode with no length falls back to the bare form") {
         REQUIRE(M::build_detection_mode_gcode(&hh, 1, 0.0f) ==
-                std::optional<std::string>("MMU_TEST_CONFIG clog_detection=1"));
+                std::optional<std::string>("MMU_TEST_CONFIG enable_clog_detection=1"));
     }
     SECTION("off is still a Happy Hare write") {
         REQUIRE(M::build_detection_mode_gcode(&hh, 0, 0.0f) ==
-                std::optional<std::string>("MMU_TEST_CONFIG clog_detection=0"));
+                std::optional<std::string>("MMU_TEST_CONFIG enable_clog_detection=0"));
     }
 }
 
@@ -113,4 +114,21 @@ TEST_CASE_METHOD(XMLTestFixture, "Clog config hides mode/length when the backend
     // Tear the widget tree down before `modal` (and its subjects) go out of
     // scope — the bindings above observe subjects the modal owns.
     lv_obj_delete(dlg);
+}
+
+TEST_CASE("Save sends the detection length only when the user moved it", "[clog][gate]") {
+    helix::AmsBackendHappyHare hh(nullptr, nullptr);
+    using M = ClogDetectionConfigModal;
+    // Nothing changed: nothing goes out, even in manual mode.
+    CHECK_FALSE(M::detection_save_gcode(&hh, 1, 1, 20.0f, 20.0f));
+    // The length moved: mode and length.
+    CHECK(M::detection_save_gcode(&hh, 1, 1, 15.0f, 20.0f) ==
+          std::optional<std::string>(
+              "MMU_TEST_CONFIG enable_clog_detection=1 mmu_calibration_clog_length=15.0"));
+    // Switched to manual without touching the length: the mode alone.
+    CHECK(M::detection_save_gcode(&hh, 1, 2, 20.0f, 20.0f) ==
+          std::optional<std::string>("MMU_TEST_CONFIG enable_clog_detection=1"));
+    // Off never carries a length.
+    CHECK(M::detection_save_gcode(&hh, 0, 1, 15.0f, 20.0f) ==
+          std::optional<std::string>("MMU_TEST_CONFIG enable_clog_detection=0"));
 }

@@ -12,6 +12,8 @@
 
 #include <spdlog/spdlog.h>
 
+#include <cmath>
+
 namespace {
 
 ClogDetectionConfigModal* get_modal(lv_event_t* e) {
@@ -114,7 +116,10 @@ void ClogDetectionConfigModal::on_show() {
     if (backend) {
         auto info = backend->get_system_info();
         detection_mode_ = info.encoder_info.detection_mode;
-        detection_length_ = info.encoder_info.detection_length;
+        // The length a manual-mode write sets, where the backend reports it;
+        // the live encoder length is a different number on some firmware.
+        detection_length_ =
+            backend->clog_detection_length_setting().value_or(info.encoder_info.detection_length);
 
         has_encoder_ = info.encoder_info.enabled;
         has_flowguard_ = info.flowguard_info.enabled;
@@ -132,6 +137,7 @@ void ClogDetectionConfigModal::on_show() {
         detection_length_ = 10.0f;
     if (detection_length_ > 30.0f)
         detection_length_ = 30.0f;
+    original_detection_length_ = detection_length_;
 
     // Hide source buttons that aren't available
     update_source_visibility();
@@ -180,8 +186,11 @@ void ClogDetectionConfigModal::on_ok() {
     ams.set_source_override(source_);
     ams.set_danger_threshold_override(danger_threshold_);
 
-    if (detection_mode_ != original_detection_mode_ || detection_mode_ == 1)
-        send_detection_mode_gcode(detection_mode_, detection_length_);
+    if (auto cmd = detection_save_gcode(helix::AmsState::instance().get_backend(), detection_mode_,
+                                        original_detection_mode_, detection_length_,
+                                        original_detection_length_)) {
+        send_detection_mode_gcode(*cmd, detection_mode_);
+    }
 
     spdlog::info("[ClogConfig] Saved: source={}, mode={}, threshold={}, det_length={:.1f}", source_,
                  detection_mode_, danger_threshold_, detection_length_);
@@ -249,26 +258,28 @@ ClogDetectionConfigModal::build_detection_mode_gcode(const helix::AmsBackend* ba
     return backend ? backend->clog_detection_mode_gcode(mode, det_length) : std::nullopt;
 }
 
-void ClogDetectionConfigModal::send_detection_mode_gcode(int mode, float det_length) {
-    // Re-read the backend rather than trust what on_show() saw: the UI gate hides
-    // these controls, but the send must refuse on its own too.
-    auto* backend = helix::AmsState::instance().get_backend();
-
-    auto cmd = build_detection_mode_gcode(backend, mode, det_length);
-    if (!cmd) {
-        spdlog::warn(
-            "[ClogConfig] Active backend {} has no clog detection mode; not sending",
-            helix::ams_type_to_string(backend ? backend->get_type() : helix::AmsType::NONE));
-        return;
+std::optional<std::string>
+ClogDetectionConfigModal::detection_save_gcode(const helix::AmsBackend* backend, int mode,
+                                               int original_mode, float det_length,
+                                               float original_det_length) {
+    // The length goes out only when the user moved it: Save must not write
+    // back a length it never read from the setting it overwrites.
+    const bool length_changed = std::abs(det_length - original_det_length) >= 0.5f;
+    if (mode == original_mode && !(mode == 1 && length_changed)) {
+        return std::nullopt;
     }
+    return build_detection_mode_gcode(backend, mode,
+                                      mode == 1 && length_changed ? det_length : 0.0f);
+}
 
+void ClogDetectionConfigModal::send_detection_mode_gcode(const std::string& cmd, int mode) {
     auto* api = get_moonraker_api();
     if (!api) {
         spdlog::warn("[ClogConfig] No API available to send detection mode gcode");
         return;
     }
     api->execute_gcode(
-        *cmd, [mode]() { spdlog::info("[ClogConfig] Detection mode set to {}", mode); },
+        cmd, [mode]() { spdlog::info("[ClogConfig] Detection mode set to {}", mode); },
         // Log-only error handler, so the report stays with GcodeErrorRouter's
         // `!!` broadcast (include/rpc_error_policy.h).
         [](const MoonrakerError& err) {

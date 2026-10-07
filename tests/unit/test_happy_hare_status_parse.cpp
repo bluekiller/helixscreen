@@ -272,7 +272,7 @@ TEST_CASE("Happy Hare layout: v3 reads every tunable from [mmu]",
                             {{"form_tip_macro", "_MMU_FORM_TIP"},
                              {"gear_from_spool_speed", "60"},
                              {"toolhead_ooze_reduction", 2.5},
-                             {"clog_detection", 2}}},
+                             {"enable_clog_detection", 2}}},
                            {"mmu_parameters", {{"gear_from_spool_speed", 99}}}};
     const auto layout = happy_hare::read_machine_layout(settings, json::object());
     REQUIRE_FALSE(layout.v4);
@@ -285,16 +285,51 @@ TEST_CASE("Happy Hare layout: v3 reads every tunable from [mmu]",
               happy_hare::find_config_param(settings, layout, "clog_detection")) == 2.0f);
 }
 
-TEST_CASE("Happy Hare layout: v4 renames two gear speeds", "[happy_hare][status_parse][hh_v4]") {
+TEST_CASE("Happy Hare layout: each version's parameter names",
+          "[happy_hare][status_parse][hh_v4]") {
     using happy_hare::param_name;
-    CHECK(param_name("gear_from_spool_speed", true) == "gear_load_speed");
-    CHECK(param_name("gear_from_buffer_speed", true) == "gear_from_filament_buffer_speed");
-    CHECK(param_name("gear_unload_speed", true) == "gear_unload_speed");
-    CHECK(param_name("toolhead_ooze_reduction", true) == "toolhead_ooze_reduction");
-    CHECK(param_name("clog_detection", true) == "flowguard_encoder_mode");
-    CHECK(param_name("detection_length", true) == "flowguard_encoder_max_motion");
-    CHECK(param_name("gear_from_spool_speed", false) == "gear_from_spool_speed");
-    CHECK(param_name("clog_detection", false) == "clog_detection");
+    auto layout = [](double version) {
+        happy_hare::MachineLayout l;
+        l.version_number = version;
+        l.v4 = version >= 4;
+        return l;
+    };
+
+    SECTION("v2.7.3 to v3.4.1: encoder clog detection, no gear unload speed before 3.10") {
+        for (const double v : {2.73, 3.01, 3.40}) {
+            CAPTURE(v);
+            CHECK(param_name("clog_detection", layout(v)) == "enable_clog_detection");
+            CHECK(param_name("detection_length", layout(v)) == "mmu_calibration_clog_length");
+            CHECK(param_name("gear_from_spool_speed", layout(v)) == "gear_from_spool_speed");
+        }
+        CHECK(param_name("gear_unload_speed", layout(3.01)).empty());
+        CHECK(param_name("gear_unload_speed", layout(3.10)) == "gear_unload_speed");
+    }
+    SECTION("v3.4.2: FlowGuard encoder mode") {
+        CHECK(param_name("clog_detection", layout(3.42)) == "flowguard_encoder_mode");
+        CHECK(param_name("detection_length", layout(3.42)) == "flowguard_encoder_max_motion");
+        CHECK(param_name("gear_from_buffer_speed", layout(3.42)) == "gear_from_buffer_speed");
+    }
+    SECTION("v4") {
+        CHECK(param_name("gear_from_spool_speed", layout(4.0)) == "gear_load_speed");
+        CHECK(param_name("gear_from_buffer_speed", layout(4.0)) ==
+              "gear_from_filament_buffer_speed");
+        CHECK(param_name("gear_unload_speed", layout(4.0)) == "gear_unload_speed");
+        CHECK(param_name("clog_detection", layout(4.0)) == "flowguard_encoder_mode");
+        CHECK(param_name("detection_length", layout(4.0)) == "flowguard_encoder_max_motion");
+    }
+    SECTION("an unknown version is refused nothing") {
+        CHECK(param_name("gear_unload_speed", layout(0)) == "gear_unload_speed");
+        CHECK(param_name("clog_detection", layout(0)) == "enable_clog_detection");
+    }
+}
+
+TEST_CASE("Happy Hare layout: the version number comes from either source",
+          "[happy_hare][status_parse][hh_v4]") {
+    CHECK(happy_hare::read_machine_layout({{"mmu", {{"happy_hare_version", 3.42}}}}, json::object())
+              .version_number == 3.42);
+    CHECK(happy_hare::read_machine_layout(json::object(), {{"happy_hare_version", "4.0.0"}})
+              .version_number == 4.0);
 }
 
 TEST_CASE("Happy Hare entry sensor objects are read from sibling keys",

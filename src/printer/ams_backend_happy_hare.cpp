@@ -293,9 +293,9 @@ bool AmsBackendHappyHare::unit_is_type_b_locked(int unit_index) const {
 
 void AmsBackendHappyHare::update_unit_topologies() {
     for (auto& unit : system_info_.units) {
-        const bool type_b = unit_is_type_b_locked(unit.unit_index);
-        unit.topology = type_b ? PathTopology::HUB : PathTopology::LINEAR;
-        unit.has_encoder = !type_b;
+        unit.topology =
+            unit_is_type_b_locked(unit.unit_index) ? PathTopology::HUB : PathTopology::LINEAR;
+        unit.has_encoder = unit_supports_locked(unit.unit_index, happy_hare::UnitFeature::Encoder);
     }
 }
 
@@ -404,8 +404,10 @@ void AmsBackendHappyHare::apply_mmu_status_locked(const happy_hare::MmuStatusDel
     // at the tail needs the state this frame started from, before the selector
     // step rewrites it.
     frame.was_faulted = !reason_for_pause_.empty();
+    // Only v4 publishes tangle_prevention: the frame names the layout before
+    // the connect-time query answers.
     if (delta.telemetry.v4_marker) {
-        status_v4_ = true;
+        machine_layout_.v4 = true;
     }
 
     apply_mmu_selector_locked(delta.core);
@@ -853,14 +855,12 @@ void AmsBackendHappyHare::apply_mmu_telemetry_locked(const happy_hare::MmuTeleme
 
     // Clog detection mode: 0=off, 1=manual, 2=auto. v3 publishes it as
     // clog_detection_enabled; v4 sends that as a constant false and carries the
-    // same values as flowguard.encoder_mode (units with a buffer) or
-    // encoder.detection_mode.
+    // configured mode as flowguard.encoder_mode on any unit with an encoder.
+    // encoder.detection_mode is not it: that is the encoder's runtime state,
+    // static until FlowGuard activates.
     std::optional<int> clog_mode = t.clog_detection_enabled;
     if (!clog_mode && t.flowguard) {
         clog_mode = t.flowguard->encoder_mode;
-    }
-    if (!clog_mode && t.encoder) {
-        clog_mode = t.encoder->detection_mode;
     }
     if (clog_mode) {
         system_info_.clog_detection = *clog_mode;
@@ -898,7 +898,9 @@ void AmsBackendHappyHare::apply_mmu_telemetry_locked(const happy_hare::MmuTeleme
     if (t.flowguard) {
         const auto& fg = *t.flowguard;
         auto& info = system_info_.flowguard_info;
-        if (fg.enabled) {
+        if (!fg.buffer_data) {
+            info.enabled = false;
+        } else if (fg.enabled) {
             info.enabled = *fg.enabled;
         }
         if (fg.active) {
@@ -1546,7 +1548,7 @@ void AmsBackendHappyHare::initialize_slots(int gate_count) {
         unit.slot_count = unit_gates;
         unit.first_slot_global_index = global_offset;
         unit.connected = true;
-        unit.has_encoder = !unit_is_type_b_locked(u);
+        unit.has_encoder = unit_supports_locked(u, happy_hare::UnitFeature::Encoder);
         unit.has_toolhead_sensor = true;
         unit.topology = unit_is_type_b_locked(u) ? PathTopology::HUB : PathTopology::LINEAR;
         // has_slot_sensors starts false; updated when sensor data arrives in
@@ -1910,6 +1912,8 @@ void AmsBackendHappyHare::apply_config_defaults(const nlohmann::json& settings,
         parse_float("toolhead_ooze_reduction", config_defaults_.toolhead_ooze_reduction);
         parse_int("sync_to_extruder", config_defaults_.sync_to_extruder);
         parse_int("clog_detection", config_defaults_.clog_detection);
+        config_defaults_.detection_length = happy_hare::read_config_number(
+            happy_hare::find_config_param(settings, layout, "detection_length"));
 
         config_defaults_.loaded = true;
 
@@ -2005,6 +2009,10 @@ void AmsBackendHappyHare::load_persisted_overrides() {
                     auto builtin_default) {
         using T = decltype(current_default);
         std::string base = "/hh_overrides/" + key;
+        // Records saved under the action id selector_speed load too.
+        if (!config->exists(base + "/value") && key == "selector_move_speed") {
+            base = "/hh_overrides/selector_speed";
+        }
         if (!config->exists(base + "/value"))
             return;
         const T saved_default = config->get<T>(base + "/config_default", T(-999));
@@ -2137,7 +2145,7 @@ void AmsBackendHappyHare::save_override(const std::string& key, int value) {
 }
 
 std::string AmsBackendHappyHare::test_config_param_locked(std::string_view key) const {
-    return helix::text_io::to_upper(happy_hare::param_name(key, machine_layout_.v4));
+    return helix::text_io::to_upper(happy_hare::param_name(key, machine_layout_));
 }
 
 void AmsBackendHappyHare::reapply_overrides() {
@@ -2175,25 +2183,14 @@ void AmsBackendHappyHare::reapply_overrides() {
         add_int("sync_to_extruder", user_overrides_.sync_to_extruder);
         add_int("clog_detection", user_overrides_.clog_detection);
 
-        if (!is_v4_locked()) {
-            // v3 takes the whole batch in one command.
-            std::string cmd = "MMU_TEST_CONFIG";
-            for (const auto& [key, value] : values) {
-                cmd += fmt::format(" {}={}", test_config_param_locked(key), value);
-            }
-            if (!values.empty()) {
-                commands.push_back(cmd);
-            }
-        } else {
-            // v4 refuses a whole MMU_TEST_CONFIG over one parameter a unit does not
-            // take, so each goes alone, to the unit that takes it; one this
-            // install takes nowhere is left out.
-            for (const auto& [key, value] : values) {
-                if (auto cmd = test_config_command_locked(key, value)) {
-                    commands.push_back(std::move(*cmd));
-                } else {
-                    spdlog::info("[AMS HappyHare] Not re-applying {}: no unit takes it", key);
-                }
+        // Each override goes alone, to the unit that takes it: v3 refuses a
+        // whole MMU_TEST_CONFIG over one name it does not know, and v4 applies
+        // the rest but answers with an error. One no unit takes is left out.
+        for (const auto& [key, value] : values) {
+            if (auto cmd = test_config_command_locked(key, value)) {
+                commands.push_back(std::move(*cmd));
+            } else {
+                spdlog::info("[AMS HappyHare] Not re-applying {}: no unit takes it", key);
             }
         }
     }
@@ -3347,11 +3344,15 @@ std::optional<happy_hare::UnitFeature> feature_for_action(std::string_view id) {
 
 std::optional<int> AmsBackendHappyHare::test_config_unit_locked(std::string_view key) const {
     const int active = active_unit_locked();
-    if (!is_v4_locked()) {
-        return active;
-    }
-    if (happy_hare::param_name(key, true).empty()) {
+    if (happy_hare::param_name(key, machine_layout_).empty()) {
         return std::nullopt;
+    }
+    // v3 checks only that a parameter names one of its own attributes, which
+    // a selector without a moving carriage has no selector_move_speed for.
+    if (!is_v4_locked()) {
+        return key == "selector_move_speed"
+                   ? unit_with_locked(happy_hare::UnitFeature::SelectorSpeed)
+                   : std::optional<int>(active);
     }
     // v4 guards these on a fitted sensor, machine-wide.
     if ((key == "toolhead_sensor_to_nozzle" && toolhead_sensor_fitted_ == false) ||
@@ -3424,9 +3425,17 @@ std::vector<std::string> AmsBackendHappyHare::heater_targets_for_unit(int unit) 
 
 AmsError AmsBackendHappyHare::send_heater_command(const std::string& command, int unit) {
     AmsError result = AmsErrorHelper::not_supported("No unit with a heater");
-    for (const auto& target : heater_targets_for_unit(unit)) {
-        result = execute_gcode(command + target);
+    const auto targets = heater_targets_for_unit(unit);
+    for (size_t i = 0; i < targets.size(); ++i) {
+        result = execute_gcode(command + targets[i]);
         if (!result.success()) {
+            // A drying start that failed part-way leaves no unit heating on its
+            // own: the ones already started are stopped again.
+            if (command.rfind("MMU_HEATER DRY=1", 0) == 0) {
+                for (size_t j = 0; j < i; ++j) {
+                    execute_gcode("MMU_HEATER STOP=1" + targets[j]);
+                }
+            }
             return result;
         }
     }
@@ -3510,19 +3519,23 @@ AmsError AmsBackendHappyHare::update_drying(float temp_c, int duration_min, int 
 std::optional<std::string> AmsBackendHappyHare::clog_detection_mode_gcode(int mode,
                                                                           float det_length) const {
     std::lock_guard<std::mutex> lock(mutex_);
-    const bool v4 = is_v4_locked();
     // v4 refuses the encoder mode on a unit with no encoder.
     const auto unit = test_config_unit_locked("clog_detection");
     if (!unit) {
         return std::nullopt;
     }
-    std::string cmd =
-        fmt::format("MMU_TEST_CONFIG {}={}", happy_hare::param_name("clog_detection", v4), mode);
+    std::string cmd = fmt::format("MMU_TEST_CONFIG {}={}",
+                                  happy_hare::param_name("clog_detection", machine_layout_), mode);
     if (mode == 1 && det_length > 0) {
-        cmd +=
-            fmt::format(" {}={:.1f}", happy_hare::param_name("detection_length", v4), det_length);
+        cmd += fmt::format(" {}={:.1f}",
+                           happy_hare::param_name("detection_length", machine_layout_), det_length);
     }
     return cmd + unit_suffix_locked(*unit);
+}
+
+std::optional<float> AmsBackendHappyHare::clog_detection_length_setting() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return config_defaults_.detection_length;
 }
 
 std::vector<helix::printer::DeviceSection> AmsBackendHappyHare::get_device_sections() const {
@@ -3842,7 +3855,7 @@ AmsError AmsBackendHappyHare::execute_device_action(const std::string& action_id
             speed = std::clamp(speed, static_cast<double>(lo), static_cast<double>(hi));
             auto result = test_config(key, fmt::format("{:.0f}", speed));
             if (result.success()) {
-                save_override(action_id, static_cast<float>(speed));
+                save_override(key, static_cast<float>(speed));
             }
             return result;
         }

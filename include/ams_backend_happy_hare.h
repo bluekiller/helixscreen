@@ -331,11 +331,14 @@ class AmsBackendHappyHare : public AmsSubscriptionBackend {
     // highlight on a gate that ran out (gate_status 0) while its filament is
     // still at the toolhead (prestonbrown/helixscreen#1199).
 
-    /// MMU_TEST_CONFIG with v3's clog_detection / detection_length, or v4's
-    /// flowguard_encoder_mode / flowguard_encoder_max_motion on the selected
-    /// unit; nullopt on a v4 unit with no encoder.
+    /// MMU_TEST_CONFIG with the clog mode and, in manual mode, the length,
+    /// named as the installed version takes them (happy_hare::param_name), on
+    /// a unit with an encoder; nullopt when no unit has one on v4.
     [[nodiscard]] std::optional<std::string>
     clog_detection_mode_gcode(int mode, float det_length) const override;
+    /// flowguard_encoder_max_motion from 3.42 on; nullopt before, where the
+    /// length is the calibrated one the encoder reports live.
+    [[nodiscard]] std::optional<float> clog_detection_length_setting() const override;
 
     // Device Management
     [[nodiscard]] std::vector<helix::printer::DeviceSection> get_device_sections() const override;
@@ -658,12 +661,10 @@ class AmsBackendHappyHare : public AmsSubscriptionBackend {
     bool bypass_support_seen_{false};
     /// Last printer.mmu.has_bypass; the bypass source on v3 only.
     std::optional<bool> status_has_bypass_;
-    /// A printer.mmu frame carried a field only v4 publishes. Known from the
-    /// first frame, before the connect-time query names the version.
-    bool status_v4_{false};
-    /// v4 by either the query's layout or the status frames. Caller holds mutex_.
+    /// The one v4 predicate: the query's layout, or a status frame carrying a
+    /// field only v4 publishes. Caller holds mutex_.
     [[nodiscard]] bool is_v4_locked() const {
-        return machine_layout_.v4 || status_v4_;
+        return machine_layout_.v4;
     }
     /// supports_bypass from whichever source the install's layout trusts.
     /// Caller holds mutex_.
@@ -756,6 +757,8 @@ class AmsBackendHappyHare : public AmsSubscriptionBackend {
         float toolhead_ooze_reduction = 2.0f;
         int sync_to_extruder = 0;
         int clog_detection = 0;
+        /// Manual-mode clog detection length, when the config names one
+        std::optional<float> detection_length;
         bool loaded = false;
     };
     ConfigDefaults config_defaults_;
@@ -792,12 +795,14 @@ class AmsBackendHappyHare : public AmsSubscriptionBackend {
     /// The MMU_TEST_CONFIG parameter for tunable @p key (v3 spelling) on this
     /// install, uppercased; empty when it has none. Caller holds mutex_.
     [[nodiscard]] std::string test_config_param_locked(std::string_view key) const;
-    /// The unit an MMU_TEST_CONFIG of @p key targets: on v4 the selected unit
-    /// when it takes the parameter, else the first unit that does; nullopt when
-    /// none does. v3 has no such guards. Caller holds mutex_.
+    /// The unit an MMU_TEST_CONFIG of @p key targets: the selected unit when it
+    /// takes the parameter, else the first unit that does; nullopt when none
+    /// does or the installed version has no such parameter. v3 checks only
+    /// names, so there only selector_move_speed depends on the unit.
+    /// Caller holds mutex_.
     [[nodiscard]] std::optional<int> test_config_unit_locked(std::string_view key) const;
     /// `MMU_TEST_CONFIG <param>=<value>[ UNIT=n]` for @p key, or nullopt when
-    /// the install would refuse it. Caller holds mutex_.
+    /// no unit takes it. Caller holds mutex_.
     [[nodiscard]] std::optional<std::string>
     test_config_command_locked(std::string_view key, const std::string& value) const;
     /// Whether unit @p unit has @p feature, from its mmu_machine fields, else
