@@ -37,7 +37,7 @@ constexpr uint8_t LIGHT_START_GRAY = 235; // Top-right - brighter
 constexpr uint8_t LIGHT_END_GRAY = 188;   // Bottom-left - darker
 
 // Pre-rendered gradient buffer size
-// 256x256 on normal devices, 128x128 on constrained (saves 192KB ARGB8888)
+// 256x256 on normal devices, 128x128 on constrained (saves 192KB at 32 bpp, 96KB at 16 bpp)
 static int32_t gradient_buffer_size() {
     static const int32_t size = helix::get_system_memory_info().is_constrained_device() ? 128 : 256;
     return size;
@@ -47,7 +47,7 @@ static int32_t gradient_buffer_size() {
 constexpr uint8_t BAYER_4X4[4][4] = {{0, 8, 2, 10}, {12, 4, 14, 6}, {3, 11, 1, 9}, {15, 7, 13, 5}};
 
 // Maximum gradient buffer dimension (pixels per axis).
-// Caps memory on large displays — a 512x512 ARGB8888 buffer is 1 MB.
+// Caps memory on large displays — a 512x512 buffer is 1 MB at 32 bpp, 512 KB at 16 bpp.
 // COVER scaling from 512 to any panel size is visually lossless for a smooth gradient.
 static constexpr int32_t MAX_GRADIENT_DIM = 512;
 
@@ -522,6 +522,11 @@ lv_draw_buf_t* gradient_canvas_create_opaque_buf(int32_t width, int32_t height, 
     }
     lv_draw_buf_destroy(masked);
     return out;
+}
+
+void gradient_canvas_render(lv_draw_buf_t* buf, lv_color_t start, lv_color_t end, bool dither) {
+    render_gradient_to_buf(buf, start.red, start.green, start.blue, end.red, end.green, end.blue,
+                           dither);
 }
 
 } // namespace helix::ui

@@ -107,3 +107,24 @@ TEST_CASE_METHOD(LVGLTestFixture,
     const lv_color32_t tr = pixel(buf, 511, 0), bl = pixel(buf, 0, 405);
     CHECK(tr.green > bl.green + 40);
 }
+
+TEST_CASE_METHOD(LVGLTestFixture, "gradient canvas: renders into an RGB565 buffer",
+                 "[gradient_canvas]") {
+    // A 16-bit display's native format, which host builds never pick on their own.
+    constexpr int32_t W = 64, H = 48;
+    lv_draw_buf_t* buf = lv_draw_buf_create(W, H, LV_COLOR_FORMAT_RGB565, 0);
+    REQUIRE(buf != nullptr);
+    helix::ui::gradient_canvas_render(buf, lv_color_make(200, 100, 50), lv_color_make(40, 160, 248),
+                                      false);
+
+    // 565 keeps the top 5/6/5 bits of each channel.
+    const lv_color32_t tr = pixel(buf, W - 1, 0), bl = pixel(buf, 0, H - 1);
+    CHECK(int(tr.red) == 200);
+    CHECK(int(tr.green) == 100);
+    CHECK(int(tr.blue) == 48);
+    CHECK(int(bl.red) == 40);
+    CHECK(int(bl.green) == 160);
+    CHECK(int(bl.blue) == 248);
+
+    lv_draw_buf_destroy(buf);
+}
