@@ -363,7 +363,11 @@ inline std::pair<bool, int> line_column(const CalloutLayoutInput& in, const Call
 /// Both sides, else one side, with the image centred at `centred`.
 inline bool try_line_modes_at(const CalloutLayoutInput& in, const CalloutRect& centred,
                               CalloutLayout& out) {
-    const auto [horiz, col] = line_column(in, centred);
+    // Plain locals, not a structured binding: clang before 16 rejects a lambda
+    // capturing a binding.
+    const auto column = line_column(in, centred);
+    const bool horiz = column.first;
+    const int col = column.second;
     const int far_edge = (horiz ? in.area_w : in.area_h) - in.gap;
     const auto split = [&](const std::vector<CalloutChipIn>& v, bool near_half) {
         std::vector<CalloutChipIn> r;
