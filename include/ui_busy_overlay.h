@@ -5,6 +5,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <string>
 
 /**
@@ -80,6 +81,17 @@ class BusyOverlay {
      * Safe to call even if overlay was never shown.
      */
     static void hide();
+
+    /**
+     * @brief Cover a UI-thread job too slow for one frame, painted before it starts
+     *
+     * Shows the overlay with no grace period and paints it at once, since @p work
+     * blocks the loop that would otherwise draw it. Runs @p work, then hides the
+     * overlay from the UpdateQueue, so whatever @p work queued (an overlay push
+     * and its on_activate()) finishes under it. An overlay some other operation
+     * already showed is left up. Main thread only.
+     */
+    static void show_during(const std::string& text, const std::function<void()>& work);
 
     /**
      * @brief Check if overlay is currently visible

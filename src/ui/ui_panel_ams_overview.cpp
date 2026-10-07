@@ -10,6 +10,7 @@
 #include "ui_ams_sidebar.h"
 #include "ui_ams_slot.h"
 #include "ui_ams_slot_layout.h"
+#include "ui_busy_overlay.h"
 #include "ui_error_reporting.h"
 #include "ui_event_safety.h"
 #include "ui_external_spool_menu.h"
@@ -1390,31 +1391,45 @@ void navigate_to_ams_panel() {
         return;
     }
 
-    AmsSystemInfo info = backend->get_system_info();
+    const AmsSystemInfo info = backend->get_system_info();
+    const bool multi_unit = info.is_multi_unit();
 
-    if (info.is_multi_unit()) {
-        // Multi-unit: show overview panel
-        spdlog::info("[AMS] Multi-unit setup ({} units) - showing overview", info.unit_count());
-        auto& overview = get_global_ams_overview_panel();
-        lv_obj_t* panel = overview.get_panel();
-        if (panel) {
-            // Re-register before push: switch_to_panel_impl() clears
-            // overlay_instances_ on navbar switches (keeping only the
-            // persistent map), so a cached panel re-opened after a navbar tap
-            // loses its lifecycle registration. Idempotent (keyed by widget).
-            helix::nav::register_overlay(panel, &overview);
-            helix::nav::push_overlay(panel);
+    auto open = [multi_unit, units = info.unit_count()]() {
+        if (multi_unit) {
+            // Multi-unit: show overview panel
+            spdlog::info("[AMS] Multi-unit setup ({} units) - showing overview", units);
+            auto& overview = get_global_ams_overview_panel();
+            lv_obj_t* panel = overview.get_panel();
+            if (panel) {
+                // Re-register before push: switch_to_panel_impl() clears
+                // overlay_instances_ on navbar switches (keeping only the
+                // persistent map), so a cached panel re-opened after a navbar tap
+                // loses its lifecycle registration. Idempotent (keyed by widget).
+                helix::nav::register_overlay(panel, &overview);
+                helix::nav::push_overlay(panel);
+            }
+        } else {
+            // Single-unit (or no units): go directly to detail panel
+            spdlog::info("[AMS] Single-unit setup - showing detail panel directly");
+            auto& detail = get_global_ams_panel();
+            lv_obj_t* panel = detail.get_panel();
+            if (panel) {
+                // Re-register before push (see multi-unit branch above): cached
+                // panel re-opened after a navbar switch loses its registration.
+                helix::nav::register_overlay(panel, &detail);
+                helix::nav::push_overlay(panel);
+            }
         }
+    };
+
+    // Both panels are destroyed on close, so an open usually builds one: too
+    // slow on the ESP32 to go without a spinner.
+    const AmsPanel* detail = get_existing_ams_panel();
+    const bool built =
+        multi_unit ? s_ams_overview_panel_obj != nullptr : detail && detail->get_panel();
+    if (built) {
+        open();
     } else {
-        // Single-unit (or no units): go directly to detail panel
-        spdlog::info("[AMS] Single-unit setup - showing detail panel directly");
-        auto& detail = get_global_ams_panel();
-        lv_obj_t* panel = detail.get_panel();
-        if (panel) {
-            // Re-register before push (see multi-unit branch above): cached
-            // panel re-opened after a navbar switch loses its registration.
-            helix::nav::register_overlay(panel, &detail);
-            helix::nav::push_overlay(panel);
-        }
+        helix::BusyOverlay::show_during(lv_tr("Loading..."), open);
     }
 }

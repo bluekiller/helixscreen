@@ -328,6 +328,12 @@ void AmsPanel::init_subjects() {
                 self->slot_creation_pending_ = true;
                 self->object_lifetime_.defer("AmsPanel::create_slots", [self, new_count]() {
                     self->slot_creation_pending_ = false;
+                    // This observer is re-added on every open, and its first,
+                    // queued notification lands after on_activate() has already
+                    // built the slots for that count.
+                    if (new_count == self->current_slot_count_) {
+                        return;
+                    }
                     spdlog::debug("[AmsPanel] Slot count changed to {}", new_count);
                     self->create_slots(new_count);
                 });

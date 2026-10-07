@@ -206,3 +206,42 @@ TEST_CASE_METHOD(XMLTestFixture,
     process_lvgl(10);
     AmsState::instance().set_backend(nullptr);
 }
+
+TEST_CASE_METHOD(XMLTestFixture, "AmsPanel activation builds its slots once",
+                 "[ui_integration][ams]") {
+    auto mock = std::make_unique<AmsBackendMock>(4);
+    mock->set_afc_mode(true);
+    REQUIRE(mock->start().success());
+    AmsState::instance().set_backend(std::move(mock));
+    AmsState::instance().init_subjects(true);
+    AmsState::instance().sync_from_backend();
+
+    register_ams_widgets_and_xml_once();
+
+    AmsPanel panel(state(), &api());
+    panel.init_subjects();
+    lv_obj_t* panel_obj =
+        static_cast<lv_obj_t*>(lv_xml_create(test_screen(), "ams_panel", nullptr));
+    REQUIRE(panel_obj != nullptr);
+    // Activated before the queue drains, as a push activates a freshly built panel.
+    panel.setup(panel_obj, test_screen());
+    panel.on_activate();
+    lv_obj_t* slot_grid = lv_obj_find_by_name(panel.get_panel(), "slot_grid");
+    REQUIRE(slot_grid != nullptr);
+    lv_obj_t* first_slot = lv_obj_get_child(slot_grid, 0);
+    REQUIRE(first_slot != nullptr);
+    bool rebuilt = false;
+    lv_obj_add_event_cb(
+        first_slot, [](lv_event_t* e) { *static_cast<bool*>(lv_event_get_user_data(e)) = true; },
+        LV_EVENT_DELETE, &rebuilt);
+
+    // The slot-count observer's first notification is still queued, and carries
+    // the count on_activate() just built for.
+    process_lvgl(50);
+    CHECK_FALSE(rebuilt);
+
+    panel.clear_panel_reference();
+    lv_obj_delete(panel_obj);
+    process_lvgl(10);
+    AmsState::instance().set_backend(nullptr);
+}

@@ -24,6 +24,7 @@
  *    behind it cleared the overlay stack and bounced the user to Home.
  */
 
+#include "ui_busy_overlay.h"
 #include "ui_nav_manager.h"
 #include "ui_panel_base.h"
 #include "ui_update_queue.h"
@@ -89,6 +90,7 @@ class RecordingOverlay : public IPanelLifecycle {
   public:
     void on_activate() override {
         ++activates;
+        busy_visible_on_activate = BusyOverlay::is_visible();
     }
     void on_deactivate(DeactivateReason) override {
         ++deactivates;
@@ -103,6 +105,7 @@ class RecordingOverlay : public IPanelLifecycle {
     bool destination = false;
     int activates = 0;
     int deactivates = 0;
+    bool busy_visible_on_activate = false;
 };
 
 /**
@@ -448,6 +451,38 @@ TEST_CASE_METHOD(OverlayActivationFixture, "Deleting a root with a pending push 
     drain();
     CHECK(overlay_lifecycle_.activates == 0);
     CHECK_FALSE(nav.has_open_overlays());
+}
+
+TEST_CASE_METHOD(OverlayActivationFixture,
+                 "An open behind BusyOverlay::show_during activates under the spinner",
+                 "[navigation][overlay][pending_push][ui_busy_overlay]") {
+    BusyOverlay::hide();
+
+    BusyOverlay::show_during("Loading...",
+                             [&]() { NavigationManager::instance().push_overlay(overlay_); });
+    drain();
+
+    CHECK(overlay_lifecycle_.activates == 1);
+    CHECK(overlay_lifecycle_.busy_visible_on_activate);
+    CHECK_FALSE(BusyOverlay::is_visible());
+}
+
+TEST_CASE_METHOD(OverlayActivationFixture,
+                 "A push cancelled under BusyOverlay::show_during still drops the spinner",
+                 "[navigation][overlay][pending_push][ui_busy_overlay]") {
+    BusyOverlay::hide();
+    auto& nav = NavigationManager::instance();
+
+    BusyOverlay::show_during("Loading...", [&]() {
+        nav.push_overlay(overlay_);
+        nav.close_overlay(overlay_);
+    });
+    drain();
+
+    CHECK(overlay_lifecycle_.activates == 0);
+    CHECK_FALSE(nav.has_open_overlays());
+    CHECK_FALSE(BusyOverlay::is_visible());
+    CHECK_FALSE(BusyOverlay::is_pending());
 }
 
 // ============================================================================
