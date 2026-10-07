@@ -149,10 +149,10 @@ lv_obj_t* MacrosPanel::create(lv_obj_t* parent) {
     nav_enabled_observer_ = helix::ui::observe<int>(
         get_printer_state().network_state().get_nav_buttons_enabled_subject(), this,
         [](MacrosPanel* self, int) {
-            // Re-fetch from the API (macros may have just been populated) then
-            // rebuild — rebuild_rows() alone would reuse the stale cached list.
-            self->refresh_macros();
-            self->rebuild_rows();
+            // Macros may have just been populated; rebuild only if they changed.
+            if (self->refresh_macros()) {
+                self->rebuild_rows();
+            }
         },
         get_printer_state().get_subjects_lifetime());
 
@@ -171,13 +171,13 @@ void MacrosPanel::on_activate() {
 
     spdlog::debug("[{}] on_activate()", get_name());
 
-    // Defer the rebuild (#80) — on_activate() fires inside
-    // overlay_slide_out_complete_cb() while LVGL is still processing the
-    // animation tick. rebuild_rows() only mutates subjects (the repeat owns row
-    // widget lifecycle), so the defer is purely to sequence after the tick.
+    // create() built the rows for this open (the panel is destroyed on close), so only
+    // macros discovered since then need a rebuild. Deferred (#80): on_activate() fires
+    // inside overlay_slide_out_complete_cb() while LVGL is still in the animation tick.
     lifetime_.defer("MacrosPanel::rebuild", [this]() {
-        refresh_macros();
-        rebuild_rows();
+        if (refresh_macros()) {
+            rebuild_rows();
+        }
     });
 }
 
@@ -214,16 +214,21 @@ void MacrosPanel::on_ui_destroyed() {
 // Row model
 // ============================================================================
 
-void MacrosPanel::refresh_macros() {
+bool MacrosPanel::refresh_macros() {
     IMoonrakerAPI* api = get_moonraker_api();
     if (!api) {
         // No API (early boot, or a unit test that pre-set all_macros_). Leave
         // the current list intact rather than clobbering it to empty.
-        return;
+        return false;
     }
     const auto& macros = api->hardware().macros();
-    all_macros_.assign(macros.begin(), macros.end());
-    std::sort(all_macros_.begin(), all_macros_.end());
+    std::vector<std::string> fresh(macros.begin(), macros.end());
+    std::sort(fresh.begin(), fresh.end());
+    if (fresh == all_macros_) {
+        return false;
+    }
+    all_macros_ = std::move(fresh);
+    return true;
 }
 
 std::set<std::string> MacrosPanel::seed_default_hidden() const {
