@@ -115,6 +115,7 @@ class TrackerPlayer {
     int speed_ = 6;
     int tempo_ = 125;
     float tick_accum_ = 0;
+    uint32_t arp_step_ = 0; ///< Mono arpeggio position, advanced once per tick
     int next_order_ = -1;
     int next_row_ = -1;
     int volume_override_ = -1; // -1 = use AudioSettingsManager

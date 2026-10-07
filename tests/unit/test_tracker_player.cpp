@@ -20,7 +20,12 @@ using namespace helix::audio;
 class TrackerMockBackend : public SoundBackend {
   public:
     /// voices=4 mimics SDL/ALSA; voices=1 mimics the mono PWM/M300 path
-    explicit TrackerMockBackend(int voices = 4) : voice_slots_(voices) {}
+    explicit TrackerMockBackend(int voices = 4, float tick_ms = 1.0f)
+        : voice_slots_(voices), tick_ms_(tick_ms) {}
+
+    float min_tick_ms() const override {
+        return tick_ms_;
+    }
 
     struct VoiceState {
         float freq = 0;
@@ -72,6 +77,7 @@ class TrackerMockBackend : public SoundBackend {
 
   private:
     int voice_slots_ = 4;
+    float tick_ms_;
 };
 
 // ---------------------------------------------------------------------------
@@ -175,7 +181,7 @@ TEST_CASE("TrackerPlayer fallback emits note frequency, not sample rate", "[trac
     }
 }
 
-TEST_CASE("TrackerPlayer mono backend follows the highest voice, not channel 0",
+TEST_CASE("TrackerPlayer slow mono backend follows the highest voice, not channel 0",
           "[tracker][player]") {
     // crocketts_theme parks the bass on channel 0; a mono backend pinned to
     // slot 0 would play the bass and drop the melody.
@@ -185,7 +191,7 @@ TEST_CASE("TrackerPlayer mono backend follows the highest voice, not channel 0",
 
     {
         // Bass on ch0, lead on ch1: mono must emit the LEAD on slot 0
-        auto backend = std::make_shared<TrackerMockBackend>(/*voices=*/1);
+        auto backend = std::make_shared<TrackerMockBackend>(/*voices=*/1, /*tick_ms=*/50.0f);
         auto player = make_player(backend);
 
         auto pat = empty_pattern(2);
@@ -205,7 +211,7 @@ TEST_CASE("TrackerPlayer mono backend follows the highest voice, not channel 0",
 
     {
         // Only the bass active: mono still emits it (falls back, not silent)
-        auto backend = std::make_shared<TrackerMockBackend>(/*voices=*/1);
+        auto backend = std::make_shared<TrackerMockBackend>(/*voices=*/1, /*tick_ms=*/50.0f);
         auto player = make_player(backend);
 
         auto pat = empty_pattern(2);
@@ -219,6 +225,37 @@ TEST_CASE("TrackerPlayer mono backend follows the highest voice, not channel 0",
                 Catch::Approx(TrackerModule::note_to_freq(bass)).margin(0.1f));
         player->stop();
     }
+}
+
+TEST_CASE("TrackerPlayer fast mono backend arpeggiates the active voices", "[tracker][player]") {
+    const uint8_t bass = 34; // A-2
+    const uint8_t lead = 58; // A-4
+    const float bass_hz = TrackerModule::note_to_freq(bass);
+    const float lead_hz = TrackerModule::note_to_freq(lead);
+
+    auto backend = std::make_shared<TrackerMockBackend>(/*voices=*/1, /*tick_ms=*/20.0f);
+    auto player = make_player(backend);
+
+    auto pat = empty_pattern(2);
+    pat[0] = {bass, 1, 0x00, 0x00};
+    pat[1] = {lead, 1, 0x00, 0x00};
+
+    player->load(make_module({0}, {pat}, 2));
+    player->play();
+
+    std::vector<float> heard{backend->voices[0].freq};
+    for (int i = 0; i < 3; ++i) {
+        fire_one_tick(*player);
+        heard.push_back(backend->voices[0].freq);
+    }
+    REQUIRE(player->is_playing()); // all four samples came from row 0
+
+    for (size_t i = 0; i < heard.size(); ++i) {
+        const float want = (i % 2 == 0) ? bass_hz : lead_hz;
+        CHECK(heard[i] == Catch::Approx(want).margin(0.1f));
+    }
+    REQUIRE_FALSE(backend->voices[1].active);
+    player->stop();
 }
 
 TEST_CASE("TrackerPlayer silences the backend when the module ends", "[tracker][player]") {

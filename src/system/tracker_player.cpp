@@ -9,6 +9,7 @@
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <cmath>
 #include <cstring>
@@ -27,6 +28,7 @@ void TrackerPlayer::load(TrackerModule module) {
     row_ = 0;
     tick_ = 0;
     tick_accum_ = 0;
+    arp_step_ = 0;
     next_order_ = -1;
     next_row_ = -1;
     channels_ = {};
@@ -562,23 +564,34 @@ void TrackerPlayer::apply_to_backend() {
     };
 
     if (backend_->voice_count() == 1) {
-        // Mono backend: emit the lead line, not whatever sits on channel 0
-        // (crocketts_theme parks the bass there). Highest active voice wins;
-        // the earlier channel takes ties, nothing active falls back to
-        // silence on slot 0.
+        // Mono backend. One that can retune every tick cycles through the
+        // active channels, one per tick, chiptune-style, so chords and bass
+        // come through as an arpeggio. A slow one (M300, one command per
+        // 50 ms) would smear that into noise, so it emits the lead line:
+        // the highest active voice, earlier channel on ties (crocketts_theme
+        // parks the bass on channel 0).
+        static constexpr float kArpMaxTickMs = 25.0f;
+        std::array<int, 4> active{};
+        int n_active = 0;
         int best = -1;
         float best_freq = 0.0f;
         for (int ch = 0; ch < 4; ++ch) {
             const auto& cs = channels_[static_cast<size_t>(ch)];
             const float freq = emit_freq(cs);
-            if (cs.active && freq > 0.0f && cs.volume > 0.0f && freq > best_freq) {
-                best = ch;
-                best_freq = freq;
+            if (cs.active && freq > 0.0f && cs.volume > 0.0f) {
+                active[static_cast<size_t>(n_active++)] = ch;
+                if (freq > best_freq) {
+                    best = ch;
+                    best_freq = freq;
+                }
             }
+        }
+        if (n_active > 1 && backend_->min_tick_ms() <= kArpMaxTickMs) {
+            best = active[static_cast<size_t>(arp_step_++ % static_cast<uint32_t>(n_active))];
         }
         if (best >= 0) {
             const auto& cs = channels_[static_cast<size_t>(best)];
-            backend_->set_voice(0, best_freq, cs.volume * master_vol, cs.duty);
+            backend_->set_voice(0, emit_freq(cs), cs.volume * master_vol, cs.duty);
             if (backend_->supports_waveforms()) {
                 backend_->set_voice_waveform(0, cs.waveform);
             }
