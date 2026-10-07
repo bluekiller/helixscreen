@@ -1389,7 +1389,10 @@ void PrintSelectPanel::process_metadata_result(size_t i, const std::string& file
                         png_data.empty() ? std::string()
                                          : get_thumbnail_cache().save_raw_png(cache_key, png_data);
 
-                    if (cached_png.empty()) {
+                    if (already_prescaled) {
+                        spdlog::trace("[{}] Keeping prescaled local thumbnail for {}",
+                                      self->get_name(), d->filename);
+                    } else if (cached_png.empty()) {
                         // Could not stage it for prescaling — the raw PNG still beats no
                         // thumbnail at all, even though the card will crop it.
                         self->file_list_[d->index].thumbnail_path = "A:" + d->thumb_path;
