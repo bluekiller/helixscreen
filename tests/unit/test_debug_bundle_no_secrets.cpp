@@ -3,6 +3,7 @@
 
 #include "../test_helpers/config_dir_guard.h"
 #include "data_root_resolver.h"
+#include "json_utils.h"
 #include "system/debug_bundle_collector.h"
 #include "wifi_saved_config.h"
 
@@ -74,7 +75,7 @@ TEST_CASE("A saved WiFi PSK never reaches a debug bundle", "[debug-bundle][wifi]
     REQUIRE(helix::wifi::store::load().size() == 1);
 
     const json bundle = helix::DebugBundleCollector::collect();
-    const std::string serialized = bundle.dump();
+    const std::string serialized = helix::json_util::safe_dump(bundle);
 
     // The PSK itself must never appear, anywhere, in any form.
     CHECK(serialized.find(distinctive_psk) == std::string::npos);
