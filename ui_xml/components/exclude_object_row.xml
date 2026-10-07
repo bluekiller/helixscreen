@@ -16,10 +16,10 @@
        state_subject names the row's int state: 0 idle, 1 printing now, 2 excluded,
        3 picked before the print starts. Excluded and picked rows are dimmed and
        muted; an excluded row is not clickable, a picked row is, so the pick can be
-       undone. The row restyles in
-       place, so the list keeps its scroll position while the printing object moves.
-       C++ sets the object name, which comes from the slicer and so cannot travel as
-       a prop: a leading '#' would read as a const. -->
+       undone. The row restyles in place, so the list keeps its scroll position
+       while the printing object moves.
+       C++ sets the object name, which comes from the slicer and so cannot travel
+       as a prop: a leading '#' would read as a const. -->
   <styles>
     <style name="row_excluded" opa="150"/>
     <style name="name_idle" text_color="#text"/>

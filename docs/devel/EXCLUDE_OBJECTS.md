@@ -204,7 +204,7 @@ Objects excluded by other clients (Mainsail, Fluidd, KlipperScreen) are automati
 
 ## Print Objects Side List
 
-`ExcludeObjectSideList` provides a scrollable list of all defined objects in the current print, shown alongside `ExcludeObjectMapView` (the object map with 3D selection brackets). Both are owned by `PrintStatusPanel`. Each row shows:
+`ExcludeObjectSideList` provides a scrollable list of all defined objects in the current print, shown alongside `ExcludeObjectMapView` (the object map with 3D selection brackets). Both are owned by an `ExcludeModeController` (`include/ui_exclude_mode_controller.h`) in either host, print status or print details. Each row shows:
 
 - **Numbered chip**: the object's number and colour from `compute_object_badges()` (below), so it matches the badge on the map and the render
 - **Object name**
@@ -240,10 +240,11 @@ screen and draw.
   has no legend of its own: it is always shown beside the side list, which names every
   object, so the plate takes the whole card. An object with no bounding box gets no rect
   but keeps its number, so later objects do not renumber.
-- **2D/3D render**: while the side list is open, `PrintStatusPanel::refresh_render_badges()`
+- **2D/3D render**: while the side list is open,
+  `src/ui/ui_exclude_mode_controller.cpp#refresh_render_badges`
   pushes the badges to the viewer (`ui_gcode_viewer_set_object_badges()`), and again on every
-  `defined_objects_version` / `excluded_objects_version` bump (the current object bumps the
-  latter). Closing the list pushes an empty set. The viewer draws them in its
+  `defined_objects_version` / `excluded_objects_version` bump of the host's state, through
+  the controller's own version observers (the current object bumps the latter). Closing the list pushes an empty set. The viewer draws them in its
   `LV_EVENT_DRAW_POST` pass after the renderer (`src/ui/ui_gcode_viewer.cpp#draw_object_badges`),
   projecting each anchor through the transform of the image on screen, so they follow pan,
   zoom and rotation. In 2D that is `GCodeLayerRenderer::project_to_screen()`: every 2D
@@ -253,8 +254,8 @@ screen and draw.
   upload, render deferral and refinement, and the badges stay on it rather than running
   ahead to the live camera. Setting badges equal to the current ones does nothing; a change
   only invalidates the widget, and the renderers repaint from their caches.
-- **Parsed file arriving later**: the preview controller's `parsed_file_loaded` hook calls
-  `refresh_render_badges()` too, so a file that finishes loading after the list opened gives
+- **Parsed file arriving later**: each host calls
+  `ExcludeModeController::refresh_render_badges()` when its viewer finishes a parse, so a file that finishes loading after the list opened gives
   its objects parsed anchors and a top Z.
 
 Anchor priority: Klipper `CENTER`, the parsed file's `CENTER`, Klipper's bbox centre, the
@@ -320,7 +321,17 @@ second model for this: details owns a private `PrinterExcludedObjectsState`
   keeps them.
 - **Lifetime.** The start hides details with the picks held, so a start that fails comes
   back to the same file with them intact. They clear once Moonraker confirms the start, or
-  when the user leaves the file (back to the list, or another file).
+  when the user leaves the file (back to the list, or another file). The hold is one-shot:
+  during a long upload or plugin-modify window, reopening the same file before Moonraker
+  confirms spends it, so the picks already sent with that start stay on details afterwards.
+  The busy overlay over that window mostly prevents the reopen.
+- **Exclude mode closes, picks stay.** Details closes exclude mode whenever it deactivates
+  (any reason), when its viewer is cleared (memory pressure frees the parse the map and
+  badges drew from), and when it is shown for another file. The map copies the outlines it
+  draws at open, so nothing it holds outlives the viewer's parse.
+- **Offered picks only.** While the skip button is hidden (e.g. after a switch to a printer
+  without `[exclude_object]`), `src/ui/ui_print_select_detail_view.cpp#exclude_picks` returns
+  none, so hidden picks are never sent or refused on.
 - **Failures.** A failed send is one error toast naming the objects, unless the print ended
   first; a TIMEOUT is advisory, since the command may still run
   (`src/ui/pre_start_exclude.cpp#send_pre_start_exclusions`).
