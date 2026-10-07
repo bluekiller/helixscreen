@@ -68,12 +68,6 @@ class PWMSoundBackend : public SoundBackend {
         klippy_shares_channel_ = shared;
     }
 
-    /// Default audible floor, before HELIX_PWM_MIN_NOTE_MS overrides it.
-    /// Call before initialize().
-    void set_min_note_ms(float ms) {
-        min_note_ms_ = ms;
-    }
-
     /// A user-named buzzer channel: the HELIX_PWM_SOUND override when it is
     /// set, else the saved setting, each as "<chip>:<channel>". A malformed
     /// value is skipped with a warning. Returns false when neither names one.
