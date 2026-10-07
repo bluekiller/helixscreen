@@ -8,6 +8,7 @@
 #include "esp_heap_caps.h"
 #include "esp_http_client.h"
 #include "esp_log.h"
+#include "esp_timer.h"
 #include "psram_thread_stack.h"
 
 #include <algorithm>
@@ -23,7 +24,12 @@ constexpr char TAG[] = "esp_http_lane";
 // Lazily claimed on first submit_get(), from PSRAM (see
 // ensure_worker_started_locked).
 constexpr size_t WORKER_STACK_BYTES = 16 * 1024;
-constexpr int HTTP_TIMEOUT_MS = 15000;
+// Each socket operation's timeout: short enough that a body read stalled on a
+// weak link comes back to read_capped_body() to be timed, rather than blocking.
+constexpr int HTTP_TIMEOUT_MS = 5000;
+// A thumbnail is a few KB: a body still arriving after 30 s, or silent for
+// 10 s, is a link that has stopped, and the lane has other cards waiting.
+constexpr LaneDeadlines BODY_DEADLINES{30000, 10000};
 // esp_http_client's own internal read-chunk buffer (config.buffer_size) —
 // small and fine in internal RAM. Only the accumulation buffer built up in
 // run_one() below needs to be PSRAM; that's the buffer the R3 "PSRAM buffer,
@@ -196,56 +202,39 @@ void EspHttpLane::run_one(const Job& job) {
         return;
     }
 
-    // Accumulation buffer. Large enough to land in PSRAM; this is the buffer
-    // the RAM budget cares about, not esp_http_client's own small read-chunk
-    // buffer (config.buffer_size above, CLIENT_BUFFER_BYTES).
+    // Accumulation buffer, in PSRAM: this is the buffer the RAM budget cares
+    // about, not esp_http_client's own small read-chunk buffer
+    // (config.buffer_size above, CLIENT_BUFFER_BYTES).
+    struct Transport {
+        esp_http_client_handle_t client;
+        int read(char* buf, int len) {
+            const int n = esp_http_client_read(client, buf, len);
+            return n == -ESP_ERR_HTTP_EAGAIN ? TRANSPORT_AGAIN : n;
+        }
+        bool complete() const {
+            return esp_http_client_is_complete_data_received(client);
+        }
+    } transport{client};
     std::string body;
-    size_t total = 0;
-    bool alloc_failed = !try_reserve(body, initial_buffer_bytes(job.cap, content_length));
-    bool read_failed = false;
-    // reserve() can hand back more than asked for, so the cap bounds the bytes
-    // read, never the capacity.
-    auto room = [&body, &job]() { return std::min(body.capacity(), job.cap); };
-    while (!alloc_failed && total < job.cap) {
-        if (total == room()) {
-            if (esp_http_client_is_complete_data_received(client)) {
-                break;
-            }
-            if (!try_reserve(body, next_buffer_bytes(body.capacity(), job.cap))) {
-                alloc_failed = true;
-                break;
-            }
-        }
-        body.resize(room()); // within capacity: no allocation
-        int n = esp_http_client_read(client, &body[total], static_cast<int>(body.size() - total));
-        if (n < 0) {
-            read_failed = true;
-            break;
-        }
-        if (n == 0) {
-            break; // response complete
-        }
-        total += static_cast<size_t>(n);
-    }
-    body.resize(total);
-
-    // Over-cap: the buffer filled and the server says there's more. Abort and
-    // report an error — R3 hard constraint: never truncate-and-return.
-    const bool over_cap = !alloc_failed && !read_failed && (total >= job.cap) &&
-                          !esp_http_client_is_complete_data_received(client);
+    const BodyRead read = read_capped_body(
+        transport, job.cap, content_length, body, [] { return esp_timer_get_time() / 1000; },
+        BODY_DEADLINES, job.cancelled.get());
 
     esp_http_client_close(client);
     esp_http_client_cleanup(client);
 
-    if (alloc_failed || read_failed || over_cap) {
-        if (over_cap) {
-            ESP_LOGW(TAG, "response exceeds %u byte cap — aborting: %s", (unsigned)job.cap,
-                     job.url.c_str());
+    if (read != BodyRead::Ok) {
+        const char* why = read == BodyRead::AllocFailed  ? "PSRAM allocation failed"
+                          : read == BodyRead::ReadFailed ? "esp_http_client_read failed"
+                          : read == BodyRead::OverCap    ? "response exceeds size cap"
+                          : read == BodyRead::Stalled    ? "stalled: no data for 10 s"
+                          : read == BodyRead::TimedOut   ? "timed out after 30 s"
+                                                         : "cancelled";
+        if (read != BodyRead::Cancelled) {
+            ESP_LOGW(TAG, "%s: %s", why, job.url.c_str());
         }
         if (job.on_error) {
-            job.on_error(alloc_failed  ? "PSRAM allocation failed"
-                         : read_failed ? "esp_http_client_read failed"
-                                       : "response exceeds size cap");
+            job.on_error(why);
         }
         return;
     }

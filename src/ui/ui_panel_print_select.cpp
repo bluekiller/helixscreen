@@ -3738,7 +3738,6 @@ PrintSelectPanel::fetch_esp_thumbnail(size_t index, const std::string& filename,
     const helix::ThumbnailTarget target = helix::ThumbnailProcessor::get_target_for_display();
 
     auto cancelled = std::make_shared<std::atomic<bool>>(false);
-    file_list_[index].esp_fetch_cancel = cancelled;
     api_->transfers().download_file_partial(
         "gcodes", thumb_path, ESP32_THUMBNAIL_MAX_BYTES,
         [this, tok, index, filename, target, slots = esp_slots_,
@@ -3768,11 +3767,12 @@ PrintSelectPanel::fetch_esp_thumbnail(size_t index, const std::string& filename,
                              heap_caps_get_largest_free_block(MALLOC_CAP_SPIRAM));
             }
             tok.defer("PrintSelectPanel::on_psram_thumbnail_fetched",
-                      [this, index, filename, thumb = std::move(thumb)]() mutable {
+                      [this, index, filename, cancelled, thumb = std::move(thumb)]() mutable {
                           --esp_thumbnails_in_flight_;
                           esp_lane_refused_ = false; // this fetch's lane slot is free
-                          // Kept only while its card is still on screen.
-                          if (thumb && index < file_list_.size() &&
+                          // Kept only while its card is still on screen and this is
+                          // still the fetch it wants.
+                          if (thumb && !cancelled->load() && index < file_list_.size() &&
                               file_list_[index].filename == filename &&
                               file_list_[index].esp_thumbnail_tried) {
                               file_list_[index].esp_thumbnail = std::move(thumb);
@@ -3783,7 +3783,8 @@ PrintSelectPanel::fetch_esp_thumbnail(size_t index, const std::string& filename,
                           sync_esp_thumbnails(esp_window_first_, esp_window_end_);
                       });
         },
-        [this, tok, filename, submitting, refused, rejected](const MoonrakerError& error) {
+        [this, tok, index, filename, cancelled, submitting, refused,
+         rejected](const MoonrakerError& error) {
             if (submitting->load()) {
                 if (error.type == MoonrakerErrorType::QUEUE_FULL) {
                     refused->store(true);
@@ -3796,9 +3797,20 @@ PrintSelectPanel::fetch_esp_thumbnail(size_t index, const std::string& filename,
             }
             spdlog::debug("[PrintSelectPanel] PSRAM thumbnail fetch failed for {}: {}", filename,
                           error.message);
-            tok.defer("PrintSelectPanel::on_psram_thumbnail_failed", [this]() {
+            tok.defer("PrintSelectPanel::on_psram_thumbnail_failed", [this, index, filename,
+                                                                      cancelled]() {
                 --esp_thumbnails_in_flight_;
                 esp_lane_refused_ = false;
+                const bool shown = index < file_list_.size() &&
+                                   file_list_[index].filename == filename &&
+                                   file_list_[index].esp_thumbnail_tried;
+                if (helix::card_thumbnail_refetch_after_error(
+                        shown, cancelled->load(), shown && file_list_[index].esp_fetch_retried)) {
+                    // A stalled or failed download: fetched again below,
+                    // not left a placeholder.
+                    file_list_[index].esp_thumbnail_tried = false;
+                    file_list_[index].esp_fetch_retried = true;
+                }
                 sync_esp_thumbnails(esp_window_first_, esp_window_end_);
             });
         },
@@ -3810,6 +3822,7 @@ PrintSelectPanel::fetch_esp_thumbnail(size_t index, const std::string& filename,
     if (rejected->load()) {
         return EspThumbnailFetch::Failed;
     }
+    file_list_[index].esp_fetch_cancel = std::move(cancelled);
     ++esp_thumbnails_in_flight_;
     return EspThumbnailFetch::Started;
 }
@@ -3828,6 +3841,7 @@ void PrintSelectPanel::release_esp_card_thumbnails() {
         cancel_esp_fetch(f);
         f.esp_thumbnail.reset();
         f.esp_thumbnail_tried = false;
+        f.esp_fetch_retried = false;
     }
     if (card_view_) {
         card_view_->release_esp_thumbnails();
@@ -3876,6 +3890,7 @@ void PrintSelectPanel::sync_esp_thumbnails(size_t first, size_t end, bool keep_o
         cancel_esp_fetch(file_list_[i]);
         file_list_[i].esp_thumbnail.reset();
         file_list_[i].esp_thumbnail_tried = false;
+        file_list_[i].esp_fetch_retried = false;
     }
     if (!keep_off_screen && esp_slots_) {
         esp_slots_->trim(); // the memory, not just the thumbnails, goes back

@@ -25,6 +25,12 @@
 #include "../test_helpers/scoped_try_reserve_failure.h"
 #include "firmware/helixscreen-esp32/components/helixnet/http_lane_queue.h"
 
+#include <algorithm>
+#include <atomic>
+#include <cstring>
+#include <string>
+#include <vector>
+
 #include "../catch_amalgamated.hpp"
 
 using helix::http::BoundedSlotCounter;
@@ -185,4 +191,107 @@ TEST_CASE("try_reserve on a vector fails cleanly and leaves it untouched",
 
     REQUIRE(helix::try_reserve(v, 1000));
     CHECK(v.capacity() >= 1000);
+}
+
+// ============================================================================
+// read_capped_body: the lane's body read, against a scripted transport
+// ============================================================================
+
+namespace {
+
+using helix::http::BodyRead;
+using helix::http::LaneDeadlines;
+using helix::http::read_capped_body;
+
+/// One scripted read: bytes delivered, or a status, and the time it took.
+struct Step {
+    int result;     ///< > 0 bytes, 0 end of body, AGAIN no data yet, < 0 failure
+    int64_t ms = 1; ///< clock advance for this read
+};
+
+struct FakeTransport {
+    static constexpr int AGAIN = helix::http::TRANSPORT_AGAIN;
+    std::vector<Step> steps;
+    size_t at = 0;
+    int64_t* clock;
+    bool complete_at_end = true;
+    int reads = 0;
+
+    int read(char* buf, int len) {
+        ++reads;
+        // Past the script, the server has gone quiet.
+        const Step s = at < steps.size() ? steps[at++] : Step{AGAIN, 1000};
+        *clock += s.ms;
+        if (s.result > 0) {
+            const int n = std::min(s.result, len);
+            std::memset(buf, 'x', static_cast<size_t>(n));
+            return n;
+        }
+        return s.result;
+    }
+    bool complete() const {
+        return complete_at_end && at >= steps.size();
+    }
+};
+
+constexpr LaneDeadlines DEADLINES{30000, 10000};
+
+} // namespace
+
+TEST_CASE("a body read ends when the body does", "[esp32][http][lane_timeout]") {
+    int64_t now = 0;
+    FakeTransport t{{{4000}, {4000}, {2000}, {0}}, 0, &now};
+    std::string body;
+    CHECK(read_capped_body(
+              t, 64 * 1024, 10000, body, [&] { return now; }, DEADLINES, nullptr) == BodyRead::Ok);
+    CHECK(body.size() == 10000);
+}
+
+TEST_CASE("a body that stops arriving mid-transfer fails after the no-progress limit",
+          "[esp32][http][lane_timeout]") {
+    int64_t now = 0;
+    // 3 KB, then reads that each wait a second and return nothing, forever.
+    FakeTransport t{{{3000}}, 0, &now};
+    std::string body;
+    const BodyRead r =
+        read_capped_body(t, 64 * 1024, 9000, body, [&] { return now; }, DEADLINES, nullptr);
+    CHECK(r == BodyRead::Stalled);
+    CHECK(now >= 10000);
+    CHECK(now <= 12000); // gave up within a read of the limit, not at the overall deadline
+}
+
+TEST_CASE("a body that trickles in past the overall deadline fails",
+          "[esp32][http][lane_timeout]") {
+    int64_t now = 0;
+    // One byte every 5 s keeps the no-progress clock happy but never finishes.
+    FakeTransport t{std::vector<Step>(100, Step{1, 5000}), 0, &now};
+    std::string body;
+    CHECK(read_capped_body(
+              t, 64 * 1024, 9000, body, [&] { return now; }, DEADLINES, nullptr) ==
+          BodyRead::TimedOut);
+    CHECK(now <= 35000);
+}
+
+TEST_CASE("a transport failure, an over-cap body and a cancel each end the read",
+          "[esp32][http][lane_timeout]") {
+    int64_t now = 0;
+    std::string body;
+
+    FakeTransport failing{{{1000}, {-1}}, 0, &now};
+    CHECK(read_capped_body(
+              failing, 64 * 1024, 9000, body, [&] { return now; }, DEADLINES, nullptr) ==
+          BodyRead::ReadFailed);
+
+    // A server ignoring Range: the cap fills and more is coming.
+    FakeTransport big{std::vector<Step>(10, Step{4096}), 0, &now};
+    big.complete_at_end = false;
+    CHECK(read_capped_body(
+              big, 8192, -1, body, [&] { return now; }, DEADLINES, nullptr) == BodyRead::OverCap);
+
+    std::atomic<bool> cancelled{true};
+    FakeTransport cancel{{{1000}, {1000}, {0}}, 0, &now};
+    CHECK(read_capped_body(
+              cancel, 64 * 1024, 2000, body, [&] { return now; }, DEADLINES, &cancelled) ==
+          BodyRead::Cancelled);
+    CHECK(cancel.reads == 0); // not one byte more once it is unwanted
 }
