@@ -15,15 +15,18 @@
 #include "../test_helpers/print_history_manager_test_access.h"
 #include "../test_helpers/print_state_test_drivers.h"
 #include "../test_helpers/scoped_moonraker_client.h"
+#include "../test_helpers/sound_manager_test_access.h"
 #include "../test_helpers/update_queue_test_access.h"
 #include "ams_backend_mock.h"
 #include "ams_state.h"
 #include "app_globals.h"
 #include "config.h"
+#include "m300_sound_backend.h"
 #include "moonraker_manager.h"
 #include "print_history_manager.h"
 #include "printer_retarget.h"
 #include "printer_state.h"
+#include "sound_manager.h"
 
 #include <memory>
 #include <string>
@@ -152,4 +155,20 @@ TEST_CASE_METHOD(RetargetFixture,
     CHECK(lv_subject_get_int(ps.temperature_state().get_bed_temp_subject()) == 0);
     CHECK(history.get_jobs().empty());
     set_print_history_manager(nullptr);
+}
+
+TEST_CASE_METHOD(RetargetFixture, "Retarget: the previous printer's M300 beeper is dropped",
+                 "[multi-printer][retarget]") {
+    auto& sound = helix::SoundManager::instance();
+    sound.set_moonraker_client(client_);
+    helix::SoundManagerTestAccess::install_backend(
+        sound, std::make_shared<M300SoundBackend>([](const std::string&) { return 0; }));
+    REQUIRE(helix::SoundManagerTestAccess::backend(sound)->needs_moonraker_client());
+
+    CHECK(helix::retarget_printer_connection());
+
+    auto after = helix::SoundManagerTestAccess::backend(sound);
+    CHECK((after == nullptr || !after->needs_moonraker_client()));
+    sound.shutdown();
+    sound.set_moonraker_client(nullptr);
 }

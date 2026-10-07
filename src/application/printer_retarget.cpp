@@ -13,6 +13,7 @@
 #include "moonraker_manager.h"
 #include "print_history_manager.h"
 #include "printer_state.h"
+#include "sound_manager.h"
 
 #include <spdlog/spdlog.h>
 
@@ -89,7 +90,8 @@ bool reconnect_active_printer() {
 }
 
 bool retarget_printer_connection() {
-    if (!disconnect_for_retarget()) {
+    IMoonrakerClient* client = disconnect_for_retarget();
+    if (!client) {
         return false;
     }
 
@@ -102,6 +104,12 @@ bool retarget_printer_connection() {
     laps.lap("clear filament backends");
     forget_previous_printer();
     laps.lap("forget previous printer");
+    // An M300 beeper belongs to the previous printer, and its sequencer thread holds an
+    // internal-RAM stack the next WebSocket task may need. The next printer's discovery
+    // installs one again only if that printer has a beeper.
+    SoundManager::instance().set_moonraker_client(nullptr, /*host_recovery=*/true);
+    SoundManager::instance().set_moonraker_client(client);
+    laps.lap("drop printer sound");
     get_printer_state().set_active_printer_name(Config::get_instance()->get_active_printer_name());
 
     return connect_active_printer();
