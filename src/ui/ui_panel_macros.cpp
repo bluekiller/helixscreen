@@ -17,6 +17,7 @@
 #include "device_display_name.h"
 #include "i_moonraker_api.h"
 #include "i_moonraker_client.h"
+#include "lap_log.h"
 #include "lvgl/src/others/translation/lv_translation.h"
 #include "macro_edit_logic.h"
 #include "macro_executor.h"
@@ -131,9 +132,11 @@ lv_obj_t* MacrosPanel::create(lv_obj_t* parent) {
     // and then setting the real count in rebuild_rows() forces a clean build.
     lv_subject_set_int(&macro_row_count_, 0);
 
+    helix::LapLog laps("MacrosPanel");
     if (!OverlayBase::create(parent)) {
         return nullptr;
     }
+    laps.lap("create overlay");
     ui_alive_ = true;
 
     // Cache the scrollable rows container so edit-mode transitions can reset
@@ -158,6 +161,7 @@ lv_obj_t* MacrosPanel::create(lv_obj_t* parent) {
 
     refresh_macros();
     rebuild_rows();
+    laps.lap("build rows");
 
     return overlay_root_;
 }
@@ -261,6 +265,7 @@ void MacrosPanel::rebuild_rows() {
     chevron_hidden_pool_.ensure_size(n);
     defaults_hidden_pool_.ensure_size(n);
 
+    helix::LapLog laps("MacrosPanel");
     // Populate every pool BEFORE publishing the count, so the repeat binds to
     // already-populated subjects (no first-frame flash).
     for (size_t i = 0; i < n; ++i) {
@@ -283,7 +288,9 @@ void MacrosPanel::rebuild_rows() {
         defaults_hidden_pool_.set_int(i, rv.defaults_hidden);
     }
 
+    laps.lap("fill row subjects");
     lv_subject_set_int(&macro_row_count_, static_cast<int>(n));
+    laps.lap("create rows");
 
     spdlog::info("[{}] rebuild_rows: {} displayed ({} discovered, edit={})", get_name(), n,
                  all_macros_.size(), edit_mode_);

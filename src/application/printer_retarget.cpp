@@ -9,6 +9,7 @@
 #include "app_globals.h"
 #include "config.h"
 #include "i_moonraker_client.h"
+#include "lap_log.h"
 #include "moonraker_manager.h"
 #include "print_history_manager.h"
 #include "printer_state.h"
@@ -93,10 +94,14 @@ bool retarget_printer_connection() {
     }
 
     // The old printer's queued frames apply now rather than on top of the new printer.
+    LapLog laps("PrinterRetarget");
     get_moonraker_manager()->process_notifications();
+    laps.lap("drain notifications");
 
     AmsState::instance().clear_backends();
+    laps.lap("clear filament backends");
     forget_previous_printer();
+    laps.lap("forget previous printer");
     get_printer_state().set_active_printer_name(Config::get_instance()->get_active_printer_name());
 
     return connect_active_printer();

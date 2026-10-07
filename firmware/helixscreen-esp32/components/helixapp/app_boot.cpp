@@ -78,6 +78,7 @@
 #include "http_request_epoch.h"
 #include "i_moonraker_client.h"
 #include "job_queue_state.h"
+#include "lap_log.h"
 #include "led/led_controller.h"
 #include "moonraker_api.h" // complete MoonrakerAPI : IMoonrakerAPI for the init_panels upcast
 #include "moonraker_manager.h"
@@ -314,15 +315,18 @@ helix::PrinterSwitchFlow& switch_flow() {
         config, lifetime,
         {[] { g_switch_started_us = esp_timer_get_time(); },
          [] {
+             helix::LapLog laps("switch rebuild");
              if (!helix::retarget_printer_connection()) {
                  restart_into_active_printer();
              }
+             laps.lap("retarget");
              arm_switch_watchdog();
              // The flow still names the previous printer until the switch completes.
              const std::string& previous_id = switch_flow().connected_printer_id();
              if (config->get<nlohmann::json>("/printers/" + previous_id + "/panel_widgets", {}) !=
                  config->get<nlohmann::json>(config->df() + "panel_widgets", {})) {
                  helix::PanelWidgetManager::instance().notify_config_changed("home");
+                 laps.lap("home grid");
              }
          },
          [] {
@@ -593,6 +597,7 @@ void setup_discovery_callbacks_esp(MoonrakerManager& manager) {
                     return;
                 }
                 helix::PrinterState& ps = get_printer_state();
+                helix::LapLog laps("app_boot discovery");
 
                 // Hardware into PrinterState first — init_fans / init_extruders
                 // build their subjects from it, and set_hardware seeds the
@@ -603,6 +608,7 @@ void setup_discovery_callbacks_esp(MoonrakerManager& manager) {
                     a->hardware() = *snapshot;
                 }
                 ps.set_hardware(*snapshot);
+                laps.lap("set hardware");
 
                 const auto& fans = snapshot->fans();
                 ps.fan_state().init_fans(
@@ -612,6 +618,7 @@ void setup_discovery_callbacks_esp(MoonrakerManager& manager) {
 
                 ps.set_klipper_version(snapshot->software_version());
                 ps.set_moonraker_version(snapshot->moonraker_version());
+                laps.lap("fans, extruders, versions");
 
                 IMoonrakerAPI* api = mgr->api();
                 helix::IMoonrakerClient* c = mgr->client();
@@ -629,6 +636,7 @@ void setup_discovery_callbacks_esp(MoonrakerManager& manager) {
                 // macros, probe/humidity/width sensors, and camera-adjacent
                 // subsystems stay deferred (Task 8 review's enumeration).
                 helix::AmsState::instance().init_backend_from_hardware(*snapshot, api, c);
+                laps.lap("filament backends");
                 if (snapshot->has_filament_sensors()) {
                     auto& fsm = helix::FilamentSensorManager::instance();
                     fsm.discover_sensors(snapshot->filament_sensor_names());
@@ -636,12 +644,14 @@ void setup_discovery_callbacks_esp(MoonrakerManager& manager) {
                 }
                 helix::ToolState::instance().init_tools(*snapshot);
                 helix::ToolState::instance().load_spool_assignments(api);
+                laps.lap("sensors, tools, spools");
                 // Names a printer added from the K-Touch after its Mainsail/Fluidd name.
                 helix::PrinterNameSync::resolve(api, snapshot->hostname());
                 if (c) {
                     // Graphs start from Moonraker's cached history, as on desktop.
                     helix::TempGraphController::seed_from_moonraker(*c);
                 }
+                laps.lap("name sync, graph seed");
 
                 // Dispatch the initial subscription status LAST, after the
                 // fan/sensor/extruder/AMS subjects exist. dispatch_status_update
@@ -657,6 +667,7 @@ void setup_discovery_callbacks_esp(MoonrakerManager& manager) {
                 if (c && status_snapshot->is_object() && !status_snapshot->empty()) {
                     c->dispatch_status_update(*status_snapshot, /*from_cached_snapshot=*/true);
                 }
+                laps.lap("initial status");
 
                 // A printer answered, so a later fallback restart is not part of a loop.
                 if (helix::Config* cfg = helix::Config::get_instance();
