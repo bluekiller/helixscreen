@@ -449,3 +449,14 @@ TEST_CASE_METHOD(SideListFixture, "Only exclude-only mode highlights a tapped ro
     list.set_gcode_viewer(nullptr);
     lv_obj_delete(viewer);
 }
+
+TEST_CASE_METHOD(SideListFixture, "A destroyed list's rows deliver no taps before they are deleted",
+                 "[exclude_side_list][pre_start_exclude]") {
+    REQUIRE(container != nullptr);
+    lv_obj_t* row = rows_of(container)[2];
+    list.destroy();
+    // The rows are deleted asynchronously, so this one is still alive here.
+    lv_obj_send_event(row, LV_EVENT_CLICKED, nullptr);
+    CHECK(taps.empty());
+    settle();
+}

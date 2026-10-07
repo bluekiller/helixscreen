@@ -386,3 +386,35 @@ TEST_CASE_METHOD(XMLTestFixture, "Map view in exclude-only mode drops an exclude
     view.destroy();
     process_lvgl(20);
 }
+
+TEST_CASE_METHOD(XMLTestFixture, "Each open map view's close button closes only that view",
+                 "[exclude_map][pre_start_exclude]") {
+    REQUIRE(register_component("components/exclude_object_map"));
+    auto& st = state().excluded_objects_state();
+    seed_objects(st);
+
+    int first_closed = 0;
+    int second_closed = 0;
+    {
+        ExcludeObjectMapView first;
+        ExcludeObjectMapView second;
+        first.set_close_callback([&] { ++first_closed; });
+        second.set_close_callback([&] { ++second_closed; });
+        first.create(test_screen(), &st, 235.0f, 235.0f, {}, ExcludeTapMode::ExcludeOnly, nullptr);
+        second.create(test_screen(), &st, 235.0f, 235.0f, {}, ExcludeTapMode::ExcludeOnly, nullptr);
+        process_lvgl(20);
+
+        lv_obj_send_event(lv_obj_find_by_name(first.root(), "close_btn"), LV_EVENT_CLICKED,
+                          nullptr);
+        CHECK(first_closed == 1);
+        CHECK(second_closed == 0);
+
+        lv_obj_send_event(lv_obj_find_by_name(second.root(), "close_btn"), LV_EVENT_CLICKED,
+                          nullptr);
+        CHECK(second_closed == 1);
+
+        first.destroy();
+        second.destroy();
+        process_lvgl(20);
+    }
+}

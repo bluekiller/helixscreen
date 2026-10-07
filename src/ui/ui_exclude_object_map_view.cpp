@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "ui_exclude_object_map_view.h"
 
+#include "ui_open_instances.h"
 #include "ui_update_queue.h"
 #include "ui_utils.h"
 
@@ -20,8 +21,13 @@
 
 namespace helix::ui {
 
-// File-scope pointer so static callbacks can reach the active view.
-static ExcludeObjectMapView* g_active_map_view = nullptr;
+namespace {
+// Print status keeps its map alive while the details view opens its own.
+OpenInstances<ExcludeObjectMapView>& open_map_views() {
+    static OpenInstances<ExcludeObjectMapView> views;
+    return views;
+}
+} // namespace
 
 // ============================================================================
 // KeyBarMode
@@ -44,6 +50,7 @@ ExcludeObjectMapView::ExcludeObjectMapView() {
 }
 
 ExcludeObjectMapView::~ExcludeObjectMapView() {
+    open_map_views().remove(this);
     if (root_) {
         destroy();
     }
@@ -80,14 +87,13 @@ void ExcludeObjectMapView::create(lv_obj_t* parent, helix::PrinterExcludedObject
         s_callbacks_registered = true;
     }
 
-    // Expose this instance to static callbacks
-    g_active_map_view = this;
+    open_map_views().add(this);
 
     // Instantiate the XML component
     root_ = static_cast<lv_obj_t*>(lv_xml_create(parent, "exclude_object_map", nullptr));
     if (!root_) {
         spdlog::error("[ExcludeObjectMapView] lv_xml_create failed");
-        g_active_map_view = nullptr;
+        open_map_views().remove(this);
         return;
     }
 
@@ -248,11 +254,9 @@ void ExcludeObjectMapView::destroy() {
     excluded_version_obs_.reset();
     defined_version_obs_.reset();
 
-    // Null the global pointer BEFORE deleting widgets, so any queued close
-    // events that fire during the delete cascade cannot reach a stale pointer.
-    if (g_active_map_view == this) {
-        g_active_map_view = nullptr;
-    }
+    // Leave the open set BEFORE deleting widgets, so a close event fired
+    // during the delete cascade cannot reach this view.
+    open_map_views().remove(this);
 
     // Freeze queue, drain pending callbacks, then delete widgets
     {
@@ -753,10 +757,17 @@ void ExcludeObjectMapView::build_key_bar() {
 // Static event callbacks
 // ============================================================================
 
-void ExcludeObjectMapView::on_close_clicked(lv_event_t* /*e*/) {
+void ExcludeObjectMapView::on_close_clicked(lv_event_t* e) {
+    ExcludeObjectMapView* view = open_map_views().owner_of(lv_event_get_current_target_obj(e));
+    if (!view) {
+        return;
+    }
     spdlog::debug("[ExcludeObjectMapView] Close button clicked");
-    if (g_active_map_view && g_active_map_view->close_cb_) {
-        g_active_map_view->close_cb_();
+    // A copy: the callback usually destroys this view, and its own
+    // std::function with it.
+    auto close = view->close_cb_;
+    if (close) {
+        close();
     }
 }
 

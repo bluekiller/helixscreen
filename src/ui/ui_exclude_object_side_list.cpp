@@ -3,6 +3,7 @@
 #include "ui_exclude_object_side_list.h"
 
 #include "ui_gcode_viewer.h"
+#include "ui_open_instances.h"
 #include "ui_row_text.h"
 #include "ui_utils.h"
 
@@ -13,43 +14,26 @@
 
 #include <spdlog/spdlog.h>
 
-#include <algorithm>
 #include <cstdio>
 #include <cstring>
 #include <unordered_set>
-#include <vector>
 
 namespace helix::ui {
 
 namespace {
 constexpr uint32_t SLIDE_IN_DURATION_MS = 220;
 
-// Every open list. Print status keeps its overlay alive while the details view
-// opens its own, so the XML close callback finds its list by ancestry.
-std::vector<ExcludeObjectSideList*>& open_lists() {
-    static std::vector<ExcludeObjectSideList*> lists;
+// Print status keeps its overlay alive while the details view opens its own.
+OpenInstances<ExcludeObjectSideList>& open_lists() {
+    static OpenInstances<ExcludeObjectSideList> lists;
     return lists;
-}
-
-void forget_open_list(ExcludeObjectSideList* list) {
-    auto& lists = open_lists();
-    lists.erase(std::remove(lists.begin(), lists.end(), list), lists.end());
-}
-
-bool descends_from(lv_obj_t* obj, lv_obj_t* ancestor) {
-    for (lv_obj_t* o = obj; o; o = lv_obj_get_parent(o)) {
-        if (o == ancestor) {
-            return true;
-        }
-    }
-    return false;
 }
 } // namespace
 
 ExcludeObjectSideList::ExcludeObjectSideList() = default;
 
 ExcludeObjectSideList::~ExcludeObjectSideList() {
-    forget_open_list(this);
+    open_lists().remove(this);
     if (root_) {
         lv_obj_delete_async(root_);
         root_ = nullptr;
@@ -79,12 +63,12 @@ void ExcludeObjectSideList::create(lv_obj_t* parent, PrinterExcludedObjectsState
         s_callbacks_registered = true;
     }
 
-    open_lists().push_back(this);
+    open_lists().add(this);
 
     root_ = static_cast<lv_obj_t*>(lv_xml_create(parent, "exclude_object_side_list", nullptr));
     if (!root_) {
         spdlog::error("[ExcludeObjectSideList] lv_xml_create failed");
-        forget_open_list(this);
+        open_lists().remove(this);
         return;
     }
 
@@ -215,23 +199,22 @@ void ExcludeObjectSideList::destroy() {
     root_ = nullptr;
     rows_container_ = nullptr;
     empty_state_ = nullptr;
+    on_object_tapped_ = nullptr;
 
-    forget_open_list(this);
+    open_lists().remove(this);
 }
 
 void ExcludeObjectSideList::on_close_clicked(lv_event_t* e) {
-    lv_obj_t* button = lv_event_get_current_target_obj(e);
-    for (ExcludeObjectSideList* list : open_lists()) {
-        if (list->root_ && descends_from(button, list->root_)) {
-            spdlog::debug("[ExcludeObjectSideList] Close button clicked");
-            // A copy: the callback usually destroys this list, and its own
-            // std::function with it.
-            auto close = list->close_cb_;
-            if (close) {
-                close();
-            }
-            return;
-        }
+    ExcludeObjectSideList* list = open_lists().owner_of(lv_event_get_current_target_obj(e));
+    if (!list) {
+        return;
+    }
+    spdlog::debug("[ExcludeObjectSideList] Close button clicked");
+    // A copy: the callback usually destroys this list, and its own
+    // std::function with it.
+    auto close = list->close_cb_;
+    if (close) {
+        close();
     }
 }
 
