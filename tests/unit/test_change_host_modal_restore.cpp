@@ -348,3 +348,21 @@ TEST_CASE_METHOD(ChangeHostRestoreFixture, "Add printer: a passed test saves wit
 
     CHECK(result.calls == 1);
 }
+
+TEST_CASE_METHOD(ChangeHostRestoreFixture,
+                 "Add printer: a blank host is refused before the question",
+                 "[change_host][multi-printer]") {
+    const char* host = GENERATE("", "   ");
+    AddResult result;
+    lv_obj_t* dialog = open_add_modal(result);
+    lv_subject_copy_string(lv_xml_get_subject(nullptr, "change_host_ip"), host);
+
+    click(dialog, "modal_save_btn");
+    UpdateQueue::instance().drain();
+
+    CHECK(Modal::get_top() == dialog);
+    CHECK(result.calls == 0);
+    lv_obj_t* status = lv_obj_find_by_name(dialog, "status_text");
+    REQUIRE(status != nullptr);
+    CHECK_FALSE(std::string(lv_label_get_text(status)).empty());
+}

@@ -141,6 +141,8 @@ class ChangeHostModal : public Modal {
     void commit_add(const std::string& host, int port);
     void handle_cancel();
     void set_status(const char* icon_name, const char* color_token, const char* text);
+    /// Shows the reason and returns false when the host or port cannot be used.
+    bool input_valid(const char* ip, const std::string& port_clean);
     void on_test_success();
     void on_test_failure();
     static void on_input_changed_cb(lv_observer_t* observer, lv_subject_t* subject);

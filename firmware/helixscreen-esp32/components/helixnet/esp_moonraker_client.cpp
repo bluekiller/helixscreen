@@ -160,12 +160,12 @@ int EspMoonrakerClient::connect(const char* url, std::function<void()> on_connec
     on_connected_ = std::move(on_connected);
     on_disconnected_ = std::move(on_disconnected);
 
-    // F5: disarm before the old transport is torn down, so a DISCONNECTED event its
+    // Disarm before the old transport is torn down, so a DISCONNECTED event its
     // stop() emits cannot arm a reconnect for a connection being discarded on purpose.
     auto_reconnect_.store(false);
     reconnect_pending_.store(false);
 
-    // R3: a new connection attempt. Any discovery chain still finishing from the previous
+    // A new connection attempt. Any discovery chain still finishing from the previous
     // connection abandons in place, and the in-flight guard cannot stay stuck from it.
     connection_generation_.fetch_add(1);
     discovery_in_flight_.store(false);
@@ -205,9 +205,9 @@ esp_websocket_client_handle_t EspMoonrakerClient::create_transport(const std::st
     // request timeout, so a connection that goes silent becomes an ordinary disconnect
     // and auto-reconnect.
     cfg.pingpong_timeout_sec = PING_PONG_TIMEOUT_SEC;
-    // F8: the component's own auto-reconnect restarts transport structures from inside
-    // its own task (the spinlock_acquire assert); reconnection is driven from the
-    // transport worker instead.
+    // The component's own auto-reconnect restarts transport structures from inside its
+    // own task, which trips a spinlock assert; reconnection is driven from the transport
+    // worker instead.
     cfg.disable_auto_reconnect = true;
 
     esp_websocket_client_handle_t ws = esp_websocket_client_init(&cfg);
@@ -303,7 +303,7 @@ void EspMoonrakerClient::report_transport_stall() {
 }
 
 void EspMoonrakerClient::disconnect() {
-    // F5: disarm BEFORE stop(). esp_websocket_client_stop() can emit a
+    // Disarm BEFORE stop(). esp_websocket_client_stop() can emit a
     // DISCONNECTED event; if auto_reconnect_ were still true when that event
     // lands, on_ws_disconnected() would arm a zombie reconnect right after an
     // intentional disconnect. Also drop any reconnect intent a PRIOR
@@ -337,12 +337,12 @@ void EspMoonrakerClient::arm_reconnect_intent() {
 }
 
 void EspMoonrakerClient::execute_reconnect() {
-    // R3: this is a new connection attempt — bump the generation and force-clear
+    // This is a new connection attempt — bump the generation and force-clear
     // the in-flight guard, same as connect() (see discovery_in_flight_).
     connection_generation_.fetch_add(1);
     discovery_in_flight_.store(false);
 
-    // F5 ordering: hold auto-reconnect off across the teardown so a DISCONNECTED
+    // Hold auto-reconnect off across the teardown so a DISCONNECTED
     // event the stop() emits cannot arm a second intent on top of this attempt.
     auto_reconnect_.store(false);
 
@@ -1744,7 +1744,7 @@ void EspMoonrakerClient::set_auto_reconnect(bool enabled) {
 }
 
 void EspMoonrakerClient::force_reconnect() {
-    // F5 ordering: disarm before the stop inside execute_reconnect() so a
+    // Disarm before the stop inside execute_reconnect() so a
     // DISCONNECTED event it emits can't schedule a redundant auto-reconnect
     // intent on top of this manual one; drop anything already scheduled too.
     auto_reconnect_.store(false);

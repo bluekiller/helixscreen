@@ -185,16 +185,7 @@ void ChangeHostModal::handle_test_connection() {
     lv_subject_set_int(&validated_subject_, 0);
     update_save_lock();
 
-    if (!ip || strlen(ip) == 0) {
-        set_status(nullptr, nullptr, "Please enter a host address");
-        return;
-    }
-    if (!is_valid_ip_or_hostname(ip)) {
-        set_status("icon_close_circle", "danger", "Invalid IP address or hostname");
-        return;
-    }
-    if (!is_valid_port(port_clean)) {
-        set_status("icon_close_circle", "danger", "Invalid port (must be 1-65535)");
+    if (!input_valid(ip, port_clean)) {
         return;
     }
 
@@ -275,14 +266,30 @@ void ChangeHostModal::on_test_failure() {
     spdlog::debug("[ChangeHostModal] Test failed, keeping Save disabled");
 }
 
+bool ChangeHostModal::input_valid(const char* ip, const std::string& port_clean) {
+    if (!ip || strlen(ip) == 0) {
+        set_status(nullptr, nullptr, "Please enter a host address");
+        return false;
+    }
+    if (!is_valid_ip_or_hostname(ip)) {
+        set_status("icon_close_circle", "danger", "Invalid IP address or hostname");
+        return false;
+    }
+    if (!is_valid_port(port_clean)) {
+        set_status("icon_close_circle", "danger", "Invalid port (must be 1-65535)");
+        return false;
+    }
+    return true;
+}
+
 void ChangeHostModal::handle_save() {
     spdlog::debug("[ChangeHostModal] Save clicked");
 
     const char* ip = lv_subject_get_string(&host_ip_subject_);
     std::string port_clean = sanitize_port(lv_subject_get_string(&host_port_subject_));
 
-    if (!ip || port_clean.empty()) {
-        spdlog::error("[ChangeHostModal] Cannot save - null/empty subjects");
+    // Save anyway skips the connection test, never the address check.
+    if (!input_valid(ip, port_clean)) {
         return;
     }
 
@@ -294,8 +301,8 @@ void ChangeHostModal::handle_save() {
     }
     const int port = *parsed_port;
 
+    const std::string host(helix::text_io::trim(ip));
     if (add_callback_) {
-        const std::string host(ip);
         if (lv_subject_get_int(&validated_subject_) != 0) {
             commit_add(host, port);
             return;
@@ -314,10 +321,10 @@ void ChangeHostModal::handle_save() {
     // Save to config. The client reconnects to the new host, so there is nothing to restore.
     client_borrowed_ = false;
     Config* config = Config::get_instance();
-    config->set(config->df() + "moonraker_host", std::string(ip));
+    config->set(config->df() + "moonraker_host", host);
     config->set(config->df() + "moonraker_port", port);
     config->save();
-    spdlog::info("[ChangeHostModal] Saved new host: {}:{}", ip, port);
+    spdlog::info("[ChangeHostModal] Saved new host: {}:{}", host, port);
     // moonraker_host changed — flush the same-host detection cache so the
     // shutdown widget picks up the new value on next open.
     helix::invalidate_host_identity_cache();
