@@ -32,10 +32,6 @@ ClogMeterTint clog_meter_tint(int mode, int value, int warning) {
     }
 
     const auto m = static_cast<ClogMeterMode>(mode);
-    if (m == ClogMeterMode::Pressure) {
-        return std::abs(value) >= kPressureWarningPct ? ClogMeterTint{"warning", "warning", 255}
-                                                      : ClogMeterTint{"primary", "primary", 255};
-    }
     if (m != ClogMeterMode::Encoder && m != ClogMeterMode::Buffer) {
         return {"primary", "primary", 255};
     }
@@ -60,11 +56,6 @@ ClogMeterStatus clog_meter_status(int mode, int value, int warning, int danger_p
     if (clog_meter_is_safe(mode, value)) {
         return ClogMeterStatus::Ok;
     }
-    // Pressure warns from its own band; its danger zone (the shading) is the
-    // fault band beyond that, so the two thresholds differ.
-    if (static_cast<ClogMeterMode>(mode) == ClogMeterMode::Pressure) {
-        danger_pct = kPressureWarningPct;
-    }
     // A threshold of zero would make every reading a warning, including a
     // perfectly neutral one, so an unset threshold means "no opinion".
     if (danger_pct > 0 && std::abs(value) >= danger_pct) {
@@ -74,13 +65,18 @@ ClogMeterStatus clog_meter_status(int mode, int value, int warning, int danger_p
 }
 
 bool clog_meter_is_symmetrical(int mode) {
-    const auto m = static_cast<ClogMeterMode>(mode);
-    return m == ClogMeterMode::Flowguard || m == ClogMeterMode::Pressure;
+    return static_cast<ClogMeterMode>(mode) == ClogMeterMode::Flowguard;
 }
 
 ClogMeterStatus pressure_status(int pct) {
-    return clog_meter_status(static_cast<int>(ClogMeterMode::Pressure), pct,
-                             std::abs(pct) >= kPressureFaultPct ? 1 : 0, kPressureFaultPct);
+    const int magnitude = std::abs(pct);
+    if (magnitude >= kPressureFaultPct) {
+        return ClogMeterStatus::Fault;
+    }
+    if (magnitude >= kPressureWarningPct) {
+        return ClogMeterStatus::Warning;
+    }
+    return ClogMeterStatus::Ok;
 }
 
 BufferLean buffer_lean(float bias) {

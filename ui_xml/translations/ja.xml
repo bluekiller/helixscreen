@@ -1563,7 +1563,6 @@
   <translation tag="LOAD CELLS" ja="ロードセル"/>
   <translation tag="LOADED" ja="装填済み"/>
   <translation tag="LOCKED" ja="ロック中"/>
-  <translation tag="LOOSE" ja="緩み"/>
   <translation tag="LOT-2024-001" ja="LOT-2024-001"/>
   <translation tag="Label Printer" ja="ラベルプリンター"/>
   <translation tag="Label Size" ja="ラベルサイズ"/>
@@ -2887,7 +2886,6 @@
   <translation tag="Switching heater control to MPC. Klipper will restart." ja="ヒーター制御をMPCに切り替えます。Klipperが再起動します。"/>
   <translation tag="Switching to MPC changes how this heater is controlled, then calibrates it. That takes several minutes at temperature." ja="MPCに切り替えると、このヒーターの制御方法が変わり、その後キャリブレーションが行われます。温度に達した状態で数分かかります。"/>
   <translation tag="Switching to MPC requires a config change and Klipper restart." ja="MPCへの切り替えには設定変更とKlipperの再起動が必要です。"/>
-  <translation tag="Sync" ja="同期"/>
   <translation tag="Sync during printing" ja="印刷中に同期"/>
   <translation tag="Sync with Spoolman" ja="Spoolman と同期"/>
   <translation tag="Sysfs" ja="Sysfs"/>
@@ -2902,7 +2900,6 @@
   <translation tag="TD-1 filament color detection" ja="TD-1 フィラメント色検出"/>
   <translation tag="TEMPERATURE SENSORS" ja="温度センサー"/>
   <translation tag="THEME COLORS" ja="テーマカラー"/>
-  <translation tag="TIGHT" ja="張り"/>
   <translation tag="TOGGLE: {}" ja="切り替え: {}"/>
   <translation tag="TOOLS" ja="ツール"/>
   <translation tag="TPU" ja="TPU"/>

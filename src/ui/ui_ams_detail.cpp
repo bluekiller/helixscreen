@@ -631,7 +631,7 @@ void ams_detail_setup_path_canvas(lv_obj_t* canvas, lv_obj_t* slot_grid, int uni
         }
     }
     // Proportional sync feedback (Happy Hare, or this unit's pressure sensor):
-    // the same severity the clog meter's Pressure mode reports.
+    // the buffer bands' severity.
     const float buffer_bias = backend->supports_sync_feedback_visualization(info)
                                   ? info.buffer_bias(effective_unit)
                                   : -2.0f; // discrete mode

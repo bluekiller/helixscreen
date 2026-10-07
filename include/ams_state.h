@@ -36,10 +36,6 @@ namespace helix {
 class PrinterDiscovery;
 }
 
-namespace helix::ui {
-enum class ClogSample : int;
-}
-
 /**
  * @file ams_state.h
  * @brief LVGL reactive state management for AMS UI binding
@@ -1049,18 +1045,14 @@ class AmsState {
     };
 
     /**
-     * @brief The subjects one clog-meter sample is published on
+     * @brief The subjects the clog meter is published on, as ClogMeterModel reads them
      *
-     * Primary is the `clog_meter_*` set: the clog detector, or the filament
-     * pressure reading when there is no detector. Pressure is the pressure
-     * reading whenever there is one, so a surface can draw it beside a
-     * detector. The Pressure set has no XML names yet; C++ observes it.
      * Observe with get_subjects_lifetime().
      */
-    [[nodiscard]] ClogMeterSubjects clog_meter_subjects(helix::ui::ClogSample which);
+    [[nodiscard]] ClogMeterSubjects clog_meter_subjects();
 
     /**
-     * @brief Set source override for the primary clog meter sample
+     * @brief Set source override for the clog meter
      * @param source 0=auto (priority logic), 1=encoder, 2=flowguard, 3=afc
      */
     void set_source_override(int source);
@@ -2095,9 +2087,8 @@ class AmsState {
     int danger_threshold_override_ = 0; // 0=use computed default
 
     // Clog detection meter subjects
-    lv_subject_t clog_meter_mode_{};    // ClogMeterMode: 0=none, 1=encoder, 2=flowguard,
-                                        // 3=afc_buffer, 4=pressure
-    lv_subject_t clog_meter_value_{};   // 0-100 (encoder/afc) or -100..+100 (flowguard/pressure)
+    lv_subject_t clog_meter_mode_{};  // ClogMeterMode: 0=none, 1=encoder, 2=flowguard, 3=afc_buffer
+    lv_subject_t clog_meter_value_{}; // 0-100 (encoder/afc) or -100..+100 (flowguard)
     lv_subject_t clog_meter_warning_{}; // 0=ok, 1=warning
     lv_subject_t clog_meter_status_{};  // ClogMeterStatus: 0=ok, 1=warning, 2=fault
     lv_subject_t clog_meter_mode_text_{};
@@ -2114,25 +2105,6 @@ class AmsState {
     char clog_meter_label_left_buf_[24]{};
     lv_subject_t clog_meter_label_right_{}; // Right endpoint label
     char clog_meter_label_right_buf_[24]{};
-
-    /// The Pressure sample's subjects; buffers sized like the primary set's.
-    struct PressureClogSubjects {
-        lv_subject_t mode{};
-        lv_subject_t value{};
-        lv_subject_t warning{};
-        lv_subject_t status{};
-        lv_subject_t mode_text{};
-        char mode_text_buf[32]{};
-        lv_subject_t danger_pct{};
-        lv_subject_t peak_pct{};
-        lv_subject_t center_text{};
-        char center_text_buf[16]{};
-        lv_subject_t label_left{};
-        char label_left_buf[24]{};
-        lv_subject_t label_right{};
-        char label_right_buf[24]{};
-    };
-    PressureClogSubjects clog_pressure_;
 
     // Currently Loaded display subjects (reactive binding for "Currently Loaded" card)
     lv_subject_t current_material_text_{};

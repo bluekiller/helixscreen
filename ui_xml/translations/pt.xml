@@ -1563,7 +1563,6 @@
   <translation tag="LOAD CELLS" pt="CÉLULAS DE CARGA"/>
   <translation tag="LOADED" pt="CARREGADO"/>
   <translation tag="LOCKED" pt="BLOQUEADO"/>
-  <translation tag="LOOSE" pt="SOLTO"/>
   <translation tag="LOT-2024-001" pt="LOT-2024-001"/>
   <translation tag="Label Printer" pt="Impressora de Etiquetas"/>
   <translation tag="Label Size" pt="Tamanho da Etiqueta"/>
@@ -2887,7 +2886,6 @@
   <translation tag="Switching heater control to MPC. Klipper will restart." pt="Alterando controle do aquecedor para MPC. Klipper será reiniciado."/>
   <translation tag="Switching to MPC changes how this heater is controlled, then calibrates it. That takes several minutes at temperature." pt="Mudar para MPC altera como este aquecedor é controlado e depois o calibra. Isso leva vários minutos em temperatura."/>
   <translation tag="Switching to MPC requires a config change and Klipper restart." pt="Mudar para MPC requer alteração de configuração e reinicialização do Klipper."/>
-  <translation tag="Sync" pt="Sinc."/>
   <translation tag="Sync during printing" pt="Sincronizar durante a impressão"/>
   <translation tag="Sync with Spoolman" pt="Sincronizar com Spoolman"/>
   <translation tag="Sysfs" pt="Sysfs"/>
@@ -2902,7 +2900,6 @@
   <translation tag="TD-1 filament color detection" pt="Detecção de cor de filamento TD-1"/>
   <translation tag="TEMPERATURE SENSORS" pt="SENSORES DE TEMPERATURA"/>
   <translation tag="THEME COLORS" pt="CORES DO TEMA"/>
-  <translation tag="TIGHT" pt="TENSO"/>
   <translation tag="TOGGLE: {}" pt="ALTERNAR: {}"/>
   <translation tag="TOOLS" pt="FERRAMENTAS"/>
   <translation tag="TPU" pt="TPU"/>

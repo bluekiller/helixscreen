@@ -101,8 +101,8 @@ static void clear_clog_sources(AmsBackendMock& mock) {
 }
 
 /// A filament pressure sensor on unit 0 reading `pressure` against a 0.5 set
-/// point, and nothing else measuring: the clog meter's Pressure mode. Read as
-/// such by every simulated type but Happy Hare, whose buffer is system-level.
+/// point, and nothing else measuring. Read as such by every simulated type
+/// but Happy Hare, whose buffer is system-level.
 static void set_fps(AmsBackendMock& mock, float pressure) {
     clear_clog_sources(mock);
     BufferHealth h;
@@ -424,8 +424,7 @@ static std::vector<MockScenario> build_scenarios() {
     // is why driving the meter by hand needs `ctl freeze` first.
     //
     // Source precedence in sync_clog_meter_from_info() is flowguard > encoder >
-    // AFC buffer > pressure, so each scenario disables the sources above the one
-    // it wants.
+    // AFC buffer, so each scenario disables the sources above the one it wants.
     for (const auto& c : clog_scenarios()) {
         scenarios.push_back(c);
     }

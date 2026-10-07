@@ -79,8 +79,7 @@ The backend puts the reading on every unit of that lane as its `BufferHealth`
 - `sync_feedback_bias` carries `AmsSystemInfo::pressure_sensor_bias()`: the
   lane feeding the current slot, else the first unit with a sensor (with
   several lanes loaded there is no current slot). It drives the clog-detection
-  widget's buffer page and the clog meter's `Pressure` sample (the primary one
-  when no clog detector exists). Per-unit views (path canvas, buffer modal) draw that
+  widget's buffer page. Per-unit views (path canvas, buffer modal) draw that
   unit's own lane via `AmsSystemInfo::buffer_bias()`;
 - tapping it opens the buffer modal's pressure view, "Pressure: 62% (target 50%)".
 

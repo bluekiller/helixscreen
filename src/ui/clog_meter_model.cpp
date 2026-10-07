@@ -10,10 +10,9 @@
 
 namespace helix::ui {
 
-ClogMeterModel::ClogMeterModel(Callback on_change, ClogSample which)
-    : on_change_(std::move(on_change)) {
+ClogMeterModel::ClogMeterModel(Callback on_change) : on_change_(std::move(on_change)) {
     auto& ams = AmsState::instance();
-    const auto subjects = ams.clog_meter_subjects(which);
+    const auto subjects = ams.clog_meter_subjects();
 
     // Immediate observers: the callbacks below only move geometry and set
     // styles in the renderers, never observer lifecycle (#82).

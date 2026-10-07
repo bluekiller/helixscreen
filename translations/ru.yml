@@ -1725,7 +1725,6 @@ translations:
   LOAD CELLS: 'ТЕНЗОДАТЧИКИ'
   LOADED: ЗАГРУЖЕН
   LOCKED: ЗАБЛОКИРОВАНО
-  LOOSE: ОСЛАБЛЕН
   LOT-2024-001: LOT-2024-001
   Label Printer: Принтер этикеток
   Label Size: Размер этикетки
@@ -3182,7 +3181,6 @@ translations:
   Switching to MPC changes how this heater is controlled, then calibrates it. That takes several minutes at temperature.: Переход на MPC меняет способ управления этим нагревателем, а затем калибрует его. Это занимает несколько минут при рабочей температуре.
   Switching to MPC requires a config change and Klipper restart.: Переход на MPC требует
     изменения конфига и перезапуска Klipper.
-  Sync: Синхр.
   Sync during printing: Синхронизация во время печати
   Sync with Spoolman: Синхронизация со Spoolman
   Sysfs: Sysfs
@@ -3197,7 +3195,6 @@ translations:
   TD-1 filament color detection: Определение цвета филамента TD-1
   TEMPERATURE SENSORS: ДАТЧИКИ ТЕМПЕРАТУРЫ
   THEME COLORS: ЦВЕТА ТЕМЫ
-  TIGHT: НАТЯНУТ
   'TOGGLE: {}': 'ПЕРЕКЛЮЧИТЬ: {}'
   TOOLS: ИНСТРУМЕНТЫ
   TPU: TPU

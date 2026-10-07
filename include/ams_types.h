@@ -889,8 +889,7 @@ struct BufferHealth {
     }
 
     /// Map a filament-pressure reading onto the -1..+1 sync-feedback bias
-    /// Happy Hare publishes directly, so the clog meter's Pressure source draws
-    /// all of them.
+    /// Happy Hare publishes directly, so one bias feeds every buffer surface.
     ///
     /// Sign follows the existing convention: negative is tension (filament
     /// pulling tight), positive is compression (filament loose). Below
@@ -1798,7 +1797,6 @@ struct AmsSystemInfo {
         bool flowguard = false;
         bool encoder = false;
         bool afc_buffer = false;
-        bool pressure = false;
     };
     [[nodiscard]] ClogSources clog_sources() const {
         ClogSources s;
@@ -1810,7 +1808,6 @@ struct AmsSystemInfo {
                 break;
             }
         }
-        s.pressure = sync_feedback_bias > -1.5f;
         return s;
     }
 };

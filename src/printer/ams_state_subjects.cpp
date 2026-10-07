@@ -259,26 +259,6 @@ void AmsState::init_subjects(bool register_xml) {
     INIT_SUBJECT_STRING(clog_meter_label_left, "", subjects_, register_xml);
     INIT_SUBJECT_STRING(clog_meter_label_right, "", subjects_, register_xml);
 
-    // The Pressure sample: registered for teardown, not yet named in XML.
-    {
-        auto& p = clog_pressure_;
-        for (lv_subject_t* s :
-             {&p.mode, &p.value, &p.warning, &p.status, &p.danger_pct, &p.peak_pct}) {
-            lv_subject_init_int(s, 0);
-            subjects_.register_subject(s, nullptr);
-        }
-        const std::pair<lv_subject_t*, std::pair<char*, size_t>> strings[] = {
-            {&p.mode_text, {p.mode_text_buf, sizeof(p.mode_text_buf)}},
-            {&p.center_text, {p.center_text_buf, sizeof(p.center_text_buf)}},
-            {&p.label_left, {p.label_left_buf, sizeof(p.label_left_buf)}},
-            {&p.label_right, {p.label_right_buf, sizeof(p.label_right_buf)}},
-        };
-        for (const auto& [s, buf] : strings) {
-            lv_subject_init_string(s, buf.first, nullptr, buf.second, "");
-            subjects_.register_subject(s, nullptr);
-        }
-    }
-
     // Per-slot subjects (dynamic names require manual init)
     char name_buf[32];
     for (int i = 0; i < MAX_SLOTS; ++i) {

@@ -176,32 +176,6 @@ ClogReading detector_reading(const AmsSystemInfo& info, int source_override) {
     return r;
 }
 
-/// The buffer's position: Happy Hare's sync feedback, or a filament pressure
-/// sensor mapped onto the same -1..+1 bias. Mode None when there is neither.
-ClogReading pressure_reading(const AmsSystemInfo& info) {
-    ClogReading r;
-    if (info.sync_feedback_bias <= -1.5f) {
-        return r;
-    }
-    r.mode = static_cast<int>(helix::ui::ClogMeterMode::Pressure);
-    r.value =
-        std::clamp(static_cast<int>(std::lround(info.sync_feedback_bias * 100.0f)), -100, 100);
-    r.warning = helix::ui::pressure_status(r.value) == helix::ui::ClogMeterStatus::Fault ? 1 : 0;
-    r.danger_pct = helix::ui::kPressureFaultPct;
-    if (const BufferHealth* fps = info.feeding_pressure_sensor()) {
-        // i18n: do not translate - hardware abbreviation
-        snprintf(r.mode_text, sizeof(r.mode_text), "FPS");
-        snprintf(r.center, sizeof(r.center), "%d%%",
-                 static_cast<int>(std::lround(fps->fps_value * 100.0f)));
-    } else {
-        snprintf(r.mode_text, sizeof(r.mode_text), "%s", lv_tr("Sync"));
-        snprintf(r.center, sizeof(r.center), "%+d%%", r.value);
-    }
-    snprintf(r.left, sizeof(r.left), "%s", lv_tr("TIGHT"));
-    snprintf(r.right, sizeof(r.right), "%s", lv_tr("LOOSE"));
-    return r;
-}
-
 void copy_if_changed(lv_subject_t* subject, const char* text) {
     if (strcmp(lv_subject_get_string(subject), text) != 0) {
         lv_subject_copy_string(subject, text);
@@ -226,12 +200,7 @@ void publish(const AmsState::ClogMeterSubjects& s, const ClogReading& r) {
 
 } // namespace
 
-AmsState::ClogMeterSubjects AmsState::clog_meter_subjects(helix::ui::ClogSample which) {
-    if (which == helix::ui::ClogSample::Pressure) {
-        auto& p = clog_pressure_;
-        return {&p.mode,       &p.value,    &p.warning,     &p.status,     &p.mode_text,
-                &p.danger_pct, &p.peak_pct, &p.center_text, &p.label_left, &p.label_right};
-    }
+AmsState::ClogMeterSubjects AmsState::clog_meter_subjects() {
     return {&clog_meter_mode_,       &clog_meter_value_,       &clog_meter_warning_,
             &clog_meter_status_,     &clog_meter_mode_text_,   &clog_meter_danger_pct_,
             &clog_meter_peak_pct_,   &clog_meter_center_text_, &clog_meter_label_left_,
@@ -239,21 +208,14 @@ AmsState::ClogMeterSubjects AmsState::clog_meter_subjects(helix::ui::ClogSample 
 }
 
 void AmsState::sync_clog_meter_from_info(const AmsSystemInfo& info) {
-    const ClogReading pressure = pressure_reading(info);
-    ClogReading primary = detector_reading(info, source_override_);
-    // With no detector, the pressure reading is all there is to show.
-    if (primary.mode == 0) {
-        primary = pressure;
-    }
+    ClogReading r = detector_reading(info, source_override_);
     if (danger_threshold_override_ > 0) {
-        primary.danger_pct = danger_threshold_override_;
+        r.danger_pct = danger_threshold_override_;
     }
+    publish(clog_meter_subjects(), r);
 
-    publish(clog_meter_subjects(helix::ui::ClogSample::Primary), primary);
-    publish(clog_meter_subjects(helix::ui::ClogSample::Pressure), pressure);
-
-    spdlog::trace("[AMS State] Synced clog meter - mode={}, value={}, warning={}, pressure={}",
-                  primary.mode, primary.value, primary.warning, pressure.value);
+    spdlog::trace("[AMS State] Synced clog meter - mode={}, value={}, warning={}", r.mode, r.value,
+                  r.warning);
 }
 
 void AmsState::set_source_override(int source) {
