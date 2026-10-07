@@ -61,6 +61,13 @@ class PWMSoundBackend : public SoundBackend {
         auto_export_ = on;
     }
 
+    /// Whether klippy's tone_player writes this channel too (the AD5M buzzer).
+    /// A channel the user named for HelixScreen alone says false, so a
+    /// Klipper M300 macro never takes the buzzer away from it.
+    void set_klippy_shares_channel(bool shared) {
+        klippy_shares_channel_ = shared;
+    }
+
     /// Initialize: verify sysfs paths exist and are writable
     /// @return false if paths don't exist or aren't writable
     bool initialize();
@@ -183,6 +190,7 @@ class PWMSoundBackend : public SoundBackend {
     int chip_;
     int channel_;
     bool auto_export_ = false;
+    bool klippy_shares_channel_ = true;
     bool enabled_ = false;
     bool initialized_ = false;
     Waveform current_wave_ = Waveform::SQUARE;

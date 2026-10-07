@@ -421,6 +421,7 @@ std::shared_ptr<SoundBackend> SoundManager::create_backend() {
         if (std::sscanf(e, "%d:%d", &chip, &channel) == 2 && chip >= 0 && channel >= 0) {
             auto pwm = std::make_shared<PWMSoundBackend>("/sys/class/pwm", chip, channel);
             pwm->set_auto_export(true);
+            pwm->set_klippy_shares_channel(false);
             if (pwm->initialize()) {
                 spdlog::info("[SoundManager] Using PWM sysfs backend ({}) from HELIX_PWM_SOUND",
                              pwm->channel_path());

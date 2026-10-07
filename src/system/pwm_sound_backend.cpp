@@ -162,7 +162,7 @@ float PWMSoundBackend::min_tick_ms() const {
 }
 
 bool PWMSoundBackend::owns_sysfs_pwm_channel() const {
-    return true;
+    return klippy_shares_channel_;
 }
 
 bool PWMSoundBackend::is_enabled() const {
