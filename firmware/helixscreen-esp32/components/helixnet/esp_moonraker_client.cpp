@@ -288,6 +288,7 @@ void EspMoonrakerClient::transport_worker_loop() {
             transport_jobs_.pop_front();
         }
         transport_job_name_.store(job.first);
+        transport_stall_reported_.store(false);
         transport_job_started_us_.store(esp_timer_get_time());
         job.second();
         const int64_t took_ms = (esp_timer_get_time() - transport_job_started_us_.load()) / 1000;
@@ -874,7 +875,10 @@ void EspMoonrakerClient::process_timeouts() {
     // (a host that does not answer), so it gets longer before it counts as stuck.
     const int64_t stall_us =
         transport_.retiring_unconnected() ? TRANSPORT_STALL_UNCONNECTED_US : TRANSPORT_STALL_US;
-    if (job_started != 0 && now_us() - job_started > stall_us) {
+    // Reported once per job: the handler may decline to restart (the restart cap), and the
+    // job stays stuck until its websocket task gives up.
+    if (job_started != 0 && now_us() - job_started > stall_us &&
+        !transport_stall_reported_.load()) {
         const char* what = transport_job_name_.load();
         ESP_LOGE(TAG, "[transport] %s stuck for %lld ms", what ? what : "job",
                  (long long)((now_us() - job_started) / 1000));

@@ -92,7 +92,7 @@ template <typename Handle> class TransportLifecycle {
             if (!h || generation_.load() != request) {
                 return;
             }
-            ops_.stop(h);
+            stop_flagged(h);
             connected_.store(false);
             installed_generation_.store(request);
             if (!ops_.begin(h)) {
@@ -125,8 +125,8 @@ template <typename Handle> class TransportLifecycle {
         return connected_.load();
     }
 
-    /// The job running now is stopping a transport that never connected, which can mean
-    /// waiting out its connect attempt rather than a stuck task.
+    /// The job running now (a retire or a reconnect) is stopping a transport that never
+    /// connected, which can mean waiting out its connect attempt rather than a stuck task.
     [[nodiscard]] bool retiring_unconnected() const {
         return retiring_unconnected_.load();
     }
@@ -137,12 +137,16 @@ template <typename Handle> class TransportLifecycle {
         if (!old) {
             return;
         }
-        retiring_unconnected_.store(!connected_.load());
-        ops_.stop(old);
+        stop_flagged(old);
         ops_.destroy(old);
-        retiring_unconnected_.store(false);
         connected_.store(false);
         retired_since_start_ = true;
+    }
+
+    void stop_flagged(Handle h) {
+        retiring_unconnected_.store(!connected_.load());
+        ops_.stop(h);
+        retiring_unconnected_.store(false);
     }
 
     void install(Handle h, uint64_t request) {

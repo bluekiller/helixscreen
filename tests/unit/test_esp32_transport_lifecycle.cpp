@@ -261,3 +261,22 @@ TEST_CASE("Transport: a stop of a transport that never connected is flagged whil
     CHECK_FALSE(flagged_during_stop);
     (void)a;
 }
+
+TEST_CASE("Transport: a reconnect of a transport that never connected is flagged while it stops",
+          "[esp32][transport]") {
+    Harness h;
+    h.lc().connect("ws://a");
+    h.run_jobs();
+
+    bool flagged_during_stop = false;
+    h.on_stop = [&] { flagged_during_stop = h.lc().retiring_unconnected(); };
+    h.lc().reconnect();
+    h.run_jobs();
+    CHECK(flagged_during_stop);
+    CHECK_FALSE(h.lc().retiring_unconnected());
+
+    h.lc().mark_connected(h.lc().current());
+    h.lc().reconnect();
+    h.run_jobs();
+    CHECK_FALSE(flagged_during_stop);
+}
