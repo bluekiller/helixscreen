@@ -812,6 +812,7 @@ translations:
   Date (oldest): 日付（古い順）
   Day: 日
   Debug: デバッグ
+  Deep Black: ディープブラック
   Default: 'デフォルト'
   Default Parameters: 'デフォルトのパラメータ'
   Default border thickness: デフォルトの境界線の太さ
@@ -2104,6 +2105,7 @@ translations:
   Options: オプション
   Or Enter Manually: または手動で入力
   Or instead of turning the others: 他のネジを回す代わりに
+  Original file location unknown: 元のファイルの場所が不明です
   Oscillating... cycle %d/%d: 振動中... サイクル %d/%d
   Outcome: 結果
   Output Device: 出力デバイス
@@ -2323,7 +2325,6 @@ translations:
   Printer command '{}' timed out after {}ms: プリンターコマンド '{}' が {} ms でタイムアウトしました
   Printer connection unavailable: プリンターとの接続が利用できません
   Printer database format error: プリンターデータベースの形式エラー
-  Printer database is corrupt: プリンターデータベースが破損しています
   Printer default: プリンター既定
   Printer didn't respond — make sure it's on and in range: プリンターが応答しません — 電源が入っており通信範囲内にあることを確認してください
   Printer doesn't expose the expected service — wrong device?: プリンターが想定されるサービスを公開していません

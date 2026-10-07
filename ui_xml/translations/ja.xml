@@ -789,6 +789,7 @@
   <translation tag="Date (oldest)" ja="日付（古い順）"/>
   <translation tag="Day" ja="日"/>
   <translation tag="Debug" ja="デバッグ"/>
+  <translation tag="Deep Black" ja="ディープブラック"/>
   <translation tag="Default" ja="デフォルト"/>
   <translation tag="Default Parameters" ja="デフォルトのパラメータ"/>
   <translation tag="Default border thickness" ja="デフォルトの境界線の太さ"/>
@@ -2025,6 +2026,7 @@
   <translation tag="Options" ja="オプション"/>
   <translation tag="Or Enter Manually" ja="または手動で入力"/>
   <translation tag="Or instead of turning the others" ja="他のネジを回す代わりに"/>
+  <translation tag="Original file location unknown" ja="元のファイルの場所が不明です"/>
   <translation tag="Oscillating... cycle %d/%d" ja="振動中... サイクル %d/%d"/>
   <translation tag="Outcome" ja="結果"/>
   <translation tag="Output Device" ja="出力デバイス"/>
@@ -2235,7 +2237,6 @@
   <translation tag="Printer command &apos;{}&apos; timed out after {}ms" ja="プリンターコマンド &apos;{}&apos; が {} ms でタイムアウトしました"/>
   <translation tag="Printer connection unavailable" ja="プリンターとの接続が利用できません"/>
   <translation tag="Printer database format error" ja="プリンターデータベースの形式エラー"/>
-  <translation tag="Printer database is corrupt" ja="プリンターデータベースが破損しています"/>
   <translation tag="Printer default" ja="プリンター既定"/>
   <translation tag="Printer didn&apos;t respond — make sure it&apos;s on and in range" ja="プリンターが応答しません — 電源が入っており通信範囲内にあることを確認してください"/>
   <translation tag="Printer doesn&apos;t expose the expected service — wrong device?" ja="プリンターが想定されるサービスを公開していません — デバイスが違う可能性があります"/>

@@ -241,7 +241,6 @@ add_update_manager_section() {
     generate_update_manager_config | $fs tee -a "$conf" >/dev/null
 
     log_success "Added update_manager section to $conf"
-    log_info "You can now update HelixScreen from the Mainsail/Fluidd web interface!"
 }
 
 # Check if moonraker.conf has old git_repo-style helixscreen section
@@ -433,7 +432,7 @@ disable_system_updates_on_buildroot() {
         } | $fs tee -a "$conf" >/dev/null
     fi
 
-    log_success "Disabled OS package updates in $conf (no OS package manager)"
+    log_note "Disabled OS package updates in $conf (no OS package manager)"
 }
 
 # Remove unsupported options from the helixscreen update_manager section.
@@ -478,6 +477,7 @@ sync_update_manager_path() {
     ' "$conf" > "${conf}.tmp" && $fs mv "${conf}.tmp" "$conf"
 
     log_success "update_manager path now names ${INSTALL_DIR}"
+    _UPDATE_MANAGER_SYNCED=yes
 }
 
 # Point an existing stanza's `channel:` at the channel this install resolved.
@@ -516,6 +516,7 @@ sync_update_manager_channel() {
     ' "$conf" > "${conf}.tmp" && $fs mv "${conf}.tmp" "$conf"
 
     log_success "update_manager channel now ${want}"
+    _UPDATE_MANAGER_SYNCED=yes
 }
 
 cleanup_unsupported_options() {
@@ -803,7 +804,7 @@ restart_moonraker() {
 
     if command -v systemctl >/dev/null 2>&1 && systemctl is-active --quiet moonraker 2>/dev/null; then
         log_info "Restarting Moonraker to apply configuration..."
-        $SUDO systemctl restart moonraker || true
+        run_logged $SUDO systemctl restart moonraker || true
         return 0
     fi
 
@@ -822,6 +823,30 @@ restart_moonraker() {
     done
 
     log_warn "Could not find a way to restart Moonraker - restart it manually for the configuration change to take effect."
+    return 0
+}
+
+# What configure_moonraker_updates would add, for the plan. Read-only: the
+# same gates and the same conf, with nothing written. Sets MOONRAKER_ADDS
+# (space-separated: any of update-manager, allowlist; empty if none).
+# Args: $1 = platform
+detect_moonraker_integration() {
+    local conf asvc
+    MOONRAKER_ADDS=""
+    [ "${1:-}" = "ad5m" ] && return 0
+    [ "${HELIX_MOD_PAYLOAD:-}" = "1" ] && return 0
+
+    conf=$(find_moonraker_conf)
+    [ -n "$conf" ] || return 0
+
+    if ! has_update_manager_section "$conf" \
+        && [ "$(moonraker_asset_name_support)" != "unsupported" ]; then
+        MOONRAKER_ADDS="update-manager"
+    fi
+    asvc="$(dirname "$(dirname "$conf")")/moonraker.asvc"
+    if [ -f "$asvc" ] && ! grep -q '^helixscreen$' "$asvc" 2>/dev/null; then
+        MOONRAKER_ADDS="${MOONRAKER_ADDS:+$MOONRAKER_ADDS }allowlist"
+    fi
     return 0
 }
 
@@ -964,6 +989,9 @@ configure_moonraker_updates() {
 
     if has_update_manager_section "$conf"; then
         log_info "update_manager section already exists in $conf"
+        # Set by the sync_* rewrites below; Moonraker reads its config only at
+        # startup, so a rewritten stanza needs a restart before Mainsail sees it.
+        _UPDATE_MANAGER_SYNCED=""
         # path: is only ever written when the section is first added, so an
         # install that has moved leaves it naming the tree we left behind.
         sync_update_manager_path "$conf"
@@ -976,6 +1004,9 @@ configure_moonraker_updates() {
         disable_system_updates_on_buildroot "$conf"
         # Still ensure asvc is correct even if section already exists
         ensure_moonraker_asvc "$conf"
+        if [ "$_UPDATE_MANAGER_SYNCED" = "yes" ]; then
+            restart_moonraker
+        fi
         return 0
     fi
 

@@ -225,6 +225,46 @@ TEST_CASE("pcall cannot swallow the time budget", "[plugin][lua_runtime][lua_bud
     CHECK(t.fault.find("time budget") != std::string::npos);
 }
 
+TEST_CASE("a backtracking string pattern is stopped and faults the plugin",
+          "[plugin][lua_runtime][lua_budget]") {
+    // Each call is over a billion match steps inside string.find, a C function the
+    // count hook never interrupts, so unbounded the loop runs for tens of seconds. The
+    // bound leaves room for a loaded machine to take a while over 50 ms of CPU. The
+    // pcall must not swallow the kill either.
+    TestRuntime t;
+    auto start = std::chrono::steady_clock::now();
+    CHECK_FALSE(t.run(R"(
+        for _ = 1, 4 do
+            pcall(string.find, ("a"):rep(2000), "^.-.-.-x")
+        end
+    )"));
+    CHECK(std::chrono::steady_clock::now() - start < std::chrono::seconds(4));
+    CHECK(t.rt->faulted());
+    CHECK(t.fault.find("time budget") != std::string::npos);
+}
+
+TEST_CASE("string.rep of an empty string returns at once however large the count",
+          "[plugin][lua_runtime][lua_budget]") {
+    // Unguarded, each call loops ten billion times inside C, where the budget never
+    // looks, so the loop takes tens of seconds.
+    TestRuntime t;
+    auto start = std::chrono::steady_clock::now();
+    REQUIRE(t.run(R"(
+        a = string.rep("", 1e10)
+        b = (""):rep(1e10, "")
+        c = string.rep("ab", 3, ",")
+        d = string.rep("", 3, "-")
+        ok, err = pcall(string.rep, "", 2.5)
+    )"));
+    CHECK(std::chrono::steady_clock::now() - start < std::chrono::seconds(4));
+    CHECK(t.global("a") == "");
+    CHECK(t.global("b") == "");
+    CHECK(t.global("c") == "ab,ab,ab");
+    CHECK(t.global("d") == "--");
+    CHECK(t.global("ok") == "false"); // a non-integer count is still refused
+    CHECK_FALSE(t.rt->faulted());
+}
+
 TEST_CASE("work inside the budget is untouched", "[plugin][lua_runtime][lua_budget]") {
     TestRuntime t;
     REQUIRE(t.run("s = 0 for i = 1, 200000 do s = s + i end"));

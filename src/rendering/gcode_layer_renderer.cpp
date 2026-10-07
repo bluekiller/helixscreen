@@ -482,6 +482,18 @@ void GCodeLayerRenderer::set_offset(float x, float y) {
 // Layer Information
 // ============================================================================
 
+float GCodeLayerRenderer::current_layer_z() const {
+    const int count = get_layer_count();
+    if (count == 0) {
+        return 0.0f;
+    }
+    const int layer = std::clamp(current_layer_, 0, count - 1);
+    if (streaming_controller_) {
+        return streaming_controller_->get_layer_z(static_cast<size_t>(layer));
+    }
+    return gcode_ ? gcode_->layers[static_cast<size_t>(layer)].z_height : 0.0f;
+}
+
 GCodeLayerRenderer::LayerInfo GCodeLayerRenderer::get_layer_info() const {
     LayerInfo info{};
     info.layer_number = current_layer_;

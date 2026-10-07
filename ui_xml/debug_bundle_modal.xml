@@ -84,7 +84,7 @@
         <bind_flag_if_not_eq subject="debug_bundle_state" flag="hidden" ref_value="3"/>
         <icon src="alert_circle" size="lg" variant="danger"/>
         <text_heading text="Upload Failed" translation_tag="Upload Failed"/>
-        <text_body bind_text="debug_bundle_error" long_mode="wrap" style_text_align="center"/>
+        <text_body width="100%" bind_text="debug_bundle_error" long_mode="wrap" style_text_align="center"/>
       </lv_obj>
     </lv_obj>
 

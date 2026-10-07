@@ -810,6 +810,7 @@ translations:
   Date (oldest): 日期（最早）
   Day: 日
   Debug: 调试
+  Deep Black: 深黑色
   Default: '默认'
   Default Parameters: '默认参数'
   Default border thickness: 默认边框厚度
@@ -2097,6 +2098,7 @@ translations:
   Options: 选项
   Or Enter Manually: 或手动输入
   Or instead of turning the others: 或者，无需转动其他螺丝
+  Original file location unknown: 原始文件位置未知
   Oscillating... cycle %d/%d: 振荡中... 循环 %d/%d
   Outcome: 结果
   Output Device: 输出设备
@@ -2315,7 +2317,6 @@ translations:
   Printer command '{}' timed out after {}ms: 打印机命令 '{}' 在 {} 毫秒后超时
   Printer connection unavailable: 打印机连接不可用
   Printer database format error: 打印机数据库格式错误
-  Printer database is corrupt: 打印机数据库已损坏
   Printer default: 打印机默认
   Printer didn't respond — make sure it's on and in range: 打印机无响应 — 请确保已开机且在范围内
   Printer doesn't expose the expected service — wrong device?: 打印机未提供预期的服务 — 设备是否有误？

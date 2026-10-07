@@ -42,6 +42,7 @@ if [ -z "${_HELIX_BUNDLED_INSTALLER:-}" ]; then
     LIB_DIR="$SCRIPT_DIR/lib/installer"
 
     . "$LIB_DIR/common.sh"
+    . "$LIB_DIR/logo.sh"
     . "$LIB_DIR/host_profile.sh"
     . "$LIB_DIR/platform.sh"
     . "$LIB_DIR/permissions.sh"
@@ -58,6 +59,7 @@ if [ -z "${_HELIX_BUNDLED_INSTALLER:-}" ]; then
     . "$LIB_DIR/recovery.sh"
     . "$LIB_DIR/kiauh.sh"
     . "$LIB_DIR/uninstall.sh"  # uses functions from other modules
+    . "$LIB_DIR/plan.sh"
     . "$LIB_DIR/main.sh"       # must be last - defines main() that calls everything
 fi
 

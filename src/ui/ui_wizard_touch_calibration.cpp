@@ -38,8 +38,6 @@ extern lv_subject_t wizard_subtitle;
 // Global Instance
 // ============================================================================
 
-static std::unique_ptr<WizardTouchCalibrationStep> g_wizard_touch_calibration_step;
-
 // Flag to force touch calibration step to show (for visual testing on SDL)
 static bool g_force_touch_calibration_step = false;
 
@@ -51,12 +49,7 @@ void force_touch_calibration_step(bool force) {
 }
 
 WizardTouchCalibrationStep* get_wizard_touch_calibration_step() {
-    if (!g_wizard_touch_calibration_step) {
-        g_wizard_touch_calibration_step = std::make_unique<WizardTouchCalibrationStep>();
-        StaticPanelRegistry::instance().register_destroy(
-            "WizardTouchCalibrationStep", []() { g_wizard_touch_calibration_step.reset(); });
-    }
-    return g_wizard_touch_calibration_step.get();
+    return &helix::lazy_global<WizardTouchCalibrationStep>("WizardTouchCalibrationStep");
 }
 
 // ============================================================================

@@ -333,12 +333,21 @@ class ThumbnailCache {
      */
     [[nodiscard]] DiskPressure get_disk_pressure() const;
 
+    /// The pressure level a free-space reading means. An unknown reading (the
+    /// platform cannot report free space) is Normal: not knowing how much room
+    /// is left is no evidence that it is running out.
+    [[nodiscard]] static DiskPressure classify_disk_pressure(std::optional<size_t> available,
+                                                             size_t critical, size_t low);
+
     /**
      * @brief Get available disk space in bytes
      *
      * @return Available bytes, or 0 on error
      */
     [[nodiscard]] size_t get_available_disk_space() const;
+
+    /// Free bytes, nullopt when the platform cannot report them. Rate-limited.
+    [[nodiscard]] std::optional<size_t> probe_disk_space() const;
 
     /// Drop the cached free-space reading so the next query re-probes.
     /// Call after any operation that materially changes cache size on disk.
@@ -458,7 +467,7 @@ class ThumbnailCache {
     /// Guards the disk-probe cache only. Deliberately NOT mutex_: get_disk_pressure()
     /// is called from inside evict_locked(), which already holds mutex_.
     mutable std::mutex disk_probe_mutex_;
-    mutable size_t cached_available_bytes_{0};
+    mutable std::optional<size_t> cached_available_bytes_;
     mutable std::chrono::steady_clock::time_point last_disk_probe_;
     mutable bool disk_probe_valid_{false};
     size_t configured_max_; ///< Max size from config, before dynamic sizing (const after ctor)
@@ -695,6 +704,17 @@ constexpr size_t GCODE_THUMBNAIL_HEADER_BYTES = 100 * 1024;
 /// prefix, nothing else. Compared by prefix so the message still carries the
 /// path.
 inline constexpr const char* GCODE_THUMBNAIL_NONE_EMBEDDED = "no embedded thumbnails in ";
+
+/// Whether a gcode-header extraction can deliver a thumbnail on this platform.
+/// The ESP32 keeps no disk thumbnail cache (save_raw_png() refuses to write), so
+/// an extraction there would download the header only to throw it away.
+constexpr bool gcode_thumbnail_extraction_available() {
+#if defined(HELIX_PLATFORM_ESP32)
+    return false;
+#else
+    return true;
+#endif
+}
 
 /**
  * @brief Self-serve a thumbnail from the gcode file header when metadata has none

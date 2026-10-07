@@ -6,7 +6,6 @@
 #include "ui_update_queue.h"
 
 #include "config.h"
-#include "json_utils.h"
 #include "spdlog/spdlog.h"
 #include "static_subject_registry.h"
 #include "text_io.h"
@@ -45,10 +44,8 @@ void ProbeSensorManager::discover(const std::vector<std::string>& klipper_object
     spdlog::debug("[ProbeSensorManager] Discovering probe sensors from {} objects",
                   klipper_objects.size());
 
-    sensors_ = probes_in(klipper_objects);
+    sensors_.reconcile(probes_in(klipper_objects));
     for (const auto& sensor : sensors_) {
-        auto& state = states_[sensor.klipper_name];
-        state.available = true;
         spdlog::debug("[ProbeSensorManager] Discovered sensor: {} (type: {})", sensor.sensor_name,
                       probe_type_to_string(sensor.type));
     }
@@ -83,29 +80,6 @@ void ProbeSensorManager::discover(const std::vector<std::string>& klipper_object
                     sensor.type = ProbeSensorType::KLICKY;
                 }
             }
-        }
-    }
-
-    // Mark sensors that disappeared as unavailable
-    for (auto& [name, state] : states_) {
-        bool found = false;
-        for (const auto& sensor : sensors_) {
-            if (sensor.klipper_name == name) {
-                found = true;
-                break;
-            }
-        }
-        if (!found) {
-            state.available = false;
-        }
-    }
-
-    // Remove stale entries to prevent unbounded memory growth
-    for (auto it = states_.begin(); it != states_.end();) {
-        if (!it->second.available) {
-            it = states_.erase(it);
-        } else {
-            ++it;
         }
     }
 
@@ -152,8 +126,7 @@ void ProbeSensorManager::discover_from_config(const nlohmann::json& config_keys)
             continue;
         }
 
-        auto& state = states_[sensor.klipper_name];
-        state.z_offset = z_offset;
+        sensors_.state_at(sensor.klipper_name).z_offset = z_offset;
         spdlog::debug("[ProbeSensorManager] Seeded z_offset={:.3f}mm from config for {}", z_offset,
                       sensor.sensor_name);
     }
@@ -194,7 +167,7 @@ void ProbeSensorManager::update_from_status(const nlohmann::json& status) {
             }
 
             const auto& sensor_data = status[key];
-            auto& state = states_[sensor.klipper_name];
+            auto& state = sensors_.state_at(sensor.klipper_name);
             ProbeSensorState old_state = state;
 
             // A null or absent field keeps the previous value. Klipper answers a
@@ -291,31 +264,9 @@ void ProbeSensorManager::load_config(const nlohmann::json& config) {
 
     spdlog::debug("[ProbeSensorManager] Loading config");
 
-    if (!config.contains("sensors") || !config["sensors"].is_array()) {
+    if (!sensors_.apply_json(config, probe_role_from_string)) {
         spdlog::debug("[ProbeSensorManager] No sensors config found");
         return;
-    }
-
-    for (const auto& sensor_json : config["sensors"]) {
-        if (!sensor_json.contains("klipper_name")) {
-            continue;
-        }
-
-        std::string klipper_name = helix::json_util::as_string(sensor_json["klipper_name"]);
-        auto* sensor = find_config(klipper_name);
-
-        if (sensor) {
-            if (sensor_json.contains("role")) {
-                sensor->role =
-                    probe_role_from_string(helix::json_util::as_string(sensor_json["role"]));
-            }
-            if (sensor_json.contains("enabled")) {
-                sensor->enabled =
-                    helix::json_util::as_bool(sensor_json["enabled"], sensor->enabled);
-            }
-            spdlog::debug("[ProbeSensorManager] Loaded config for {}: role={}, enabled={}",
-                          klipper_name, probe_role_to_string(sensor->role), sensor->enabled);
-        }
     }
 
     update_subjects();
@@ -327,19 +278,7 @@ nlohmann::json ProbeSensorManager::save_config() const {
 
     spdlog::debug("[ProbeSensorManager] Saving config");
 
-    nlohmann::json config;
-    nlohmann::json sensors_array = nlohmann::json::array();
-
-    for (const auto& sensor : sensors_) {
-        nlohmann::json sensor_json;
-        sensor_json["klipper_name"] = sensor.klipper_name;
-        sensor_json["role"] = probe_role_to_string(sensor.role);
-        sensor_json["enabled"] = sensor.enabled;
-        sensor_json["type"] = probe_type_to_string(sensor.type);
-        sensors_array.push_back(sensor_json);
-    }
-
-    config["sensors"] = sensors_array;
+    auto config = sensors_.to_json(probe_role_to_string, probe_type_to_string);
 
     spdlog::info("[ProbeSensorManager] Config saved");
     return config;
@@ -354,34 +293,13 @@ void ProbeSensorManager::load_config_from_file() {
 
     std::string base_path = cfg->df() + "probe_sensors";
 
-    const json* sensors_node = cfg->try_get_json(base_path + "/sensors");
-    if (sensors_node != nullptr && sensors_node->is_array()) {
-        for (const auto& sensor_json : *sensors_node) {
-            if (!sensor_json.contains("klipper_name")) {
-                continue;
-            }
-
-            std::string klipper_name = helix::json_util::as_string(sensor_json["klipper_name"]);
-            auto* sensor = find_config(klipper_name);
-
-            if (sensor) {
-                if (sensor_json.contains("role")) {
-                    sensor->role =
-                        probe_role_from_string(helix::json_util::as_string(sensor_json["role"]));
-                }
-                if (sensor_json.contains("enabled")) {
-                    sensor->enabled =
-                        helix::json_util::as_bool(sensor_json["enabled"], sensor->enabled);
-                }
-                spdlog::debug("[ProbeSensorManager] Loaded config for {}: role={}, enabled={}",
-                              klipper_name, probe_role_to_string(sensor->role), sensor->enabled);
-            }
-        }
+    if (const json* saved = cfg->try_get_json(base_path)) {
+        sensors_.apply_json(*saved, probe_role_from_string);
     }
 
     // Auto-assign Z_PROBE role when exactly one probe exists and no role was
     // loaded from config.  This is the common case — single probe is the Z probe.
-    if (sensors_.size() == 1 && !find_config_by_role(ProbeSensorRole::Z_PROBE)) {
+    if (sensors_.size() == 1 && !sensors_.find_by_role(ProbeSensorRole::Z_PROBE)) {
         sensors_[0].role = ProbeSensorRole::Z_PROBE;
         spdlog::info("[ProbeSensorManager] Auto-assigned Z_PROBE role to '{}'",
                      sensors_[0].sensor_name);
@@ -400,19 +318,7 @@ void ProbeSensorManager::save_config_to_file() {
 
     std::string base_path = cfg->df() + "probe_sensors";
 
-    json ps_config;
-    json sensors_array = json::array();
-    for (const auto& sensor : sensors_) {
-        json sensor_json;
-        sensor_json["klipper_name"] = sensor.klipper_name;
-        sensor_json["role"] = probe_role_to_string(sensor.role);
-        sensor_json["enabled"] = sensor.enabled;
-        sensor_json["type"] = probe_type_to_string(sensor.type);
-        sensors_array.push_back(sensor_json);
-    }
-    ps_config["sensors"] = sensors_array;
-
-    cfg->get_json(base_path) = ps_config;
+    cfg->get_json(base_path) = save_config();
     cfg->save();
     spdlog::info("[ProbeSensorManager] Config saved to file");
 }
@@ -468,7 +374,7 @@ bool ProbeSensorManager::has_sensors() const {
 
 std::vector<ProbeSensorConfig> ProbeSensorManager::get_sensors() const {
     std::lock_guard<std::recursive_mutex> lock(mutex_);
-    return sensors_; // Return thread-safe copy
+    return sensors_.configs(); // Return thread-safe copy
 }
 
 size_t ProbeSensorManager::sensor_count() const {
@@ -483,20 +389,7 @@ size_t ProbeSensorManager::sensor_count() const {
 void ProbeSensorManager::set_sensor_role(const std::string& klipper_name, ProbeSensorRole role) {
     std::lock_guard<std::recursive_mutex> lock(mutex_);
 
-    // If assigning a role, clear it from any other sensor first
-    if (role != ProbeSensorRole::NONE) {
-        for (auto& sensor : sensors_) {
-            if (sensor.role == role && sensor.klipper_name != klipper_name) {
-                spdlog::debug("[ProbeSensorManager] Clearing role {} from {}",
-                              probe_role_to_string(role), sensor.sensor_name);
-                sensor.role = ProbeSensorRole::NONE;
-            }
-        }
-    }
-
-    auto* sensor = find_config(klipper_name);
-    if (sensor) {
-        sensor->role = role;
+    if (auto* sensor = sensors_.assign_exclusive_role(klipper_name, role)) {
         spdlog::info("[ProbeSensorManager] Set role for {} to {}", sensor->sensor_name,
                      probe_role_to_string(role));
         update_subjects();
@@ -506,8 +399,7 @@ void ProbeSensorManager::set_sensor_role(const std::string& klipper_name, ProbeS
 void ProbeSensorManager::set_sensor_enabled(const std::string& klipper_name, bool enabled) {
     std::lock_guard<std::recursive_mutex> lock(mutex_);
 
-    auto* sensor = find_config(klipper_name);
-    if (sensor) {
+    if (auto* sensor = sensors_.find(klipper_name)) {
         sensor->enabled = enabled;
         spdlog::info("[ProbeSensorManager] Set enabled for {} to {}", sensor->sensor_name, enabled);
         update_subjects();
@@ -520,70 +412,25 @@ void ProbeSensorManager::set_sensor_enabled(const std::string& klipper_name, boo
 
 std::optional<ProbeSensorState> ProbeSensorManager::get_sensor_state(ProbeSensorRole role) const {
     std::lock_guard<std::recursive_mutex> lock(mutex_);
-
-    if (role == ProbeSensorRole::NONE) {
-        return std::nullopt;
-    }
-
-    const auto* config = find_config_by_role(role);
-    if (!config) {
-        return std::nullopt;
-    }
-
-    auto it = states_.find(config->klipper_name);
-    if (it == states_.end()) {
-        return std::nullopt;
-    }
-
-    return it->second; // Return thread-safe copy
+    const auto* state = sensors_.role_state(role);
+    return state ? std::optional(*state) : std::nullopt;
 }
 
 bool ProbeSensorManager::is_sensor_available(ProbeSensorRole role) const {
     std::lock_guard<std::recursive_mutex> lock(mutex_);
-
-    if (role == ProbeSensorRole::NONE) {
-        return false;
-    }
-
-    const auto* config = find_config_by_role(role);
-    if (!config || !config->enabled) {
-        return false;
-    }
-
-    auto it = states_.find(config->klipper_name);
-    return it != states_.end() && it->second.available;
+    return sensors_.live_state(role) != nullptr;
 }
 
 float ProbeSensorManager::get_last_z_result() const {
     std::lock_guard<std::recursive_mutex> lock(mutex_);
-
-    const auto* config = find_config_by_role(ProbeSensorRole::Z_PROBE);
-    if (!config || !config->enabled) {
-        return 0.0f;
-    }
-
-    auto it = states_.find(config->klipper_name);
-    if (it == states_.end() || !it->second.available) {
-        return 0.0f;
-    }
-
-    return it->second.last_z_result;
+    const auto* state = sensors_.live_state(ProbeSensorRole::Z_PROBE);
+    return state ? state->last_z_result : 0.0f;
 }
 
 float ProbeSensorManager::get_z_offset() const {
     std::lock_guard<std::recursive_mutex> lock(mutex_);
-
-    const auto* config = find_config_by_role(ProbeSensorRole::Z_PROBE);
-    if (!config || !config->enabled) {
-        return 0.0f;
-    }
-
-    auto it = states_.find(config->klipper_name);
-    if (it == states_.end() || !it->second.available) {
-        return 0.0f;
-    }
-
-    return it->second.z_offset;
+    const auto* state = sensors_.live_state(ProbeSensorRole::Z_PROBE);
+    return state ? state->z_offset : 0.0f;
 }
 
 // ============================================================================
@@ -688,97 +535,17 @@ void ProbeSensorManager::set_probe_type_override(ProbeSensorType type) {
     spdlog::debug("[ProbeSensorManager] No STANDARD probe to override (may already be typed)");
 }
 
-ProbeSensorConfig* ProbeSensorManager::find_config(const std::string& klipper_name) {
-    for (auto& sensor : sensors_) {
-        if (sensor.klipper_name == klipper_name) {
-            return &sensor;
-        }
-    }
-    return nullptr;
-}
-
-const ProbeSensorConfig* ProbeSensorManager::find_config(const std::string& klipper_name) const {
-    for (const auto& sensor : sensors_) {
-        if (sensor.klipper_name == klipper_name) {
-            return &sensor;
-        }
-    }
-    return nullptr;
-}
-
-const ProbeSensorConfig* ProbeSensorManager::find_config_by_role(ProbeSensorRole role) const {
-    for (const auto& sensor : sensors_) {
-        if (sensor.role == role) {
-            return &sensor;
-        }
-    }
-    return nullptr;
-}
-
 void ProbeSensorManager::update_subjects() {
     if (!subjects_initialized_) {
         return;
     }
 
-    // Helper to check if Z_PROBE role is available
-    auto get_z_probe_config = [this]() -> const ProbeSensorConfig* {
-        const auto* config = find_config_by_role(ProbeSensorRole::Z_PROBE);
-        if (!config || !config->enabled) {
-            return nullptr;
-        }
-        return config;
-    };
-
-    // Probe triggered value: the last QUERY_PROBE result (last_query)
-    auto get_triggered_value = [this, &get_z_probe_config]() -> int {
-        const auto* config = get_z_probe_config();
-        if (!config) {
-            return -1; // No sensor assigned or disabled
-        }
-
-        auto it = states_.find(config->klipper_name);
-        if (it == states_.end() || !it->second.available) {
-            return -1; // Sensor unavailable
-        }
-
-        return it->second.triggered ? 1 : 0;
-    };
-
-    // Get last Z result value
-    auto get_last_z_value = [this, &get_z_probe_config]() -> int {
-        const auto* config = get_z_probe_config();
-        if (!config) {
-            return -1; // No sensor assigned or disabled
-        }
-
-        auto it = states_.find(config->klipper_name);
-        if (it == states_.end() || !it->second.available) {
-            return -1; // Sensor unavailable
-        }
-
-        // Convert to microns (mm * 1000)
-        return static_cast<int>(it->second.last_z_result * 1000.0f);
-    };
-
-    // Get Z offset value
-    auto get_z_offset_value = [this, &get_z_probe_config]() -> int {
-        const auto* config = get_z_probe_config();
-        if (!config) {
-            return -1; // No sensor assigned or disabled
-        }
-
-        auto it = states_.find(config->klipper_name);
-        if (it == states_.end() || !it->second.available) {
-            return -1; // Sensor unavailable
-        }
-
-        // Convert to microns (mm * 1000)
-        return static_cast<int>(it->second.z_offset * 1000.0f);
-    };
-
-    lv_subject_set_int(&probe_triggered_, get_triggered_value());
-    lv_subject_set_int(&probe_last_z_, get_last_z_value());
-    lv_subject_set_int(&probe_z_offset_, get_z_offset_value());
+    // -1 when no enabled, available sensor holds Z_PROBE; lengths in microns
+    const auto* state = sensors_.live_state(ProbeSensorRole::Z_PROBE);
+    lv_subject_set_int(&probe_triggered_, state ? (state->triggered ? 1 : 0) : -1);
+    lv_subject_set_int(&probe_last_z_,
+                       state ? static_cast<int>(state->last_z_result * 1000.0f) : -1);
+    lv_subject_set_int(&probe_z_offset_, state ? static_cast<int>(state->z_offset * 1000.0f) : -1);
 
     spdlog::trace("[ProbeSensorManager] Subjects updated: triggered={}, last_z={}, z_offset={}",
                   lv_subject_get_int(&probe_triggered_), lv_subject_get_int(&probe_last_z_),

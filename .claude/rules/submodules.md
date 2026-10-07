@@ -13,9 +13,9 @@ here. Never write a patch for it, never `git restore` or `git clean` inside it. 
 `docs/devel/HELIX_XML_FORK.md` first: fork origin, the MIT position, why there is no
 upstream, and the clean-room rule for anything LVGL Pro also has.
 
-**Every other submodule (`lib/lvgl/`, `lib/libhv/`, …) is third-party and read-only.**
+**Every other submodule (`lib/lvgl/`, `lib/libhv/`, `lib/lua/`, …) is third-party and read-only.**
 Changes live in `patches/*.patch`, applied by `mk/patches.mk` (`LVGL_PATCHED_FILES`,
-`LIBHV_PATCHED_FILES`, …). `scripts/check_patch_drift.py` fails the build when what is
+`LIBHV_PATCHED_FILES`, `LUA_PATCHED_FILES`). `scripts/check_patch_drift.py` fails the build when what is
 applied is not what `patches/` says. A direct edit is wiped on the next
 `git submodule update`.
 
@@ -38,6 +38,6 @@ cd lib/<sub> && git diff -- <files you touched> > ../../patches/<name>.patch && 
   delete.
 
 A worktree from `scripts/setup-worktree.sh` gets a PRIVATE checkout of `lib/lvgl`,
-`lib/libhv` and `lib/helix-xml` (patches are per-branch, so one shared checkout cannot
+`lib/libhv`, `lib/lua` and `lib/helix-xml` (patches are per-branch, so one shared checkout cannot
 serve two branches). Everything else in `lib/` is a symlink shared with the main tree:
 never clean it from a worktree.

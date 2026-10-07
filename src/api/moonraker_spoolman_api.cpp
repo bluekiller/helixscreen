@@ -256,7 +256,7 @@ void MoonrakerSpoolmanAPI::get_spoolman_spool(int spool_id, SpoolCallback on_suc
         },
         [on_success, on_error, spool_id](const MoonrakerError& err) {
             // Moonraker's proxy relays Spoolman's 404 for a deleted spool as a
-            // JSON-RPC error. That is an answer ("no such spool"), not a
+            // not-found error. That is an answer ("no such spool"), not a
             // failure to reach the server.
             if (err.is_not_found()) {
                 spdlog::debug("[SpoolmanAPI] Spool {} not found", spool_id);

@@ -1123,7 +1123,6 @@ void AmsOverviewPanel::clear_panel_reference() {
 // Global Instance
 // ============================================================================
 
-static std::unique_ptr<AmsOverviewPanel> g_ams_overview_panel;
 static lv_obj_t* s_ams_overview_panel_obj = nullptr;
 
 // Lazy registration flag for XML component
@@ -1202,27 +1201,22 @@ static void ensure_overview_registered() {
 //      sidebar and context-menu sub-objects that own widgets in this subtree,
 //      so it must run while the tree is still attached.
 void destroy_ams_overview_panel_ui() {
-    helix::ui::teardown_overlay_ui(s_ams_overview_panel_obj, "AmsOverviewPanel",
-                                   helix::ui::TeardownDelete::DetachSubtree, nullptr,
-                                   helix::ui::TeardownHooks::before([]() {
-                                       if (g_ams_overview_panel) {
-                                           g_ams_overview_panel->clear_panel_reference();
-                                       }
-                                   }));
+    helix::ui::teardown_overlay_ui(
+        s_ams_overview_panel_obj, "AmsOverviewPanel", helix::ui::TeardownDelete::DetachSubtree,
+        nullptr, helix::ui::TeardownHooks::before([]() {
+            if (auto* panel = helix::lazy_global_if_exists<AmsOverviewPanel>()) {
+                panel->clear_panel_reference();
+            }
+        }));
 }
 
 AmsOverviewPanel& get_global_ams_overview_panel() {
-    if (!g_ams_overview_panel) {
-        g_ams_overview_panel =
-            std::make_unique<AmsOverviewPanel>(get_printer_state(), get_moonraker_api());
-        StaticPanelRegistry::instance().register_destroy("AmsOverviewPanel", []() {
-            destroy_ams_overview_panel_ui();
-            g_ams_overview_panel.reset();
-        });
-    }
+    AmsOverviewPanel& panel = helix::lazy_global_with_teardown<AmsOverviewPanel>(
+        "AmsOverviewPanel", destroy_ams_overview_panel_ui, get_printer_state(),
+        get_moonraker_api());
 
     // Lazy create the panel UI if not yet created
-    if (!s_ams_overview_panel_obj && g_ams_overview_panel) {
+    if (!s_ams_overview_panel_obj) {
         ensure_overview_registered();
 
         // Initialize AmsState subjects BEFORE XML creation so bindings work
@@ -1234,16 +1228,16 @@ AmsOverviewPanel& get_global_ams_overview_panel() {
 
         if (s_ams_overview_panel_obj) {
             // Initialize panel observers
-            if (!g_ams_overview_panel->are_subjects_initialized()) {
-                g_ams_overview_panel->init_subjects();
+            if (!panel.are_subjects_initialized()) {
+                panel.init_subjects();
             }
 
             // Setup the panel
-            g_ams_overview_panel->setup(s_ams_overview_panel_obj, screen);
+            panel.setup(s_ams_overview_panel_obj, screen);
             lv_obj_add_flag(s_ams_overview_panel_obj, LV_OBJ_FLAG_HIDDEN);
 
             // Register overlay instance for lifecycle management
-            helix::nav::register_overlay(s_ams_overview_panel_obj, g_ams_overview_panel.get());
+            helix::nav::register_overlay(s_ams_overview_panel_obj, &panel);
 
             // Register close callback to destroy UI when overlay is closed
             helix::nav::on_close(s_ams_overview_panel_obj,
@@ -1255,7 +1249,7 @@ AmsOverviewPanel& get_global_ams_overview_panel() {
         }
     }
 
-    return *g_ams_overview_panel;
+    return panel;
 }
 
 // ============================================================================

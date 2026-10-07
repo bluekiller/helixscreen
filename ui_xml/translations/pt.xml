@@ -789,6 +789,7 @@
   <translation tag="Date (oldest)" pt="Data (mais antigo)"/>
   <translation tag="Day" pt="Dia"/>
   <translation tag="Debug" pt="Depuração"/>
+  <translation tag="Deep Black" pt="Preto profundo"/>
   <translation tag="Default" pt="Padrão"/>
   <translation tag="Default Parameters" pt="Parâmetros padrão"/>
   <translation tag="Default border thickness" pt="Espessura padrão da borda"/>
@@ -2025,6 +2026,7 @@
   <translation tag="Options" pt="Opções"/>
   <translation tag="Or Enter Manually" pt="Ou Digite Manualmente"/>
   <translation tag="Or instead of turning the others" pt="Ou, em vez de girar os outros"/>
+  <translation tag="Original file location unknown" pt="Local do arquivo original desconhecido"/>
   <translation tag="Oscillating... cycle %d/%d" pt="Oscilando... ciclo %d/%d"/>
   <translation tag="Outcome" pt="Resultado"/>
   <translation tag="Output Device" pt="Dispositivo de Saída"/>
@@ -2235,7 +2237,6 @@
   <translation tag="Printer command &apos;{}&apos; timed out after {}ms" pt="O comando da impressora &apos;{}&apos; expirou após {} ms"/>
   <translation tag="Printer connection unavailable" pt="Conexão com a impressora indisponível"/>
   <translation tag="Printer database format error" pt="Erro de formato do banco de dados de impressoras"/>
-  <translation tag="Printer database is corrupt" pt="O banco de dados de impressoras está corrompido"/>
   <translation tag="Printer default" pt="Padrão da impressora"/>
   <translation tag="Printer didn&apos;t respond — make sure it&apos;s on and in range" pt="A impressora não respondeu — certifique-se de que está ligada e ao alcance"/>
   <translation tag="Printer doesn&apos;t expose the expected service — wrong device?" pt="A impressora não expõe o serviço esperado — dispositivo incorreto?"/>

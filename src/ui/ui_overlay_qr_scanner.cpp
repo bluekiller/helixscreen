@@ -88,11 +88,6 @@ void QrScannerOverlay::register_callbacks() {
 // ============================================================================
 
 lv_obj_t* QrScannerOverlay::create(lv_obj_t* parent) {
-    if (overlay_root_) {
-        spdlog::warn("[{}] create() called but overlay already exists", get_name());
-        return overlay_root_;
-    }
-
     spdlog::debug("[{}] Creating overlay...", get_name());
 
     parent_screen_ = parent;

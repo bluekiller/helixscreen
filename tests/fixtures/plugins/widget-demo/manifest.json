@@ -5,7 +5,7 @@
   "widgets": [
     {"id": "widget-demo__tile", "name": "Demo Tile", "icon": "puzzle_outline",
      "description": "A test tile", "component": "widget-demo__tile",
-     "colspan": 1, "rowspan": 1, "max_colspan": 2, "max_rowspan": 2},
+     "colspan": 1, "rowspan": 1, "max_colspan": 2.5, "max_rowspan": 2, "half_cells": true},
     {"id": "widget-demo__wide", "name": "Demo Wide Tile", "icon": "puzzle_outline",
      "description": "A two-cell test tile", "component": "widget-demo__wide",
      "colspan": 2, "rowspan": 1}

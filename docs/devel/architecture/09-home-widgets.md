@@ -110,7 +110,7 @@ The catalog itself, as the registry defines it (gate subjects from the def table
 
 That catalog, rendered — the stock grid a fresh mock instance builds from [`assets/config/default_layout.json`](../../../assets/config/default_layout.json) anchors: the print-library and status tiles anchor the top, everything else auto-places below them:
 
-<img src="../../images/screenshot-home-panel.png" alt="Home panel grid: print library card and status card (nozzle temp, fan rows, LED strip, notifications) on a dark theme with a left nav rail" width="800"/>
+<img src="../../images/screenshot-home-panel.png" alt="Home panel grid: print library card and status card (nozzle temp, fan rows, LED strip, notifications) on a dark theme with a left nav bar" width="800"/>
 
 ### populate_widgets(): from saved layout to attached grid
 
@@ -149,16 +149,16 @@ Two subtleties both widget families hit. First, `observe<int>` defers its initia
 
 ## Patterns & gotchas
 
-- **LVGL user-flag ledger — check before claiming a bit.** Four bits exist; three are taken:
+- **LVGL user-flag ledger — check before claiming a bit.** Four bits exist; two are taken:
 
   | Flag | Owner | Meaning |
   |------|-------|---------|
-  | `LV_OBJ_FLAG_USER_1` | [`src/ui/ui_dialog.cpp#ui_dialog_xml_create`](../../../src/ui/ui_dialog.cpp#L58) | "inside a dialog", read up the parent chain by [`src/ui/theme_live_recolor.cpp#"bool is_on_elevated_surface(lv_obj_t* obj) {"`](../../../src/ui/theme_live_recolor.cpp) for elevated-surface input styling |
+  | `LV_OBJ_FLAG_USER_1` | *free* | reachable from XML like `USER_2` |
   | `LV_OBJ_FLAG_USER_2` | *free* | reachable from XML (`flag_to_enum` maps `user_1`/`user_2` only, `lib/helix-xml/src/xml/parsers/lv_xml_obj_parser.c:1315`), so prefer it for anything a binding should toggle |
   | `LV_OBJ_FLAG_USER_3` | [`include/panel_widget.h#PANEL_WIDGET_TILE_FLAG`](../../../include/panel_widget.h#L28) | `PANEL_WIDGET_TILE_FLAG` — home widget tile root |
   | `LV_OBJ_FLAG_USER_4` | [`src/ui/ui_sound_preview_overlay.cpp#populate_buttons`](../../../src/ui/ui_sound_preview_overlay.cpp#L165) | suppress the button tap sound, read in [`src/ui/ui_button.cpp#button_clicked_sound_cb`](../../../src/ui/ui_button.cpp#L373) |
 
-  `USER_3` over `USER_2` is deliberate: XML cannot reach it, so no binding can clear it. The mark is set at the one creation site ([`src/ui/panel_widget_manager.cpp#populate_widgets`](../../../src/ui/panel_widget_manager.cpp#L1118)) so page-level tree walks can stop at a tile — `PageScrollAutoInject` is the consumer ([`../PAGE_SCROLL_BUTTONS.md`](../PAGE_SCROLL_BUTTONS.md)). A flag is a global namespace: [`ui_ams_detail.cpp`](../../../src/ui/ui_ams_detail.cpp) once reused `USER_1` as a private guard and its grid started reading as a dialog; an idempotent remove-before-add callback needs no bit at all ([`src/ui/ui_ams_detail.cpp#ams_detail_update_tray`](../../../src/ui/ui_ams_detail.cpp#L408) keeps the story).
+  `USER_3` over `USER_2` is deliberate: XML cannot reach it, so no binding can clear it. The mark is set at the one creation site ([`src/ui/panel_widget_manager.cpp#populate_widgets`](../../../src/ui/panel_widget_manager.cpp#L1118)) so page-level tree walks can stop at a tile — `PageScrollAutoInject` is the consumer ([`../PAGE_SCROLL_BUTTONS.md`](../PAGE_SCROLL_BUTTONS.md)). A flag is a global namespace, so never borrow one as a private guard; an idempotent remove-before-add callback needs no bit at all ([`src/ui/ui_ams_detail.cpp#ams_detail_update_tray`](../../../src/ui/ui_ams_detail.cpp#L408)).
 - **Register factories and XML callbacks in `register_*_widget()`, never at static init.** SIOF; the registry's `init_widget_registrations()` exists to sequence this. An XML `event_cb` referencing a never-registered callback is a silent no-op.
 - **A reused instance re-runs `set_config`, `attach`, and `on_size_changed` — nothing else.** Anything applied imperatively outside those three (or a subject binding) goes stale on the recycled component. And `attach()` must tolerate being called on a detached instance with null pointers cleared.
 - **`populate_widgets()` returns `{}` for conditions other than failure**: a re-entrant call while `populating_`, or the unchanged-list short-circuit. By the time the manager returns empty, `HomePanel` has *already* detached widgets and cleaned the container — which is why `HomePanel` runs its own snapshot comparison *before* tearing anything down ([`src/ui/ui_panel_home.cpp#populate_page`](../../../src/ui/ui_panel_home.cpp#L447)) instead of relying on the manager's.

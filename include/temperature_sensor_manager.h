@@ -7,6 +7,7 @@
 
 #include "async_lifetime_guard.h"
 #include "lvgl.h"
+#include "sensor_collection.h"
 #include "subject_managed_panel.h"
 #include "temperature_sensor_types.h"
 
@@ -269,13 +270,6 @@ class TemperatureSensorManager {
                             TemperatureSensorType& type) const;
 
     /**
-     * @brief Find config by Klipper name
-     * @return Pointer to config, or nullptr if not found
-     */
-    TemperatureSensorConfig* find_config(const std::string& klipper_name);
-    const TemperatureSensorConfig* find_config(const std::string& klipper_name) const;
-
-    /**
      * @brief Update all LVGL subjects from current state
      * @note Internal method - MUST only be called from main LVGL thread
      */
@@ -293,11 +287,7 @@ class TemperatureSensorManager {
     // Async callback safety guard (L072: never access state after shutdown)
     helix::AsyncLifetimeGuard lifetime_;
 
-    // Configuration
-    std::vector<TemperatureSensorConfig> sensors_;
-
-    // Runtime state (keyed by klipper_name)
-    std::map<std::string, TemperatureSensorState> states_;
+    SensorCollection<TemperatureSensorConfig, TemperatureSensorState> sensors_;
 
     // Per-sensor dynamic subjects (keyed by klipper_name, value in decidegrees)
     std::map<std::string, std::unique_ptr<DynamicIntSubject>> temp_subjects_;

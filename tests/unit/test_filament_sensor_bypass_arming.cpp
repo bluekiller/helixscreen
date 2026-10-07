@@ -56,7 +56,6 @@ class BypassArmingTestAccess {
     static void reset(FilamentSensorManager& mgr) {
         std::lock_guard<std::recursive_mutex> lock(mgr.mutex_);
         mgr.sensors_.clear();
-        mgr.states_.clear();
         mgr.bypass_armed_.clear();
         mgr.master_enabled_ = true;
         mgr.sync_mode_ = true;

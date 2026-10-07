@@ -275,12 +275,9 @@ The base container for all modal dialog cards. Registered as a custom LVGL XML w
 - Zero padding, zero border, zero shadow by default
 - Rounded corner clipping (for full-bleed bottom buttons)
 - Disabled state at 50% opacity
-- `LV_OBJ_FLAG_USER_1` flag for context-aware input styling. `ThemeManager`
-  answers "am I inside a dialog" by walking an object's parents looking for this
-  bit, so **nothing else may set it**, on any object, for any reason. It is one
-  of only four user flag bits; see the ledger in
-  [chapter 09 — Home panel widgets](architecture/09-home-widgets.md) before claiming
-  one
+
+Inputs need no dialog-specific styling: fields are unfilled and outlined, so they read on the
+dialog's `elevated_bg` the same way they read on a card or the screen.
 
 Usage in XML:
 
@@ -428,12 +425,11 @@ Pick the token by the card's chrome shape (values in `ui_xml/globals.xml`):
 |-------|------------|-------------|
 | `#dialog_content_max` | header + divider + scroll area + divider + ONE button row | `modal_dialog` |
 | `#dialog_content_pinned_max` | …plus ONE pinned block below the scroll area (a diagram, a status row) | `ams_loading_error_modal` |
-| `#dialog_content_tall_chrome_max` | …plus a SECOND button row with its divider | `klipper_recovery_dialog` |
+| `#dialog_content_recovery_max` | header + divider + scroll area + ONE button row, measured on that card | `klipper_recovery_dialog` |
 
 - Prefer moving content INSIDE the scroll container over pinning it — then
   `#dialog_content_max` is correct by construction.
-- Never raise a card above 85% to fit extra chrome (klipper_recovery carried
-  90% for a while; #1277 ported it back onto the tall-chrome token). The
+- Never raise a card above 85% to fit extra chrome (#1277). The
   chrome-budget lint gate (`scripts/check_modal_chrome_budget.py`) flags both
   the raised cap and an unbudgeted block below a scroll area.
 - A shape beyond one extra block (action_prompt's diagram + wrapping rows +

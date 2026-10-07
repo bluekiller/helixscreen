@@ -213,6 +213,7 @@ void EmergencyStopOverlay::deinit_subjects() {
     // pair symmetric.
     print_state_observer_.reset();
     klippy_state_observer_.reset();
+    klippy_message_observer_.reset();
 
     // Same reasoning as the dialog pointers above, one level up: init() stored
     // borrowed pointers, and neither object survives what this runs ahead of.
@@ -245,8 +246,8 @@ void EmergencyStopOverlay::create() {
     const SubjectLifetime ps_subjects = printer_state_->get_subjects_lifetime();
 
     // Subscribe to print state changes for automatic visibility updates
-    // The estop_visible subject drives the navigation rail's E-Stop and the ones
-    // on screens that cover the rail.
+    // The estop_visible subject drives the navbar's E-Stop and the ones
+    // on screens that cover the navbar.
     // One observer, on print_lifecycle. It already merges both axes this used to
     // watch separately: the raw job state does not move during a host-side
     // pre-start block, and print_start_phase does not move on PRINTING->PAUSED,
@@ -261,6 +262,21 @@ void EmergencyStopOverlay::create() {
     // soft-restart after Add Printer — drops the subject's placeholder
     // SHUTDOWN before Moonraker reports the new printer's real state.
     klippy_state_initial_seen_ = false;
+
+    // The shutdown reason can land after the dialog is built (the shutdown edge
+    // and the webhooks frame are separate messages), so a dialog still showing
+    // generic text re-reads it on every change. One already carrying a reason
+    // keeps it.
+    klippy_message_observer_ = observe<int>(
+        printer_state_->network_state().get_klippy_state_message_seq_subject(), this,
+        [](EmergencyStopOverlay* self, int /*seq*/) {
+            if (self->recovery_dialog_ && !helix::ui::fault_carrier_showing() &&
+                (self->recovery_reason_ == RecoveryReason::SHUTDOWN ||
+                 self->recovery_reason_ == RecoveryReason::ERROR)) {
+                self->update_recovery_dialog_content();
+            }
+        },
+        ps_subjects);
 
     // Subscribe to klippy state changes for recovery dialog auto-popup
     klippy_state_observer_ = observe<int>(
@@ -770,7 +786,7 @@ void EmergencyStopOverlay::update_recovery_dialog_content() {
     std::string code;
     if (printer_state_ && (recovery_reason_ == RecoveryReason::SHUTDOWN ||
                            recovery_reason_ == RecoveryReason::ERROR)) {
-        const auto& state_msg = printer_state_->network_state().get_klippy_state_message();
+        const std::string state_msg = printer_state_->network_state().get_klippy_fault_message();
         if (!state_msg.empty()) {
             message = state_msg;
             // Klipper sometimes reports the reason as a JSON envelope

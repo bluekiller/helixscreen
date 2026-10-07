@@ -1745,6 +1745,32 @@ TEST_CASE_METHOD(PanelWidgetConfigFixture, "PanelWidgetConfig: delete_entry sear
     REQUIRE(wc.page_entries(0)[0].id == "shutdown");
 }
 
+TEST_CASE_METHOD(PanelWidgetConfigFixture,
+                 "PanelWidgetConfig: remove_from_page deletes an added instance, parks a built-in",
+                 "[panel_widget][widget_config][multipage]") {
+    json w0 = json::array({{{"id", "shutdown"}, {"enabled", true}, {"col", 0}, {"row", 0}}});
+    json w1 = json::array({
+        {{"id", "shutdown"}, {"enabled", true}, {"col", 0}, {"row", 0}},
+        {{"id", "thermistor:1"}, {"enabled", true}, {"col", 2}, {"row", 0}},
+    });
+    setup_with_pages({{"p0", w0}, {"p1", w1}}, 0, 2);
+    PanelWidgetConfig wc("home", config);
+    wc.load();
+    REQUIRE(wc.page_entries(1).size() == 2);
+
+    wc.remove_from_page(1, 1);
+    REQUIRE(wc.page_entries(1).size() == 1);
+    CHECK(wc.page_entries(1)[0].id == "shutdown");
+
+    // A built-in stays listed for the catalog, off the grid, and only on the
+    // page it was removed from.
+    wc.remove_from_page(1, 0);
+    REQUIRE(wc.page_entries(1).size() == 1);
+    CHECK_FALSE(wc.page_entries(1)[0].enabled);
+    CHECK_FALSE(wc.page_entries(1)[0].is_placed());
+    CHECK(wc.page_entries(0)[0].enabled);
+}
+
 TEST_CASE_METHOD(PanelWidgetConfigFixture, "PanelWidgetConfig: mint_instance_id scans all pages",
                  "[panel_widget][widget_config][multipage]") {
     json w0 = json::array({

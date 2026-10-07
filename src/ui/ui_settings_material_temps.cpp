@@ -70,11 +70,6 @@ void MaterialTempsOverlay::register_callbacks() {
 // ============================================================================
 
 lv_obj_t* MaterialTempsOverlay::create(lv_obj_t* parent) {
-    if (overlay_root_) {
-        spdlog::warn("[{}] create() called but overlay already exists", get_name());
-        return overlay_root_;
-    }
-
     spdlog::debug("[{}] Creating overlay...", get_name());
 
     overlay_root_ = helix::ui::create_xml_hidden(parent, "material_temps_overlay");

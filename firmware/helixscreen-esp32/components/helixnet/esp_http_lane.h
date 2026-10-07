@@ -55,6 +55,12 @@ class EspHttpLane {
     using DateHeaderHook = void (*)(const char* value);
     static void set_date_header_hook(DateHeaderHook hook);
 
+    // Called once on the worker thread before it takes its first request. The
+    // worker's stack is in PSRAM, so the app uses this to bar the thread from
+    // storage. Set before the first submit_get().
+    using WorkerStartHook = void (*)();
+    static void set_worker_start_hook(WorkerStartHook hook);
+
     EspHttpLane(const EspHttpLane&) = delete;
     EspHttpLane& operator=(const EspHttpLane&) = delete;
 

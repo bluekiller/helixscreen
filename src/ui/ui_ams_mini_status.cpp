@@ -185,6 +185,9 @@ struct AmsMiniStatusData {
     // and updated in place on every sync; only a lane count change adds or
     // removes cells.
     std::vector<lv_obj_t*> spool_cell_objs;
+    // The row size the spool cells were last sized against.
+    int spools_built_w = 0;
+    int spools_built_h = 0;
     std::vector<int> spool_cell_obj_slots; // slot each pooled cell was built for
 
     // Slots inside an absent unit (a box that is not on the bus): neither drawn
@@ -762,6 +765,18 @@ static lv_obj_t* create_spool_cell(lv_obj_t* parent, int slot_index, int spool_s
     return cell;
 }
 
+static void on_spools_size_changed(lv_event_t* e) {
+    lv_obj_t* sc = lv_event_get_target_obj(e);
+    auto* data = get_data(lv_obj_get_parent(sc));
+    const int w = lv_obj_get_content_width(sc);
+    const int h = lv_obj_get_content_height(sc);
+    // A content-sized host leaves the row no height of its own (h <= 0), and
+    // the cells are then sized from the create-time height instead.
+    if (data && data->mode == AmsMiniMode::SPOOL && w > 0 &&
+        (w != data->spools_built_w || (h > 0 && h != data->spools_built_h)))
+        rebuild_spools(data);
+}
+
 /**
  * @brief Render the wide spool view (width_px >= w_normal()).
  *
@@ -802,14 +817,17 @@ static void rebuild_spools(AmsMiniStatusData* data) {
         lv_obj_set_scroll_dir(sc, LV_DIR_HOR);
         lv_obj_set_scrollbar_mode(sc, LV_SCROLLBAR_MODE_AUTO);
         lv_obj_add_flag(sc, LV_OBJ_FLAG_EVENT_BUBBLE); // tap/long-press bubble to widget root
+        // The container's own SIZE_CHANGED fires before its children are laid
+        // out, so a rebuild there reads this row at its old size, or at zero
+        // and the width_px hint, which runs a few px wide. The row's real size
+        // arrives here.
+        lv_obj_add_event_cb(sc, on_spools_size_changed, LV_EVENT_SIZE_CHANGED, nullptr);
     }
     lv_obj_t* sc = data->spools_container;
     lv_obj_remove_flag(sc, LV_OBJ_FLAG_HIDDEN);
 
-    // Give each visible spool an equal share of the width. Subtract the
-    // (visible-1) inter-cell gaps so they fit exactly — no sliver of the next
-    // spool, and no scrollbar until there are more than `visible` spools. The
-    // spool+label group is centered within each share.
+    // Give each lane an equal share of the width, gaps subtracted so the row
+    // fits exactly. The spool+label group is centered within each share.
     lv_obj_update_layout(sc);
     int avail_h = lv_obj_get_content_height(sc);
     if (avail_h <= 0)
@@ -819,6 +837,8 @@ static void rebuild_spools(AmsMiniStatusData* data) {
     int avail_w = lv_obj_get_content_width(sc);
     if (avail_w <= 0)
         avail_w = data->width_px; // before layout resolves
+    data->spools_built_w = avail_w;
+    data->spools_built_h = avail_h;
     int gap = theme_manager_get_spacing("space_xxs");
     // What the ams_lane_spool widget adds around the graphic for the lane
     // badge, so a cell is this much wider than the spool size asked for.
@@ -830,100 +850,70 @@ static void rebuild_spools(AmsMiniStatusData* data) {
     // chosen constants did.
     const int min_text = measure_widest_material(data, sc);
     const int min_cell = min_spool_cell_w(min_text, gap);
-    // How many spool cells fit across the row at min_cell each, capped to
-    // the actual number of slots so a wide, sparsely-filled widget doesn't
-    // reserve blank trailing columns for spools that don't exist.
-    int visible = std::clamp((avail_w + gap) / (min_cell + gap), 1, lanes);
+    // Below a spool and its badge a cell no longer identifies its lane.
+    const int floor_cell = MIN_SPOOL_IMG_PX + badge_margin;
+    // Every lane's equal share of the row. -2px so sub-pixel rounding cannot
+    // tip a row that fits into a spurious scrollbar.
+    const int share = (avail_w - (lanes - 1) * gap - 2) / lanes;
 
-    // Reserving the widest material in full on every cell is what pushes lanes
-    // off the row: one "PETG-GF" lane widens all four. A lane the user can pick
-    // out by colour and badge is what this row exists for, so when every lane
-    // would fit in a narrower cell, take that trade and find the width in the
-    // text column. Below a cell that holds the spool and its badge there is
-    // nothing left to give, and scrolling a row of legible cells is the better
-    // answer.
-    bool squeezed = false;
-    if (visible < lanes) {
-        const int fit_cell = (avail_w - (lanes - 1) * gap - 2) / lanes;
-        if (fit_cell >= MIN_SPOOL_IMG_PX + badge_margin) {
-            visible = lanes;
-            squeezed = true;
-        }
-    }
+    // The name goes above the spool or beside it, whichever leaves the larger
+    // spool, and above on a tie. A tall row maxes the spool either way, so it
+    // stacks; a short row with width for the name in full keeps a full-height
+    // spool beside it. Width decides only whether the row scrolls.
+    const lv_font_t* mat_font = theme_manager_get_font("font_small");
+    const lv_font_t* pct_font = theme_manager_get_font("font_xs");
+    const int mat_h = mat_font ? static_cast<int>(lv_font_get_line_height(mat_font)) : 14;
+    const int pct_h = pct_font ? static_cast<int>(lv_font_get_line_height(pct_font)) : 12;
+    // The spool's wrap is badge_margin taller than the spool, and the cell
+    // spaces the wrap and the text block by one gap.
+    const int floor_h = MIN_SPOOL_IMG_PX + badge_margin + gap;
+    const int row_spool = std::min(avail_h - 4, MAX_SPOOL_IMG_PX); // square spool fits the row
+    const int stacked_cell = std::max(share, floor_cell);
+    auto stacked_spool_with = [&](int text_block) {
+        return std::min({avail_h - badge_margin - text_block - gap, MAX_SPOOL_IMG_PX,
+                         stacked_cell - badge_margin});
+    };
+    // The spool already draws how full it is, so the percent line under the
+    // name stays only when it costs the spool nothing.
+    const bool stacked_pct = stacked_spool_with(mat_h + pct_h) == stacked_spool_with(mat_h);
+    const int stacked_spool = stacked_spool_with(mat_h);
+    const int beside_spool =
+        share >= min_cell ? std::min(row_spool, share - badge_margin - gap - min_text) : 0;
+    const bool stacked = avail_h >= floor_h + mat_h && stacked_spool >= beside_spool;
 
-    // -2px safety so sub-pixel rounding can't tip the row into a spurious scrollbar
-    // (a real scrollbar still appears when there are MORE than `visible` spools).
-    int cell_px = (avail_w - (visible - 1) * gap - 2) / visible;
-    if (cell_px < min_cell && !squeezed)
-        cell_px = min_cell;
-    int spool_size = avail_h - 4; // square spool fits the row height
-    if (spool_size > MAX_SPOOL_IMG_PX)
-        spool_size = MAX_SPOOL_IMG_PX;
-
+    int cell_px = 0;
     int text_w = 0;
     bool ellipsize = false;
-    bool stacked = false;
-    bool stacked_pct = true; // a stacked cell keeps its percent only if the row is tall enough
-    if (squeezed) {
-        // Beside the spool a squeezed cell has only its leftover width for the
-        // name, which is why the name is the thing that gets cut. Under the
-        // spool the name gets the whole cell instead, so a row with the height
-        // for a line of text keeps both the lane and its material.
-        //
-        // The height has to cover what the cell actually stacks - the spool's
-        // wrap is badge_margin taller than the spool itself, and the text block
-        // is the material line plus the percent line under it. Budgeting one
-        // line here is what pushes the percent out through the bottom of the
-        // cell, where nothing clips it visibly enough to notice.
-        const lv_font_t* mat_font = theme_manager_get_font("font_small");
-        const lv_font_t* pct_font = theme_manager_get_font("font_xs");
-        const int mat_h = mat_font ? static_cast<int>(lv_font_get_line_height(mat_font)) : 14;
-        const int pct_h = pct_font ? static_cast<int>(lv_font_get_line_height(pct_font)) : 12;
-        const int floor_h = MIN_SPOOL_IMG_PX + badge_margin + gap;
-        int text_block = mat_h + pct_h;
-        if (avail_h < floor_h + text_block) {
-            text_block = mat_h; // no room for the percent, keep the name
-            stacked_pct = false;
-        }
-        if (avail_h >= floor_h + text_block) {
-            stacked = true;
-            spool_size = std::min({avail_h - badge_margin - text_block - gap, MAX_SPOOL_IMG_PX,
-                                   cell_px - badge_margin});
-            if (spool_size < MIN_SPOOL_IMG_PX)
-                spool_size = MIN_SPOOL_IMG_PX;
-            text_w = cell_px; // the label owns the full cell width
+    int spool_size = row_spool;
+    if (stacked) {
+        // Every lane gets its share, down to the floor; past that the row
+        // scrolls at the floor. The name owns the full cell width and is
+        // shortened rather than wrapped when the share is narrower than it.
+        cell_px = stacked_cell;
+        spool_size = stacked_spool;
+        text_w = cell_px;
+        ellipsize = true;
+    } else if (share >= floor_cell && share < min_cell) {
+        // Beside the spool, every lane, the name shortened into what is left
+        // next to the spool or dropped when too little is left to read.
+        cell_px = share;
+        spool_size = std::max(std::min(spool_size, cell_px - badge_margin), MIN_SPOOL_IMG_PX);
+        const int leftover = cell_px - (spool_size + badge_margin) - gap;
+        if (leftover >= min_readable_text_w(sc)) {
+            text_w = leftover;
             ellipsize = true;
-        } else {
-            // Too short to stack: the spool is served first and the name lives
-            // on what is left beside it, if anything still reads.
-            if (spool_size > cell_px - badge_margin)
-                spool_size = cell_px - badge_margin;
-            if (spool_size < MIN_SPOOL_IMG_PX)
-                spool_size = MIN_SPOOL_IMG_PX;
-            const int leftover = cell_px - (spool_size + badge_margin) - gap;
-            if (leftover >= min_readable_text_w(sc)) {
-                text_w = leftover;
-                ellipsize = true;
-            }
         }
     } else {
-        // Reserve the measured text column from the cell, shrinking the spool if
-        // needed. text_w is the EXACT leftover, so a cell's content == cell_px:
-        // the material/percent never overflow (no chopped text, no scrollbar),
-        // and long names wrap within text_w instead of being clipped.
-        if (spool_size > cell_px - badge_margin - gap - min_text)
-            spool_size = cell_px - badge_margin - gap - min_text;
-        if (spool_size < MIN_SPOOL_IMG_PX)
-            spool_size = MIN_SPOOL_IMG_PX;
-        text_w = cell_px - (spool_size + badge_margin) - gap;
-        // Defensive only, and derived rather than flat: cell_px is floored at
-        // min_cell, which IS MIN_SPOOL_IMG_PX + badge_margin + gap + min_text, so
-        // the subtraction above already leaves min_text on the tightest cell there
-        // is. Clamping to min_text keeps that a guarantee instead of a coincidence
-        // the way a flat 20 did.
-        if (text_w < min_text)
-            text_w = min_text;
+        // Beside the spool with the widest name in full: every lane's share
+        // when that holds it, else a scrolling row of cells that do. The
+        // column is the exact leftover, so the material and percent never
+        // overflow the cell and a long name wraps inside it.
+        cell_px = std::max(share, min_cell);
+        spool_size = std::min(spool_size, cell_px - badge_margin - gap - min_text);
+        text_w = std::max(cell_px - (std::max(spool_size, MIN_SPOOL_IMG_PX) + badge_margin) - gap,
+                          min_text);
     }
+    spool_size = std::max(spool_size, MIN_SPOOL_IMG_PX);
 
     const int n = static_cast<int>(data->spool_cells.size());
     if (n <= 0) {
@@ -983,9 +973,10 @@ static void rebuild_spools(AmsMiniStatusData* data) {
         if (!cell)
             continue;
 
-        // Stacked cells put the name under the spool; wide ones sit it alongside.
+        // Stacked cells put the name over the spool (the text column is the
+        // cell's second child); short rows sit it alongside.
         lv_obj_set_size(cell, cell_px, lv_pct(100));
-        lv_obj_set_flex_flow(cell, stacked ? LV_FLEX_FLOW_COLUMN : LV_FLEX_FLOW_ROW);
+        lv_obj_set_flex_flow(cell, stacked ? LV_FLEX_FLOW_COLUMN_REVERSE : LV_FLEX_FLOW_ROW);
         lv_obj_set_flex_align(cell, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER,
                               LV_FLEX_ALIGN_CENTER);
         lv_obj_set_style_pad_column(cell, gap, LV_PART_MAIN);

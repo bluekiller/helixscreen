@@ -77,8 +77,14 @@ class UpdateCheckerTestAccess {
         c.restart_initiated_.store(false);
     }
 
+    /// Run the install step on @p tarball_path. Outside test mode this runs
+    /// the tarball's install.sh against the host, so a caller sets
+    /// RuntimeConfig::test_mode first.
+    static void do_install(UpdateChecker& c, const std::string& tarball_path) {
+        c.do_install(tarball_path);
+    }
+
     /// Drive the worker-thread half of the post-install sequence directly.
-    /// do_install() itself runs install.sh and cannot be unit-tested.
     static void finish_install_and_restart(UpdateChecker& c, const std::string& install_root,
                                            const std::string& version) {
         c.finish_install_and_restart(install_root, version);

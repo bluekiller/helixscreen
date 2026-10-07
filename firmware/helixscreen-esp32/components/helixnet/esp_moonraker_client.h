@@ -49,6 +49,13 @@ class EspMoonrakerClient final : public IMoonrakerClient {
     }
     void set_auto_reconnect(bool enabled) override;
 
+    /// Receives every drop of an established connection that will be
+    /// reconnected, on the websocket task, with how long the connection had
+    /// gone without a frame. Lets the WiFi layer judge the access point the
+    /// link runs through.
+    using LinkDropObserver = void (*)(int64_t silence_ms);
+    static void set_link_drop_observer(LinkDropObserver observer);
+
     // --- JSON-RPC protocol ---
     int send_jsonrpc(const std::string& method) override;
     int send_jsonrpc(const std::string& method, const json& params) override;

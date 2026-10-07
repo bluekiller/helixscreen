@@ -5,7 +5,7 @@
 #
 # Reads: GITHUB_REPO, TMP_DIR, INSTALL_DIR, SUDO, MIGRATE_FROM_DIR,
 #        HELIX_MOD_PAYLOAD, HOST_MOD_ROOT (payload supersession sweep)
-# Writes: CLEANUP_TMP, BACKUP_CONFIG, BACKUP_ENV, ORIGINAL_INSTALL_EXISTS
+# Writes: CLEANUP_TMP, BACKUP_CONFIG, BACKUP_ENV
 
 # Source guard
 [ -n "${_HELIX_RELEASE_SOURCED:-}" ] && return 0
@@ -415,7 +415,28 @@ resolve_update_channel() {
         2) R2_CHANNEL=dev ;;
         *) R2_CHANNEL=stable ;;
     esac
+    case "$num" in
+        0 | 1 | 2) _R2_CHANNEL_FROM_SETTINGS=yes ;;
+    esac
     log_info "Update channel: ${R2_CHANNEL} (read from ${settings})"
+}
+
+# An explicit --version decides the channel when nothing else has: a
+# prerelease (any '-' suffix, the same test scripts/release-channel.sh applies
+# to tags) pinned on a fresh install or one with no settings.json is a beta
+# install, and the channel written into moonraker.conf must follow it.
+# _R2_CHANNEL_FROM_VERSION tells seed_update_channel to persist it for the app.
+# Args: the requested version tag
+match_channel_to_version() {
+    [ "${_R2_CHANNEL_FROM_ENV:-}" = "yes" ] && return 0
+    [ "${_R2_CHANNEL_FROM_SETTINGS:-}" = "yes" ] && return 0
+    case "$1" in
+        *-*)
+            R2_CHANNEL=beta
+            _R2_CHANNEL_FROM_VERSION=yes
+            log_info "Update channel: beta (${1} is a prerelease)"
+            ;;
+    esac
 }
 
 # Extract the version from a release tarball path. Args: path or basename.
@@ -521,6 +542,8 @@ _verify_archive_hash() {
         actual=$(_sha256_file "$file")
         if [ "$actual" = "$expected" ]; then
             log_info "SHA256 verified ($(basename "$file"))"
+            # shellcheck disable=SC2034  # consumed by main.sh (apply_install)
+            ARCHIVE_SHA256_VERIFIED=1
             return 0
         fi
         if [ -z "$actual" ]; then
@@ -552,19 +575,47 @@ _verify_archive_hash() {
 # second (matching get_latest_version's own source order), so an HTTPS-capable
 # box gets an authenticated set of hashes even when it later has to fall back
 # to the HTTP mirror for the much larger archive.
-# Returns 0 when a manifest is in hand.
+#
+# Each channel's manifest describes only that channel's latest release, so
+# given a version the install channel's manifest does not cover, the other
+# channels' manifests are tried: a beta pinned with --version on a stable
+# install is listed in beta's.
+# Args: [version tag the manifest must cover]
+# Returns 0 when a manifest (covering that version, if given) is in hand.
 _ensure_manifest() {
-    [ -n "$_R2_MANIFEST" ] && return 0
+    local want=${1:-} ch
+    if [ -n "$_R2_MANIFEST" ]; then
+        if [ -z "$want" ] || _manifest_covers_version "$want"; then
+            return 0
+        fi
+    fi
 
+    if _fetch_channel_manifest "$R2_CHANNEL" &&
+        { [ -z "$want" ] || _manifest_covers_version "$want"; }; then
+        return 0
+    fi
+    [ -n "$want" ] || return 1
+    for ch in stable beta dev; do
+        [ "$ch" = "$R2_CHANNEL" ] && continue
+        if _fetch_channel_manifest "$ch" && _manifest_covers_version "$want"; then
+            return 0
+        fi
+    done
+    return 1
+}
+
+# Fetch one channel's manifest into _R2_MANIFEST / _R2_MANIFEST_TRANSPORT.
+# Args: channel
+_fetch_channel_manifest() {
     if check_https_capability; then
-        _R2_MANIFEST=$(fetch_url "${R2_BASE_URL}/${R2_CHANNEL}/manifest.json") || true
+        _R2_MANIFEST=$(fetch_url "${R2_BASE_URL}/${1}/manifest.json") || true
         if [ -n "$_R2_MANIFEST" ]; then
             _R2_MANIFEST_TRANSPORT="https"
             return 0
         fi
     fi
 
-    _R2_MANIFEST=$(fetch_url_http "${HTTP_BASE_URL}/${R2_CHANNEL}/manifest.json") || true
+    _R2_MANIFEST=$(fetch_url_http "${HTTP_BASE_URL}/${1}/manifest.json") || true
     if [ -n "$_R2_MANIFEST" ]; then
         _R2_MANIFEST_TRANSPORT="http"
         return 0
@@ -886,27 +937,146 @@ _try_download_candidate() {
     return 0
 }
 
+# Normalize to the v-prefixed release tag. Release artifacts live under the
+# tag at every transport — R2 dir (releases/vX.Y.Z/), versioned tar filename
+# (helixscreen-<plat>-vX.Y.Z.tar.gz), and the GitHub tag (vX.Y.Z). A bare
+# version arrives whenever the caller bypasses get_latest_version's own
+# normalization: an explicit `--version 0.99.80`, or the in-app updater
+# passing the manifest's bare `.version` field. Without the `v` every
+# candidate URL 404s. ("local" placeholder for --local installs is untouched.)
+# Args: version
+_release_tag() {
+    case "$1" in
+        [0-9]*) echo "v$1" ;;
+        *) echo "$1" ;;
+    esac
+}
+
+# The candidate archive URLs, in the order download_release tries them, and
+# the manifest's hashes for them. Fetches the manifest when it is not cached.
+# Sets, in the caller's scope (declare them local first): zip_filename
+# tar_filename zip_r2 tar_r2 zip_gh tar_gh zip_http tar_http zip_sha tar_sha
+# manifest_ok.
+# Args: release tag (from _release_tag), release platform (get_release_platform)
+_release_candidates() {
+    local version=$1 platform=$2 manifest_url
+
+    # NOTE: *_filename are the fixed server-side asset names (fetch URLs). Only
+    # the local staged names carry the version.
+    zip_filename="helixscreen-${platform}.zip"
+    tar_filename="helixscreen-${platform}-${version}.tar.gz"
+
+    # get_latest_version() is invoked as `version=$(get_latest_version ...)`,
+    # so the _R2_MANIFEST it caches lives and dies in that command
+    # substitution's subshell; without this refetch every download is
+    # unverifiable.
+    _ensure_manifest "$version" || true
+
+    # The channel manifest only ever describes the LATEST release. Anything it
+    # says (asset URLs *and* hashes) is off-limits when the caller pinned an
+    # older --version, or we would download the newest build under the old
+    # version's name and then fail its hash.
+    manifest_ok=false
+    manifest_url=""
+    if _manifest_covers_version "$version"; then
+        manifest_ok=true
+        manifest_url=$(echo "$_R2_MANIFEST" | parse_manifest_platform_url "$platform")
+    fi
+
+    # Zip gets tried before tar at every transport.
+    zip_r2="${R2_BASE_URL}/releases/${version}/${zip_filename}"
+    tar_r2="${manifest_url:-${R2_BASE_URL}/releases/${version}/${tar_filename}}"
+    zip_gh="https://github.com/${GITHUB_REPO}/releases/download/${version}/${zip_filename}"
+    tar_gh="https://github.com/${GITHUB_REPO}/releases/download/${version}/${tar_filename}"
+    zip_http="${HTTP_BASE_URL}/releases/${version}/${zip_filename}"
+    tar_http="${HTTP_BASE_URL}/releases/${version}/${tar_filename}"
+    if [ -n "$manifest_url" ]; then
+        tar_http=$(echo "$manifest_url" | sed "s|${R2_BASE_URL}|${HTTP_BASE_URL}|")
+    fi
+
+    # All three transports serve byte-identical artifacts (one CI job uploads
+    # the same files to the GitHub release and to R2, and generates the
+    # manifest from them), so one pair of hashes covers every candidate.
+    zip_sha=""
+    tar_sha=""
+    if [ "$manifest_ok" = true ]; then
+        zip_sha=$(echo "$_R2_MANIFEST" | parse_manifest_platform_sha256 "$platform" zip)
+        tar_sha=$(echo "$_R2_MANIFEST" | parse_manifest_platform_sha256 "$platform")
+    fi
+}
+
+# Ask for a URL with a HEAD request; never fetches the body or writes a file.
+# Echoes found, missing (an HTTP 404) or unknown (anything else: DNS, timeout,
+# TLS, a proxy, a refusal). A wget that does not list --spider (the python
+# shim some K2 firmware ships as wget) is not asked at all, and neither is
+# python: both read as unknown, leaving download_release as the check.
+_url_probe() {
+    local code err
+    if _has_real_curl; then
+        code=$(curl -sIL --connect-timeout 10 --max-time 20 -A "$_INSTALLER_UA" \
+            -o /dev/null -w '%{http_code}' "$1" 2>/dev/null) || true
+        case "$code" in
+            2??) echo found ;;
+            404) echo missing ;;
+            *) echo unknown ;;
+        esac
+    elif command -v wget >/dev/null 2>&1 && wget --help 2>&1 | grep -q -- '--spider'; then
+        if err=$(wget --spider -O /dev/null -T 10 "$1" 2>&1); then
+            echo found
+        else
+            case "$err" in
+                *404*) echo missing ;;
+                *) echo unknown ;;
+            esac
+        fi
+    else
+        echo unknown
+    fi
+}
+
+# The read-only half of download_release, for the plan: confirms the archive
+# exists and says whether it can be verified, writing nothing. Exits 1 only
+# when every candidate answers 404; a probe that cannot tell continues with
+# "release not checked" and download_release stays the real check.
+# Sets PROBE_SIZE_TEXT. Args: version platform
+probe_release() {
+    if [ -n "${local_tarball:-}" ]; then
+        PROBE_SIZE_TEXT="local file, $(file_size_text "$local_tarball")"
+        return 0
+    fi
+    local zip_filename tar_filename zip_r2 tar_r2 zip_gh tar_gh zip_http tar_http
+    local zip_sha tar_sha manifest_ok url answer unknown=false
+    _release_candidates "$(_release_tag "$1")" "$(get_release_platform "$2")"
+    # shellcheck disable=SC2034  # consumed by plan.sh (confirm_point)
+    if [ -n "$zip_sha$tar_sha" ]; then
+        PROBE_SIZE_TEXT="SHA256 available"
+    else
+        PROBE_SIZE_TEXT="no SHA256 published"
+    fi
+    for url in "$zip_r2" "$tar_r2" "$zip_gh" "$tar_gh" "$zip_http" "$tar_http"; do
+        answer=$(_url_probe "$url")
+        [ "$answer" = found ] && return 0
+        [ "$answer" = unknown ] && unknown=true
+    done
+    if [ "$unknown" = true ]; then
+        # shellcheck disable=SC2034  # consumed by plan.sh (confirm_point)
+        PROBE_SIZE_TEXT="release not checked"
+        return 0
+    fi
+    log_error "No HelixScreen $1 release for $2."
+    exit 1
+}
+
 # Download release archive. Prefers the unversioned .zip (consumed by both this
 # installer and Moonraker Update Manager) and falls back to the legacy versioned
 # .tar.gz if no .zip is available at any transport — kept for bridge releases
 # during the zip migration. Sets _ARCHIVE_FORMAT to record which format won.
 # Tries R2 CDN, then GitHub Releases, then the plain-HTTP mirror.
 download_release() {
-    local version=$1
-    local platform=$2
-    platform=$(get_release_platform "$platform")
-
-    # Normalize to the v-prefixed release tag. Release artifacts live under the
-    # tag at every transport — R2 dir (releases/vX.Y.Z/), versioned tar filename
-    # (helixscreen-<plat>-vX.Y.Z.tar.gz), and the GitHub tag (vX.Y.Z). A bare
-    # version reaches here whenever the caller bypasses get_latest_version's own
-    # normalization: an explicit `--version 0.99.80`, or the in-app updater
-    # passing the manifest's bare `.version` field. Without the `v` every
-    # candidate URL 404s. ("local" placeholder for --local installs is untouched.)
-    case "$version" in
-        v* | local) ;;
-        [0-9]*) version="v${version}" ;;
-    esac
+    local version
+    local platform
+    version=$(_release_tag "$1")
+    platform=$(get_release_platform "$2")
 
     # Stage downloads under an identifiable local name (helixscreen-<plat>-<ver>.zip);
     # extract_release()/use_local_tarball() read it back via _archive_tmp_path().
@@ -916,60 +1086,15 @@ download_release() {
     mkdir -p "$TMP_DIR"
     CLEANUP_TMP=true
 
-    # NOTE: *_filename are the fixed server-side asset names (fetch URLs); *_dest are
-    # the local staged paths. Only the local names carry the version — keep them in
-    # sync with _archive_tmp_path() above.
-    local zip_filename="helixscreen-${platform}.zip"
+    # *_dest are the local staged paths; keep them in sync with
+    # _archive_tmp_path() above.
+    local zip_filename tar_filename zip_r2 tar_r2 zip_gh tar_gh zip_http tar_http
+    local zip_sha tar_sha manifest_ok
+    _release_candidates "$version" "$platform"
     local zip_dest="${TMP_DIR}/helixscreen-${platform}-${version}.zip"
-    local tar_filename="helixscreen-${platform}-${version}.tar.gz"
     local tar_dest="${TMP_DIR}/helixscreen-${platform}-${version}.tar.gz"
 
-    # Make sure we have a manifest to check against. get_latest_version() is
-    # invoked as `version=$(get_latest_version ...)`, so the _R2_MANIFEST it
-    # caches lives and dies in that command substitution's subshell and never
-    # reaches here — without this refetch every download is unverifiable.
-    _ensure_manifest || true
-
-    # The channel manifest only ever describes the LATEST release. Anything it
-    # says (asset URLs *and* hashes) is off-limits when the caller pinned an
-    # older --version, or we would download the newest build under the old
-    # version's name and then fail its hash.
-    local manifest_ok=false
-    if _manifest_covers_version "$version"; then
-        manifest_ok=true
-    fi
-
-    # Build candidate URL lists. Zip gets tried before tar at every transport.
-    local zip_r2="${R2_BASE_URL}/releases/${version}/${zip_filename}"
-    local tar_r2=""
     if [ "$manifest_ok" = true ]; then
-        tar_r2=$(echo "$_R2_MANIFEST" | parse_manifest_platform_url "$platform")
-    fi
-    if [ -z "$tar_r2" ]; then
-        tar_r2="${R2_BASE_URL}/releases/${version}/${tar_filename}"
-    fi
-
-    local zip_gh="https://github.com/${GITHUB_REPO}/releases/download/${version}/${zip_filename}"
-    local tar_gh="https://github.com/${GITHUB_REPO}/releases/download/${version}/${tar_filename}"
-
-    local zip_http="${HTTP_BASE_URL}/releases/${version}/${zip_filename}"
-    local tar_http="${HTTP_BASE_URL}/releases/${version}/${tar_filename}"
-    if [ "$manifest_ok" = true ]; then
-        local http_manifest_url
-        http_manifest_url=$(echo "$_R2_MANIFEST" | parse_manifest_platform_url "$platform")
-        if [ -n "$http_manifest_url" ]; then
-            tar_http=$(echo "$http_manifest_url" | sed "s|${R2_BASE_URL}|${HTTP_BASE_URL}|")
-        fi
-    fi
-
-    # Expected SHA256s. All three transports serve byte-identical artifacts
-    # (one CI job uploads the same files to the GitHub release and to R2, and
-    # generates the manifest from them), so one pair of hashes covers every
-    # candidate.
-    local zip_sha="" tar_sha=""
-    if [ "$manifest_ok" = true ]; then
-        zip_sha=$(echo "$_R2_MANIFEST" | parse_manifest_platform_sha256 "$platform" zip)
-        tar_sha=$(echo "$_R2_MANIFEST" | parse_manifest_platform_sha256 "$platform")
         # A hash fetched over the plain-HTTP mirror travelled the same
         # unauthenticated channel as the archive will, so it proves integrity
         # (truncation, a stale mirror) but not authenticity. Say so rather than
@@ -1713,7 +1838,8 @@ extract_release() {
     # is the standalone-install contract; the payload root must never be mv'd
     # aside or rm -rf'd as a whole, so none of it may run in this mode.
     if [ "${HELIX_MOD_PAYLOAD:-}" = "1" ]; then
-        [ -d "${INSTALL_DIR}" ] && ORIGINAL_INSTALL_EXISTS=true
+        # shellcheck disable=SC2034  # INSTALL_SWAPPED is read by main.sh (install_state_line)
+        INSTALL_SWAPPED=in-place
         if ! payload_replace_contents "$new_install" "${INSTALL_DIR}"; then
             log_error "Payload update failed at ${INSTALL_DIR}; entries already replaced are gone."
             cd / 2>/dev/null || true
@@ -1722,6 +1848,7 @@ extract_release() {
         fi
         cd / 2>/dev/null || true
         rm -rf "$extract_dir"
+        INSTALL_SWAPPED=swapped
         log_success "Payload contents replaced in place at ${INSTALL_DIR}"
         return 0
     fi
@@ -1730,8 +1857,6 @@ extract_release() {
     backup_existing_config "$(_config_source_dir)"
 
     if [ -d "${INSTALL_DIR}" ]; then
-        ORIGINAL_INSTALL_EXISTS=true
-
         # Under NoNewPrivileges (self-update from in-app), we prefer the
         # atomic swap (mv old; mv new) if the parent dir is writable (service
         # file v0.97.4+ adds ReadWritePaths for it).  Fall back to the racy
@@ -1766,6 +1891,7 @@ extract_release() {
                 # The loops below rm -rf every child of INSTALL_DIR — refuse
                 # before the first one touches a mod-owned payload root.
                 host_refuse_mod_owned "in-place update of" "$INSTALL_DIR"
+                INSTALL_SWAPPED=in-place
 
                 # Remove old contents (except config/).
                 # Don't use || true — if rm fails, we must not proceed to mv
@@ -1837,6 +1963,7 @@ extract_release() {
                 fi
 
                 rm -rf "$extract_dir"
+                INSTALL_SWAPPED=swapped
                 log_success "Updated in-place at ${INSTALL_DIR}"
                 return 0
             fi
@@ -1934,6 +2061,8 @@ extract_release() {
         rm -rf "$extract_dir"
         exit 1
     fi
+    # shellcheck disable=SC2034  # read by main.sh (install_state_line)
+    INSTALL_SWAPPED=swapped
 
     # Phase 6: Restore config and settings
     # User's config always takes priority over bundled defaults so customizations
@@ -1945,10 +2074,9 @@ extract_release() {
     # Does a user config actually exist to restore?  Must match the candidate
     # chain the restore below walks, or the removal here outruns it.
     #
-    # ORIGINAL_INSTALL_EXISTS is not that test: it is set from `[ -d INSTALL_DIR ]`
-    # alone, and embedded targets keep logs and cache under the install dir
-    # (K1: /usr/data/helixscreen/{logs,cache}), so the directory routinely
-    # predates a first install with no config in it.
+    # The install dir existing is not that test: embedded targets keep logs and
+    # cache under it (K1: /usr/data/helixscreen/{logs,cache}), so the directory
+    # routinely predates a first install with no config in it.
     _have_restore_candidate=false
     if [ -n "${BACKUP_CONFIG:-}" ] && [ -s "$BACKUP_CONFIG" ]; then
         _have_restore_candidate=true
@@ -2405,10 +2533,17 @@ cleanup_superseded_payload() {
 }
 
 cleanup_old_install() {
-    # Keep .old as a last-resort recovery path if config wasn't restored.
-    # Without this guard, a failed Phase 6 + cleanup = permanent config loss.
-    if [ "$ORIGINAL_INSTALL_EXISTS" = true ] && [ ! -f "${INSTALL_DIR}/config/settings.json" ]; then
-        log_warn "Config not restored — keeping .old backup for recovery"
+    # Keep the backup as a last-resort recovery path if the old install had a
+    # config that did not come across. Without this guard, a failed Phase 6 +
+    # cleanup = permanent config loss. _have_restore_candidate is extract_release's
+    # record of whether that config existed; an old dir holding only logs and
+    # cache never had one, so its absence afterwards loses nothing.
+    if [ "${_have_restore_candidate:-}" = true ] && [ ! -f "${INSTALL_DIR}/config/settings.json" ]; then
+        if [ -n "${INSTALL_BACKUP:-}" ] && [ -d "$INSTALL_BACKUP" ]; then
+            log_warn "Config not restored: keeping ${INSTALL_BACKUP} for recovery"
+        else
+            log_warn "Config not restored, and no backup of the previous install remains"
+        fi
         return 0
     fi
 

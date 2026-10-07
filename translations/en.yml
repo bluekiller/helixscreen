@@ -848,6 +848,7 @@ translations:
   Date (oldest): Date (oldest)
   Day: Day
   Debug: Debug
+  Deep Black: Deep Black
   Default: Default
   Default Parameters: Default Parameters
   Default border thickness: Default border thickness
@@ -2174,6 +2175,7 @@ translations:
   Options: Options
   Or Enter Manually: Or Enter Manually
   Or instead of turning the others: Or instead of turning the others
+  Original file location unknown: Original file location unknown
   Oscillating... cycle %d/%d: Oscillating... cycle %d/%d
   Outcome: Outcome
   Output Device: Output Device
@@ -2399,7 +2401,6 @@ translations:
   Printer command '{}' timed out after {}ms: Printer command '{}' timed out after {}ms
   Printer connection unavailable: Printer connection unavailable
   Printer database format error: Printer database format error
-  Printer database is corrupt: Printer database is corrupt
   Printer default: Printer default
   Printer didn't respond — make sure it's on and in range: Printer didn't respond
     — make sure it's on and in range

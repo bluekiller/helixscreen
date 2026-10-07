@@ -31,6 +31,7 @@
 #endif
 #include "env_knobs.h"
 #include "panel_widget_manager.h"
+#include "platform_capabilities.h"
 #include "platform_info.h"
 #include "printer_state.h"
 #include "static_subject_registry.h"
@@ -81,6 +82,7 @@ static lv_subject_t g_show_beta_features_subject;
 static lv_subject_t g_home_edit_mode_subject;
 static lv_subject_t g_platform_extras_subject;
 static lv_subject_t g_host_power_supported_subject;
+static lv_subject_t g_platform_tier_subject;
 static lv_subject_t g_wizard_active_subject;
 
 // Application quit flag. Set from signal handlers and from worker threads
@@ -248,6 +250,16 @@ void app_globals_init_subjects() {
     lv_subject_init_int(&g_host_power_supported_subject,
                         helix::platform_host_power_supported() ? 1 : 0);
     g_subjects.publish("platform_host_power_supported", &g_host_power_supported_subject);
+
+    // Hardware tier (helix::PlatformTier as an int: 0 EMBEDDED, 1 BASIC,
+    // 2 STANDARD), the same classification that turns animations off. XML
+    // trades appearance for render cost on the limited tiers via:
+    //   <bind_style_if_lt name="..." subject="platform_tier" ref_value="2"/>
+    static_assert(static_cast<int>(PlatformTier::STANDARD) == 2,
+                  "XML binds platform_tier < 2 as the limited tiers");
+    lv_subject_init_int(&g_platform_tier_subject,
+                        static_cast<int>(PlatformCapabilities::detect().tier));
+    g_subjects.publish("platform_tier", &g_platform_tier_subject);
 
     // Initialize wizard-active subject (observable mirror of is_wizard_active()).
     // Seed from the current flag so it is correct even when set_wizard_active()

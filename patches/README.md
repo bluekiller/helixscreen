@@ -107,6 +107,16 @@ LVGL 9.5 removed the entire XML system from core. These patches are now in `lib/
 | `libhv-websocket-backoff-on-upgrade.patch` | Undo `open()`'s premature backoff reset when the upgrade handshake never reached WS_OPENED — a failing upgrade used to restart the reconnect delay from scratch on every attempt |
 | `libhv-websocket-open-install-once.patch` | Install the TcpClient-level channel callbacks exactly once in the constructor — `open()` reassigned those `std::function` members from the caller's thread, freeing the closure's heap storage under a concurrently running callback |
 
+## Lua Patches
+
+Base: Lua v5.4.9 (`lib/lua`). Lua is compiled as C++ for the plugin runtime (`src/plugin/`).
+
+| Patch | Purpose |
+|-------|---------|
+| `lua-pattern-step-budget.patch` | Every 16384 calls to `lstrlib.c`'s `match()`, run the state's count hook with a NULL `lua_Debug`. The count hook counts VM instructions, so it never fires inside a C function, and a backtracking pattern such as `("a"):rep(1e4):find(".-.-.-.-x")` would freeze the UI past the plugin time budget. `LuaRuntime::budget_hook` is that hook |
+
+A worktree set up before `lib/lua` joined the private checkouts still has it as a symlink into the main tree, so its build patches the shared copy. Convert it with `scripts/setup-worktree.sh <branch> --setup-only` from the main tree; `test -L lib/lua` in the worktree then reports false.
+
 ## Usage
 
 ```bash
@@ -116,7 +126,7 @@ make apply-patches
 # Force reset and reapply all
 make reapply-patches
 
-# Regenerate a patch after manual edits in lib/lvgl/ — SEE THE WARNING BELOW FIRST
+# Regenerate a patch after manual edits in lib/lvgl/ (or lib/libhv/, lib/lua/) — SEE THE WARNING BELOW FIRST
 git -C lib/lvgl diff src/path/to/file.c > patches/patch_name.patch
 ```
 

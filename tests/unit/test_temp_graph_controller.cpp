@@ -5,6 +5,7 @@
 
 #include "../../include/temp_graph_controller.h"
 #include "../../include/ui_temp_graph.h"
+#include "../test_helpers/temp_graph_controller_test_access.h"
 #include "../ui_test_utils.h"
 #include "app_globals.h"
 #include "lvgl/lvgl.h"
@@ -35,6 +36,12 @@ class TempGraphControllerFixture {
 
         // Initialize PrinterState subjects (needed by controller's setup_observers)
         get_printer_state().init_subjects(false);
+
+        // PrinterState is process-global and rediscovery keeps a surviving
+        // tool's subjects, readings included. Start every case from a freshly
+        // discovered single tool reading 0 rather than a previous case's values.
+        get_printer_state().temperature_state().init_extruders({});
+        get_printer_state().temperature_state().init_extruders({"extruder"});
     }
 
     ~TempGraphControllerFixture() {}
@@ -351,6 +358,46 @@ TEST_CASE_METHOD(TempGraphControllerFixture,
     REQUIRE(count_series_points_eq(controller->graph(), 2000) > 0);
 }
 
+TEST_CASE_METHOD(TempGraphControllerFixture,
+                 "A paused graph takes the seed backfill on resume and not while paused",
+                 "[controller][temp_graph_controller][backfill]") {
+    auto& ps = get_printer_state();
+    TemperatureHistoryManager mgr(ps);
+    ScopedTestHistoryManager installed(&mgr);
+
+    TempGraphControllerConfig cfg;
+    cfg.series = {{"extruder", lv_color_hex(0xFF4444), true}};
+    auto controller = std::make_unique<TempGraphController>(screen, cfg);
+    REQUIRE(controller->is_valid());
+    auto& queue = helix::ui::UpdateQueue::instance();
+    queue.drain();
+    lv_timer_handler_safe();
+    controller->pause();
+
+    TemperatureStore store;
+    TemperatureStoreSeries series;
+    for (int i = 0; i < 40; ++i) {
+        series.temperatures.push_back(200.0f);
+        series.targets.push_back(210.0f);
+        series.powers.push_back(0.5f);
+    }
+    store["extruder"] = series;
+    const int64_t now_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                               std::chrono::system_clock::now().time_since_epoch())
+                               .count();
+    mgr.seed_from_store(store, now_ms);
+
+    TempGraphController::refresh_all_from_history();
+    queue.drain();
+    lv_timer_handler_safe();
+    CHECK(count_series_points_eq(controller->graph(), 2000) == 0);
+
+    controller->resume();
+    queue.drain();
+    lv_timer_handler_safe();
+    CHECK(count_series_points_eq(controller->graph(), 2000) > 0);
+}
+
 // ============================================================================
 // Regression tests for #1117 — deferred-delete / queued-callback races
 // ============================================================================
@@ -492,6 +539,66 @@ TEST_CASE_METHOD(TempGraphControllerFixture,
 
     // Then: the live sample reaches the chart instead of being dropped
     REQUIRE(count_series_points_eq(controller->graph(), 2295) > 0);
+}
+
+// Discovery re-runs on every klippy ready with the WebSocket still up. A tool
+// that drops out of one discovery and returns in the next gets fresh subjects,
+// and a series bound to the old ones must follow.
+TEST_CASE_METHOD(TempGraphControllerFixture,
+                 "Extruder series rebinds when discovery recreates its subjects",
+                 "[controller][temp_graph_controller][klippy_restart]") {
+    auto& ps = get_printer_state();
+    auto& queue = helix::ui::UpdateQueue::instance();
+    auto& temps = ps.temperature_state();
+
+    temps.init_extruders({"extruder"});
+    lv_subject_set_int(temps.get_bed_temp_subject(), 0);
+    queue.drain();
+
+    TempGraphControllerConfig cfg;
+    cfg.series = {
+        {"extruder", lv_color_hex(0xFF4444), true},
+        {"heater_bed", lv_color_hex(0x88C0D0), true},
+    };
+    auto controller = std::make_unique<TempGraphController>(screen, cfg);
+    REQUIRE(controller->is_valid());
+
+    constexpr int64_t slot = UI_TEMP_GRAPH_SAMPLE_INTERVAL_SEC * 1000;
+    int64_t now = 1'000'000 * slot;
+    TempGraphControllerTestAccess::set_clock(*controller, [&now] { return now; });
+    queue.drain();
+
+    // Nozzle is the first series: read its newest sample and ring position.
+    auto* g = controller->graph();
+    auto* nozzle = g->series_meta[controller->series_id_for("extruder")].chart_series;
+    auto newest = [&] {
+        const uint32_t pc = lv_chart_get_point_count(g->chart);
+        const uint32_t sp = lv_chart_get_x_start_point(g->chart, nozzle);
+        return lv_chart_get_y_array(g->chart, nozzle)[(sp + pc - 1) % pc];
+    };
+
+    lv_subject_set_int(temps.get_extruder_temp_subject("extruder"), 520);
+    queue.drain();
+    REQUIRE(newest() == 520);
+
+    // The tool drops out and comes back: fresh subjects under the same name.
+    temps.init_extruders({});
+    temps.init_extruders({"extruder"});
+    queue.drain();
+    queue.drain();
+
+    // A bed reading on a new slot must not re-plot the pre-restart nozzle value.
+    const uint32_t nozzle_start = lv_chart_get_x_start_point(g->chart, nozzle);
+    now += slot;
+    lv_subject_set_int(temps.get_bed_temp_subject(), 600);
+    queue.drain();
+    CHECK(lv_chart_get_x_start_point(g->chart, nozzle) == nozzle_start);
+
+    // The nozzle heats: the graph follows the recreated subject.
+    now += slot;
+    lv_subject_set_int(temps.get_extruder_temp_subject("extruder"), 1000);
+    queue.drain();
+    REQUIRE(newest() == 1000);
 }
 
 // Bed and chamber series observe PrinterState's static subjects. When those die

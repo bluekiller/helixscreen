@@ -329,6 +329,13 @@ class PrinterStateTestAccess {
         PrinterProfileStateTestAccess::set_option_set(ps.profile_state_, std::move(set));
     }
 
+    /// The settings a self-storing firmware reports, as a status frame would
+    /// deliver them. Applied on the next UpdateQueue drain.
+    static void merge_firmware_option_defaults(PrinterState& ps,
+                                               std::map<std::string, bool> defaults) {
+        ps.merge_firmware_option_defaults(std::move(defaults));
+    }
+
     /// Recompute has_any_preprint_options after a set_option_set(); the
     /// aggregate follows the option count, which the injection above skips.
     static void refresh_option_visibility(PrinterState& ps) {
