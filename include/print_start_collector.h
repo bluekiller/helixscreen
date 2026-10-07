@@ -463,8 +463,8 @@ class PrintStartCollector : public std::enable_shared_from_this<PrintStartCollec
      *
      * A non-heating phase that was never detected and is ordered before the
      * phase on display is one this macro does not run (or ran unseen), so it
-     * owes no time. With prediction history the enum order is trusted only
-     * at PURGING, since several firmwares clean before they mesh. Heating
+     * owes no time. With prediction history nothing is skipped: a recorded
+     * phase may come in any order until COMPLETE. Heating
      * phases are judged by temperature instead. Caller must hold state_mutex_.
      */
     [[nodiscard]] bool phase_skipped_locked(int phase) const;
@@ -609,6 +609,8 @@ class PrintStartCollector : public std::enable_shared_from_this<PrintStartCollec
     std::atomic<int> frame_ext_target_{0};
     std::atomic<int> frame_bed_temp_{0};
     std::atomic<int> frame_bed_target_{0};
+    std::atomic<bool> frame_ext_target_seen_{false}; ///< A frame named a target since start()
+    std::atomic<bool> frame_bed_target_seen_{false};
     int last_remaining_ = 0;           ///< For monotonic bias
     bool fallback_completion_ = false; ///< True if COMPLETE was triggered by timeout fallback
 

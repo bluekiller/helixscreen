@@ -184,6 +184,8 @@ void PrintStartCollector::start() {
                             std::memory_order_relaxed);
     frame_bed_target_.store(cached_bed_target_.load(std::memory_order_relaxed),
                             std::memory_order_relaxed);
+    frame_ext_target_seen_.store(false, std::memory_order_relaxed);
+    frame_bed_target_seen_.store(false, std::memory_order_relaxed);
     // Reset thermal rate models with current temperatures
     {
         auto& mgr = ThermalRateManager::instance();
@@ -596,6 +598,17 @@ void PrintStartCollector::check_fallback_completion() {
                            std::memory_order_relaxed);
     cached_bed_target_.store(helix::ui::temperature::deci_to_degrees(bed_target),
                              std::memory_order_relaxed);
+    // Klipper sends a target only when it changes, so one set just before
+    // start() reaches the subjects after the seed and never comes again as a
+    // frame. Until a frame names a target, the subject's is the live one.
+    if (!frame_ext_target_seen_.load(std::memory_order_relaxed)) {
+        frame_ext_target_.store(cached_ext_target_.load(std::memory_order_relaxed),
+                                std::memory_order_relaxed);
+    }
+    if (!frame_bed_target_seen_.load(std::memory_order_relaxed)) {
+        frame_bed_target_.store(cached_bed_target_.load(std::memory_order_relaxed),
+                                std::memory_order_relaxed);
+    }
 
     // A heater still climbing toward its target is the printer working even
     // when the console is silent: M190 and M109 print nothing a profile can
@@ -1451,7 +1464,7 @@ void PrintStartCollector::handle_status_signals(const json& status) {
     // Klipper sends each heater field only when it changes, so the last value
     // seen per field is the live one.
     const auto note_heater = [&status](const char* name, std::atomic<int>& temp,
-                                       std::atomic<int>& target) {
+                                       std::atomic<int>& target, std::atomic<bool>& target_seen) {
         const auto heater = status.find(name);
         if (heater == status.end() || !heater->is_object()) {
             return;
@@ -1463,10 +1476,11 @@ void PrintStartCollector::handle_status_signals(const json& status) {
         const auto g = heater->find("target");
         if (g != heater->end() && g->is_number()) {
             target.store(static_cast<int>(g->get<double>()), std::memory_order_relaxed);
+            target_seen.store(true, std::memory_order_relaxed);
         }
     };
-    note_heater("extruder", frame_ext_temp_, frame_ext_target_);
-    note_heater("heater_bed", frame_bed_temp_, frame_bed_target_);
+    note_heater("extruder", frame_ext_temp_, frame_ext_target_, frame_ext_target_seen_);
+    note_heater("heater_bed", frame_bed_temp_, frame_bed_target_, frame_bed_target_seen_);
 
     for (const auto& rule : rules) {
         const auto object = status.find(rule.object);
@@ -2056,9 +2070,11 @@ std::set<int> PrintStartCollector::get_completed_phase_ints_locked() const {
 
 bool PrintStartCollector::phase_skipped_locked(int phase) const {
     // The enum is not every macro's order: K1, K2, QIDI and AD5M starts clean
-    // the nozzle before they mesh. A phase this printer's own history recorded
-    // is still to come until the purge, the last step any start runs.
-    if (predictor_.has_predictions() && current_phase_ != PrintStartPhase::PURGING) {
+    // the nozzle before they mesh, and a bucket purge or filament flush can
+    // run before leveling. A phase this printer's own history recorded may
+    // still come at any point until COMPLETE, so with history nothing is
+    // skipped.
+    if (predictor_.has_predictions()) {
         return false;
     }
     const auto p = static_cast<PrintStartPhase>(phase);

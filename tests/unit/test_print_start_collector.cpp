@@ -6173,3 +6173,64 @@ TEST_CASE_METHOD(SilentVoronReplayFixture,
     }
     CHECK(increases <= 1);
 }
+
+TEST_CASE_METHOD(SilentVoronReplayFixture,
+                 "PrintStartCollector: an early purge does not credit leveling still to come",
+                 "[print][collector][preprint][silent_voron][eta]") {
+    // A bucket purge at print temperature, then a silent gantry level and a
+    // mesh: this printer's history has all three.
+    helix::PreprintEntry past;
+    past.total_seconds = 200;
+    past.timestamp = 1;
+    past.phase_durations = {{static_cast<int>(PrintStartPhase::Z_TILT), 60},
+                            {static_cast<int>(PrintStartPhase::BED_MESH), 90},
+                            {static_cast<int>(PrintStartPhase::PURGING), 10}};
+    past.temp_bucket = 2;
+    past.window = helix::PreprintWindow::PrinterEdge;
+    helix::PreprintPredictor::append_to_config(past);
+
+    lv_subject_copy_string(state().motion_state().get_homed_axes_subject(), "xyz");
+    set_all_temps(600, 600, 2000, 2000);
+    collector().start();
+    collector().enable_fallbacks();
+    settle();
+    const auto tick = [this] {
+        clock_.advance(std::chrono::seconds(5));
+        PrintStartCollectorTestAccess::run_eta_update(collector());
+        tick_fallbacks();
+    };
+
+    client().dispatch_status_update({{"motion_report", {{"live_extruder_velocity", 2.5}}}});
+    settle();
+    REQUIRE(get_current_phase() == PrintStartPhase::PURGING);
+    client().dispatch_status_update({{"motion_report", {{"live_extruder_velocity", 0.0}}}});
+
+    // The leveling runs silent for a minute after the purge.
+    for (int t = 5; t <= 60; t += 5) {
+        tick();
+    }
+    const int leveling_remaining = remaining();
+    CHECK(leveling_remaining > 0);
+
+    send_gcode_response("Z_TILT_ADJUST");
+    tick();
+    CHECK(remaining() <= leveling_remaining);
+}
+
+TEST_CASE_METHOD(SilentVoronReplayFixture,
+                 "PrintStartCollector: a bed target the start-up seed missed still gates the purge",
+                 "[print][collector][preprint][silent_voron][purge]") {
+    lv_subject_copy_string(state().motion_state().get_homed_axes_subject(), "xyz");
+    set_all_temps(300, 0, 2700, 2700);
+    collector().start();
+    collector().enable_fallbacks();
+    settle();
+
+    // M140's target frame came before start(); its subject update lands
+    // after the seed, and Klipper does not send the target again.
+    set_all_temps(300, 900, 2700, 2700);
+    tick_fallbacks();
+    client().dispatch_status_update({{"motion_report", {{"live_extruder_velocity", 2.5}}}});
+    settle();
+    CHECK(get_current_phase() != PrintStartPhase::PURGING);
+}

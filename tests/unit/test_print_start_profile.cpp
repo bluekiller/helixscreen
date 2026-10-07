@@ -1595,6 +1595,18 @@ TEST_CASE("PrintStartProfile: default profile carries only the heating and extru
     REQUIRE(purge.when[0].field == "live_extruder_velocity");
     REQUIRE(purge.when[0].op == Op::GT);
     REQUIRE(purge.when[0].value == 0.0);
+    REQUIRE(purge.after_heat);
+    REQUIRE_FALSE(nozzle.after_heat);
+
+    // A display label naming a target sets the phase without narrating.
+    for (const char* label : {"Bed: 90c", "Hotend: 270c"}) {
+        PrintStartProfile::MatchResult result;
+        REQUIRE(profile->try_match_pattern(label, result));
+        CHECK_FALSE(result.narrates);
+    }
+    PrintStartProfile::MatchResult m190;
+    REQUIRE(profile->try_match_pattern("M190 S90", m190));
+    CHECK(m190.narrates);
 
     // The phase object leads, then the rule objects in file order.
     const auto objects = profile->required_status_objects();
