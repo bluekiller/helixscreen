@@ -117,7 +117,7 @@ echo \"Checking for $T/$F markers\"")
 # the pre-commit hook, the pre-push hook and the Code Quality workflow call.
 
 @test "gate is wired into quality-checks.sh" {
-    run grep -q "check_todo_markers.py" scripts/quality-checks.sh
+    run grep -q "check_todo_markers.py" scripts/qc/todo_markers.sh
     [ "$status" -eq 0 ]
 }
 
@@ -127,7 +127,7 @@ echo \"Checking for $T/$F markers\"")
 }
 
 @test "gate wakes on C++ and shell sources" {
-    run bash -c "sed -n '/qc_todo_markers)/,/;;/p' scripts/quality-checks.sh"
+    run qc_trigger todo_markers
     [ "$status" -eq 0 ]
     contains "cpp" "$output"
     contains "sh" "$output"
@@ -136,7 +136,7 @@ echo \"Checking for $T/$F markers\"")
 @test "the quality-checks baseline matches the tree" {
     # A baseline that drifted above the real count silently stops ratcheting:
     # the gate would pass while new markers accumulate underneath it.
-    baseline=$(grep -oE 'check_todo_markers.py --max-allowed [0-9]+' scripts/quality-checks.sh | grep -oE '[0-9]+')
+    baseline=$(grep -oE 'check_todo_markers.py --max-allowed [0-9]+' scripts/qc/todo_markers.sh | grep -oE '[0-9]+')
     actual=$(python3 "$GATE" --summary | awk '/TOTAL/{print $2}')
     [ -n "$baseline" ]
     [ "$actual" -le "$baseline" ]
@@ -144,7 +144,7 @@ echo \"Checking for $T/$F markers\"")
 
 @test "adding a marker to the tree turns the wired gate red" {
     # The mutation the ratchet exists for: one more marker than the baseline.
-    baseline=$(grep -oE 'check_todo_markers.py --max-allowed [0-9]+' scripts/quality-checks.sh | grep -oE '[0-9]+')
+    baseline=$(grep -oE 'check_todo_markers.py --max-allowed [0-9]+' scripts/qc/todo_markers.sh | grep -oE '[0-9]+')
     actual=$(python3 "$GATE" --summary | awk '/TOTAL/{print $2}')
     [ "$actual" -eq "$baseline" ] || skip "tree is under the baseline; ratchet it down first"
     extra=$(fixture extra.cpp "// $T: one more")

@@ -232,7 +232,7 @@ run_gate() {
 
 @test "quality-checks.sh wires the gate in at the same baseline" {
     run grep -E "check_panel_widget_scrollable.py --max-allowed $BASELINE" \
-        scripts/quality-checks.sh
+        scripts/qc/design_pixels.sh
     [ "$status" -eq 0 ]
 }
 
@@ -375,10 +375,10 @@ setup_tmp_repo() {
 @test "quality-checks.sh passes --staged-only through when STAGED_ONLY is true" {
     # A mode nothing passes is dead code. Pin both halves: the STAGED_ONLY
     # branch that sets the args, and the invocation that expands them.
-    run grep -B2 'PW_SCROLLABLE_ARGS="--staged-only"' scripts/quality-checks.sh
+    run grep -B2 'PW_SCROLLABLE_ARGS="--staged-only"' scripts/qc/design_pixels.sh
     [ "$status" -eq 0 ]
     contains 'STAGED_ONLY' "$output"
     run grep -E 'check_panel_widget_scrollable\.py --max-allowed [0-9]+ --summary \$PW_SCROLLABLE_ARGS' \
-        scripts/quality-checks.sh
+        scripts/qc/design_pixels.sh
     [ "$status" -eq 0 ]
 }

@@ -965,7 +965,7 @@ make format-staged
 
 Formatting is automatically checked by the pre-commit hook (`.git/hooks/pre-commit`), which calls `scripts/quality-checks.sh --staged-only`:
 
-1. **Resolves the pinned formatter**: the `clang-format` wheel pinned in `requirements.txt`, installed into `.venv` by `make venv-setup` (`scripts/quality-checks.sh#qc_resolve_clang_format`). Nothing on `PATH` is consulted, and a tree without the wheel cannot commit C++ until it runs `make venv-setup` - one formatter everywhere is what keeps files from ping-ponging between machines
+1. **Resolves the pinned formatter**: the `clang-format` wheel pinned in `requirements.txt`, installed into `.venv` by `make venv-setup` (`scripts/qc/phase2.sh#qc_resolve_clang_format`). Nothing on `PATH` is consulted, and a tree without the wheel cannot commit C++ until it runs `make venv-setup` - one formatter everywhere is what keeps files from ping-ponging between machines
 2. **Checks staged files** with it and auto-formats the ones that need it
 3. **Prevents commit** if a formatted file could not be re-staged (partially staged hunks)
 4. **Full sweeps (pre-push, CI) fail** on any unformatted file outside `CLANG_FORMAT_BASELINE`, the list of files that predate the gate; an entry leaves the list once the file is auto-formatted on its next staging
@@ -2139,7 +2139,7 @@ already read a subsystem answers the next question in it far faster than a fresh
 
 So scope a worker to an *area* with two to four related issues in dependency order, and say which
 may be dropped if time runs short. Sequence anything touching the same files behind the change that
-moves them, and keep shared counters — the ratchet baselines in `scripts/quality-checks.sh` — to one
+moves them, and keep shared counters — the ratchet baselines in the gate files under `scripts/qc/` — to one
 worker at a time, since two workers each ratcheting the same number is a guaranteed merge conflict
 over a line neither of them cares about.
 

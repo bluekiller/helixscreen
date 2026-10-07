@@ -475,8 +475,8 @@ EOF
     # passing one. Match an INVOCATION, not a mention: the file also names the
     # script in a comment, so a grep for the filename stays green even when the
     # call itself is gone.
-    run grep -cE '^[[:space:]]*(python3|\$\(PY\)|\.venv/bin/python)[[:space:]]+scripts/check_platform_manifest\.py' scripts/quality-checks.sh
-    [ "$output" != "0" ] || fail "scripts/quality-checks.sh no longer CALLS the manifest gate"
+    run grep -cE '^[[:space:]]*(python3|\$\(PY\)|\.venv/bin/python)[[:space:]]+scripts/check_platform_manifest\.py' scripts/qc/decl_ui.sh
+    [ "$output" != "0" ] || fail "scripts/qc/decl_ui.sh no longer CALLS the manifest gate"
 }
 
 @test "the splash generator accepts every class a platform can select" {

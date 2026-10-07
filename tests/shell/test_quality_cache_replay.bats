@@ -16,12 +16,13 @@ setup() {
   export STAMP COUNTS
 }
 
-# Loads qc_stamp_write / qc_stamp_replay and the count helpers from the real
-# script, with QC_COUNTS pointed at the test's own file.
+# Loads qc_stamp_write / qc_stamp_replay from the real driver and the count
+# helpers from scripts/qc/_lib.sh, with QC_COUNTS pointed at the test's own file.
 with_stamp_helpers() {
   bash -c '
     QC_COUNTS="$1"
-    eval "$(sed -n "/^qc_note() {/,/^}/p; /^qc_count() {/,/^}/p; /^qc_stamp_write() {/,/^}/p; /^qc_stamp_replay() {/,/^}/p" scripts/quality-checks.sh)"
+    . scripts/qc/_lib.sh
+    eval "$(sed -n "/^qc_stamp_write() {/,/^}/p; /^qc_stamp_replay() {/,/^}/p" scripts/quality-checks.sh)"
     eval "$2"
   ' _ "$COUNTS" "$1"
 }

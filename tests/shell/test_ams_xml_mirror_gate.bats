@@ -109,9 +109,11 @@ EOF
 }
 
 @test "the pre-commit gate runs it and wakes on the AmsState sources" {
-    run grep -c "check_ams_xml_mirror.py" scripts/quality-checks.sh
+    run grep -q 'QC_ALL=.*qc_ams_xml_mirror' scripts/quality-checks.sh
+    [ "$status" -eq 0 ]
+    run grep -c "check_ams_xml_mirror.py" scripts/qc/ams_xml_mirror.sh
     [ "$output" -ge 1 ]
-    run bash -c "sed -n '/^qc_trigger_re()/,/^}/p' scripts/quality-checks.sh | grep qc_ams_xml_mirror"
+    run qc_trigger ams_xml_mirror
     [ "$status" -eq 0 ]
     contains 'src/printer/ams_state' "$output"
 }

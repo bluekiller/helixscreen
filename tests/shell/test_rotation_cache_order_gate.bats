@@ -289,7 +289,7 @@ write_source() {
 }
 
 @test "the pre-commit gate runs the census, not just the ordering rules" {
-    run grep -n "check_rotation_cache_order.py" scripts/quality-checks.sh
+    run grep -n "check_rotation_cache_order.py" scripts/qc/decl_ui.sh
     [ "$status" -eq 0 ]
     lacks "--rules-only" "$output"
 }
