@@ -383,6 +383,20 @@ void PrintStatusWidget::attach(lv_obj_t* widget_obj, lv_obj_t* parent_screen) {
     // Apply section visibility from config (drives all print_status_*_hidden subjects)
     apply_visibility_config();
 
+    // The view subject is shared: one card's change rebuilds every card's active views,
+    // so each card rebinds its own after any change, whoever made it.
+    view_observer_ = observe<int>(
+        &view_subject_, this,
+        [](PrintStatusWidget* self, int v) {
+            if (!self->widget_obj_)
+                return;
+            self->bind_active_branch();
+            self->apply_card_layout();
+            if (v >= 3)
+                self->defer_apply_active_thumbnail();
+        },
+        subject_never_freed());
+
     // Re-run visibility when the breakpoint changes so the 'Print Library' header
     // hides on shrink-to-micro and returns on grow-past-micro.
     if (auto* bp_subj = theme_manager_get_breakpoint_subject()) {
@@ -429,6 +443,7 @@ void PrintStatusWidget::detach() {
 
     // Release observers
     print_state_observer_.reset();
+    view_observer_.reset();
     print_thumbnail_path_observer_.reset();
 #if defined(HELIX_PLATFORM_ESP32)
     print_psram_thumb_observer_.reset();
@@ -611,9 +626,10 @@ void PrintStatusWidget::update_view_subject() {
         v = use_detailed ? 2 : (is_compact_ ? 1 : 0);
     }
     if (lv_subject_get_int(&view_subject_) == v) {
-        // Another instance may have changed the shared subject and rebuilt this tree's
-        // active branch since this one last bound it.
-        if ((v >= 3) == (print_card_layout_ != nullptr)) {
+        // The subject is shared: another instance's change rebuilds this tree's active
+        // branch too, so the bound branch is current only if it is still the one built.
+        if (widget_obj_ &&
+            print_card_layout_.get() == lv_obj_find_by_name(widget_obj_, "print_card_layout")) {
             return;
         }
     } else {
@@ -648,7 +664,7 @@ void PrintStatusWidget::bind_active_branch() {
     print_card_preparing_info_ = lv_obj_find_by_name(widget_obj_, "print_card_preparing_info");
 
     lv_obj_t* detailed_arc = lv_obj_find_by_name(widget_obj_, "detailed_progress_arc");
-    if (s_formatter_ && detailed_arc) {
+    if (s_formatter_) {
         s_formatter_->attach_arc(detailed_arc);
     }
 

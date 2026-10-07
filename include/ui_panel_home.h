@@ -150,6 +150,8 @@ class HomePanel : public PanelBase {
         /// Each placed widget's config, by id, as the page was built: with visible_ids,
         /// what a config change must match for reseat_widgets() to keep the tiles.
         std::map<std::string, nlohmann::json> built_configs;
+        /// PanelWidgetManager::widget_config_saves() when built_configs was recorded.
+        uint64_t config_saves = 0;
     };
     /// One per config page, in page order.
     std::vector<CarouselPage> pages_;

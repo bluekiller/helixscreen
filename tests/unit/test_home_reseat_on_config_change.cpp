@@ -45,6 +45,9 @@ struct StubWidget : PanelWidget {
     std::string get_component_name() const override {
         return "test_home_reseat_stub";
     }
+    void save_widget_config_for_test(const nlohmann::json& config) {
+        save_widget_config(config);
+    }
 };
 
 helix::WidgetFactory stub_factory() {
@@ -123,6 +126,23 @@ TEST_CASE_METHOD(XMLTestFixture,
     CHECK(lv_obj_find_by_name(container, "lock") == lock);
     CHECK(lv_obj_get_style_grid_cell_column_pos(shutdown, LV_PART_MAIN) == 2 * TPC);
     CHECK(lv_obj_get_style_grid_cell_column_pos(lock, LV_PART_MAIN) == 0);
+
+    // A widget that saved its config applied it in place: the next change rebuilds, even
+    // back to the config the page was built from.
+    {
+        StubWidget saver("lock");
+        saver.set_panel_id("home");
+        saver.save_widget_config_for_test({{"style", "compact"}});
+    }
+    home.set(layout({entry("shutdown", true, 0, 0), entry("lock", true, 2 * TPC, 0)}));
+    PanelWidgetManager::instance().notify_config_changed("home");
+    helix::ui::UpdateQueue::instance().drain();
+    lv_obj_update_layout(container);
+    lv_obj_t* after_save = lv_obj_find_by_name(container, "lock");
+    REQUIRE(after_save != nullptr);
+    CHECK(after_save != lock);
+    shutdown = lv_obj_find_by_name(container, "shutdown");
+    REQUIRE(shutdown != nullptr);
 
     // One widget dropped: the page is built again.
     home.set(layout({entry("shutdown", true, 2 * TPC, 0), entry("lock", false, 0, 0)}));
