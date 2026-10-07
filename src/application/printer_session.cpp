@@ -898,7 +898,7 @@ void PrinterSession::teardown_printer_scope(TeardownScope scope, DisplayManager*
     if (exiting) {
         // Process-level singletons: they persist across a printer switch.
         // The banner goes before UpdateChecker so its observers release cleanly (#705).
-        UpgradeBanner::instance().shutdown();
+        m_host.upgrade_banner.shutdown();
         UpdateChecker::instance().shutdown();    // cancels pending checks
         TelemetryManager::instance().shutdown(); // persists queue, joins send thread
         helix::CrashHistory::instance().shutdown();

@@ -13,8 +13,14 @@
 #include "main_loop_handler.h"
 #include "printer_session.h"
 #include "splash_screen_manager.h"
+#include "system/crash_reporter.h"
+#include "upgrade_banner.h"
 #include "wizard_step.h" // helix::wizard::StepId
 #include "xml_hot_reloader.h"
+
+#ifdef HELIX_ENABLE_REMOTE_CONTROL
+#include "remote_control_server.h"
+#endif
 
 #include <chrono>
 #include <memory>
@@ -181,6 +187,14 @@ class Application {
     bool m_running = false;
     bool m_wizard_active = false;
     bool m_shutdown_complete = false;
+
+    // Process-scoped services. They outlive m_session, which reaches the banner through its
+    // Host; shutdown() stops each one explicitly, so destruction finds them already idle.
+    CrashReporter m_crash_reporter;
+    helix::UpgradeBanner m_upgrade_banner;
+#ifdef HELIX_ENABLE_REMOTE_CONTROL
+    helix::RemoteControlServer m_remote_control;
+#endif
 
     /// Everything a printer switch destroys and rebuilds: the printer connection, its panels
     /// and subjects, and the state machine that switches between printers.

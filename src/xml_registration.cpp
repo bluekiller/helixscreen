@@ -814,7 +814,7 @@ void register_xml_components() {
     register_xml("wizard_telemetry.xml");
     register_xml("telemetry_info_modal.xml");
 
-    // Upgrade nudge banner (hidden by default; C++ UpgradeBanner singleton
+    // Upgrade nudge banner (hidden by default; Application's UpgradeBanner
     // attaches an instance to lv_layer_top during Application::init and
     // toggles visibility based on UpgradeNudge state).
     register_xml("components/upgrade_banner.xml");
