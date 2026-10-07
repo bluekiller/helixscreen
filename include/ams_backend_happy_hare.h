@@ -623,9 +623,14 @@ class AmsBackendHappyHare : public AmsSubscriptionBackend {
     std::vector<int> per_unit_gate_counts_; ///< Per-unit gate counts for dissimilar multi-MMU (v4)
     int active_unit_{0};                    ///< Currently active MMU unit (v4)
 
-    /// Whether printer.mmu.has_bypass has been observed at least once, so the
-    /// resolved value gets logged even when it matches our optimistic default.
+    /// Whether bypass support has been resolved at least once, so the resolved
+    /// value gets logged even when it matches our optimistic default.
     bool bypass_support_seen_{false};
+    /// Last printer.mmu.has_bypass; the bypass source on v3 only.
+    std::optional<bool> status_has_bypass_;
+    /// supports_bypass from whichever source the install's layout trusts.
+    /// Caller holds mutex_.
+    void apply_bypass_support_locked();
 
     /// Last printer.mmu.gate_status array, raw Happy Hare values (-1 unknown,
     /// 0 empty, 1 available, 2 from_buffer). Kept because the array and the

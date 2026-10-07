@@ -206,6 +206,16 @@ MachineLayout read_machine_layout(const nlohmann::json& settings,
         return layout;
     }
 
+    for (int u = 0;; ++u) {
+        const auto* unit = find_member(live_mmu_machine, "unit_" + std::to_string(u));
+        if (!unit) {
+            break;
+        }
+        if (const auto* bypass = find_member(*unit, "has_bypass"); bypass && bypass->is_boolean()) {
+            layout.has_bypass = layout.has_bypass.value_or(false) || bypass->get<bool>();
+        }
+    }
+
     // Klipper lowercases section names in configfile.settings; unit and
     // toolhead names keep the case they were configured with.
     std::string unit;

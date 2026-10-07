@@ -511,22 +511,10 @@ void AmsBackendHappyHare::apply_mmu_path_locked(const happy_hare::MmuCoreDelta& 
 
     // has_bypass: not all MMU types support bypass (e.g., ERCF/Tradrack do,
     // BoxTurtle does not)
-    //
-    // Logged at info rather than trace, and on every change rather than never:
-    // false here removes the entire bypass UI (sidebar toggle, Device Operations
-    // section, path node) and this flag is the sole reason. Happy Hare derives it
-    // from [mmu_machine] has_bypass, which defaults to 0 for mmu_vendor "Other",
-    // and on type-A selectors ANDs it with the calibrated bypass offset — so an
-    // owner with a physical bypass can legitimately see false and have no way to
-    // tell that from a bug in us.
     if (core.has_bypass) {
-        const bool has_bypass = *core.has_bypass;
-        if (!bypass_support_seen_ || has_bypass != system_info_.supports_bypass) {
-            spdlog::info("[AMS HappyHare] Bypass supported: {}", has_bypass);
-            bypass_support_seen_ = true;
-        }
-        system_info_.supports_bypass = has_bypass;
-    } else if (!bypass_support_seen_) {
+        status_has_bypass_ = *core.has_bypass;
+        apply_bypass_support_locked();
+    } else if (!bypass_support_seen_ && !machine_layout_.v4) {
         // Field absent entirely. Every Happy Hare we know of publishes it, so this
         // is a fork or a version we have not seen; assume supported rather than
         // silently removing a control the machine may well have. Deliberately not
@@ -536,6 +524,28 @@ void AmsBackendHappyHare::apply_mmu_path_locked(const happy_hare::MmuCoreDelta& 
         system_info_.supports_bypass = true;
         spdlog::warn("[AMS HappyHare] No has_bypass field in mmu status; assuming supported");
     }
+}
+
+void AmsBackendHappyHare::apply_bypass_support_locked() {
+    // Logged at info rather than trace, and on every change rather than never:
+    // false here removes the entire bypass UI (sidebar toggle, Device Operations
+    // section, path node) and this flag is the sole reason. v3 derives
+    // printer.mmu.has_bypass from [mmu_machine] has_bypass, which defaults to 0
+    // for mmu_vendor "Other", and on type-A selectors ANDs it with the calibrated
+    // bypass offset, so an owner with a physical bypass can legitimately see
+    // false and have no way to tell that from a bug in us. v4 publishes
+    // printer.mmu.has_bypass as a constant true and puts each unit's answer on
+    // mmu_machine.
+    const std::optional<bool> has_bypass =
+        machine_layout_.v4 ? machine_layout_.has_bypass : status_has_bypass_;
+    if (!has_bypass) {
+        return;
+    }
+    if (!bypass_support_seen_ || *has_bypass != system_info_.supports_bypass) {
+        spdlog::info("[AMS HappyHare] Bypass supported: {}", *has_bypass);
+        bypass_support_seen_ = true;
+    }
+    system_info_.supports_bypass = *has_bypass;
 }
 
 void AmsBackendHappyHare::apply_mmu_topology_locked(const happy_hare::MmuTopologyDelta& topology) {
@@ -1891,6 +1901,7 @@ void AmsBackendHappyHare::query_config_from_printer() {
                     std::lock_guard<std::mutex> lock(mutex_);
                     machine_layout_ = layout;
                     system_info_.version = layout.version;
+                    apply_bypass_support_locked();
                 }
                 spdlog::info("[AMS HappyHare] Happy Hare {} ({} layout)",
                              layout.version.empty() ? "version unknown" : layout.version,

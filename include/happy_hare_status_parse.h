@@ -154,6 +154,9 @@ struct MachineLayout {
     bool v4 = false;                 ///< version 4 or later: the split layout
     std::string unit_params_section; ///< "mmu_unit_parameters <unit 0>", v4 only
     std::string toolhead_section;    ///< "mmu_toolhead <name>" unit 0 uses, v4 only
+    /// Whether any unit has a bypass, from mmu_machine.unit_N.has_bypass. v4
+    /// only: v4 publishes printer.mmu.has_bypass as a constant true.
+    std::optional<bool> has_bypass;
 };
 
 /// @param settings         configfile.settings (may be empty)

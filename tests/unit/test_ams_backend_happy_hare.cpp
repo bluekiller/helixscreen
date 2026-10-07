@@ -5880,3 +5880,48 @@ TEST_CASE("Happy Hare v4 multi-unit reads unit parameters from the first unit's 
     CHECK(d.extruder_unload_speed == Catch::Approx(20.0f));
     CHECK(d.toolhead_ooze_reduction == Catch::Approx(1.5f));
 }
+
+TEST_CASE("Happy Hare v4 takes bypass support from the units, not printer.mmu",
+          "[ams][happy_hare][hh_v4]") {
+    QueryCapturingClient client;
+    helix::test::RegisteredBackend<AmsBackendHappyHareTestHelper> helper_reg(nullptr, &client);
+    AmsBackendHappyHareTestHelper& helper = *helper_reg;
+
+    SECTION("no unit has a bypass: status first, then config") {
+        const auto fx = helix::test::load_happy_hare_fixture("happy_hare_v4_single_unit.json");
+        helper.test_parse_mmu_state(fx["mmu_status"]);
+        connect_with_fixture(helper, client, fx);
+        CHECK_FALSE(helper.get_system_info().supports_bypass);
+        // printer.mmu.has_bypass stays a constant true on later frames.
+        helper.test_parse_mmu_state({{"has_bypass", true}});
+        CHECK_FALSE(helper.get_system_info().supports_bypass);
+    }
+    SECTION("no unit has a bypass: config first, then status") {
+        const auto fx = helix::test::load_happy_hare_fixture("happy_hare_v4_single_unit.json");
+        connect_with_fixture(helper, client, fx);
+        helper.test_parse_mmu_state(fx["mmu_status"]);
+        CHECK_FALSE(helper.get_system_info().supports_bypass);
+    }
+    SECTION("one unit of two has a bypass") {
+        const auto fx = helix::test::load_happy_hare_fixture("happy_hare_v4_two_unit.json");
+        connect_with_fixture(helper, client, fx);
+        helper.test_parse_mmu_state(fx["mmu_status"]);
+        CHECK(helper.get_system_info().supports_bypass);
+    }
+}
+
+TEST_CASE("Happy Hare v3 still takes bypass support from printer.mmu.has_bypass",
+          "[ams][happy_hare][hh_v4]") {
+    QueryCapturingClient client;
+    helix::test::RegisteredBackend<AmsBackendHappyHareTestHelper> helper_reg(nullptr, &client);
+    AmsBackendHappyHareTestHelper& helper = *helper_reg;
+    // v3.4 mmu_machine: per-unit objects, a has_bypass of its own, no version.
+    const nlohmann::json fx = {
+        {"configfile_settings", {{"mmu", {{"form_tip_macro", "_MMU_FORM_TIP"}}}}},
+        {"mmu_machine", {{"unit_0", {{"name", "ERCF"}, {"has_bypass", false}}}, {"num_units", 1}}}};
+    connect_with_fixture(helper, client, fx);
+    helper.test_parse_mmu_state({{"gate_status", {1, 1}}, {"has_bypass", true}});
+    CHECK(helper.get_system_info().supports_bypass);
+    helper.test_parse_mmu_state({{"has_bypass", false}});
+    CHECK_FALSE(helper.get_system_info().supports_bypass);
+}
