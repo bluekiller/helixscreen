@@ -61,8 +61,11 @@ void TemperatureSensorManager::discover(const std::vector<std::string>& klipper_
             continue;
         }
 
-        // Generate display name
-        std::string display_name = helix::get_display_name(sensor_name, DeviceType::TEMP_SENSOR);
+        // Generate display name. A heater is named as one ("Chamber Heater"), so
+        // it never reads the same as a thermistor of the same name.
+        std::string display_name = helix::get_display_name(
+            sensor_name, type == TemperatureSensorType::HEATER_GENERIC ? DeviceType::HEATER
+                                                                       : DeviceType::TEMP_SENSOR);
 
         TemperatureSensorConfig config(klipper_name, sensor_name, display_name, type);
 

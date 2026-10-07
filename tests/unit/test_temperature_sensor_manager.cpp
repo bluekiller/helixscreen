@@ -23,6 +23,7 @@
 
 #include <spdlog/spdlog.h>
 
+#include <map>
 #include <vector>
 
 #include "../catch_amalgamated.hpp"
@@ -650,4 +651,21 @@ TEST_CASE_METHOD(TemperatureSensorTestFixture,
             REQUIRE(c.role == TemperatureSensorRole::MCU);
         }
     }
+}
+
+TEST_CASE_METHOD(TemperatureSensorTestFixture,
+                 "TemperatureSensorManager - a heater is named apart from a same-named sensor",
+                 "[temperature][heater_generic]") {
+    // Pickers and the settings list show display names only, so a chamber
+    // heater and a chamber thermistor must not both read "Chamber ...".
+    mgr().discover(
+        {"heater_generic chamber", "temperature_sensor chamber", "heater_generic filament_dryer"});
+
+    std::map<std::string, std::string> names;
+    for (const auto& c : mgr().get_sensors())
+        names[c.klipper_name] = c.display_name;
+
+    CHECK(names["heater_generic chamber"] == "Chamber Heater");
+    CHECK(names["heater_generic filament_dryer"] == "Filament Dryer Heater");
+    CHECK(names["heater_generic chamber"] != names["temperature_sensor chamber"]);
 }
