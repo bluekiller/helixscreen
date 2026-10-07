@@ -875,6 +875,7 @@ translations:
   Cutting: Coupe
   Cutting filament...: Coupe du filament...
   DETECTED USB PRINTERS: IMPRIMANTES USB DÉTECTÉES
+  DEVICES: PÉRIPHÉRIQUES
   DISABLED: DÉSACTIVÉ
   DISCOVERED PRINTERS: IMPRIMANTES DÉCOUVERTES
   DISPLAY: AFFICHAGE
@@ -1465,7 +1466,7 @@ translations:
   Hardware was present in previous session but is now missing: 'Matériel présent lors de la session précédente mais désormais absent'
   Have a piece of paper ready.: Préparez une feuille de papier.
   ? Have your bed adjustment tool (screwdriver, hex-key, etc.) ready if your bed isn't
-    adjusted with                              thumb wheels or some other built-in
+    adjusted with thumb wheels or some other built-in
     mechanism.
   : Préparez votre outil de réglage du plateau (tournevis, clé Allen, etc.) si votre
     plateau n'est pas ajusté avec des molettes ou un autre mécanisme intégré.
@@ -1487,6 +1488,7 @@ translations:
   Heated Bed MPC Calibration: Calibration MPC du plateau chauffant
   Heated Bed PID Tuning: Réglage PID du plateau chauffant
   Heater: Chauffage
+  Heater Calibration: Calibrage du chauffage
   Heater Power: Puissance du chauffage
   Heater connection lost: Connexion au chauffage perdue
   Heater fault: Défaut du chauffage
@@ -3732,6 +3734,7 @@ translations:
   Volume: Volume
   Volume of filament used during ramming: 'Volume de filament utilisé pendant le bourrage'
   Volume {}%: Volume {}%
+  WEIGHT SYNC: SYNCHRONISATION DU POIDS
   WIDTH SENSORS: CAPTEURS DE LARGEUR
   WLED Preset: Préréglage WLED
   WPA/WPA2: 'WPA/WPA2'

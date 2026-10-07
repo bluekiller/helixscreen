@@ -778,6 +778,7 @@
   <translation tag="Cutting" es="Cortando"/>
   <translation tag="Cutting filament..." es="Cortando filamento..."/>
   <translation tag="DETECTED USB PRINTERS" es="IMPRESORAS USB DETECTADAS"/>
+  <translation tag="DEVICES" es="DISPOSITIVOS"/>
   <translation tag="DISABLED" es="DESACTIVADO"/>
   <translation tag="DISCOVERED PRINTERS" es="IMPRESORAS DESCUBIERTAS"/>
   <translation tag="DISPLAY" es="PANTALLA"/>
@@ -1315,7 +1316,7 @@
   <translation tag="Hardware saved to config" es="Hardware guardado en configuración"/>
   <translation tag="Hardware was present in previous session but is now missing" es="El hardware estaba presente en la sesión anterior pero ahora falta"/>
   <translation tag="Have a piece of paper ready." es="Tenga una hoja de papel lista."/>
-  <translation tag="Have your bed adjustment tool (screwdriver, hex-key, etc.) ready if your bed isn&apos;t adjusted with                              thumb wheels or some other built-in mechanism." es="Tenga lista su herramienta de ajuste de cama (destornillador, llave Allen, etc.) si su cama no se ajusta con ruedas de pulgar u otro mecanismo integrado."/>
+  <translation tag="Have your bed adjustment tool (screwdriver, hex-key, etc.) ready if your bed isn&apos;t adjusted with thumb wheels or some other built-in mechanism." es="Tenga lista su herramienta de ajuste de cama (destornillador, llave Allen, etc.) si su cama no se ajusta con ruedas de pulgar u otro mecanismo integrado."/>
   <translation tag="Heading" es="Encabezado"/>
   <translation tag="Healthy" es="En orden"/>
   <translation tag="Heat Capacity" es="Capacidad calorífica"/>
@@ -1332,6 +1333,7 @@
   <translation tag="Heated Bed MPC Calibration" es="Calibración MPC de la cama caliente"/>
   <translation tag="Heated Bed PID Tuning" es="Ajuste PID de la cama caliente"/>
   <translation tag="Heater" es="Calentador"/>
+  <translation tag="Heater Calibration" es="Calibración del calentador"/>
   <translation tag="Heater Power" es="Potencia del calentador"/>
   <translation tag="Heater connection lost" es="Fallo de conexión del calentador"/>
   <translation tag="Heater fault" es="Fallo del calentador"/>
@@ -3294,6 +3296,7 @@
   <translation tag="Volume" es="Volumen"/>
   <translation tag="Volume of filament used during ramming" es="Volumen de filamento usado durante la compactación"/>
   <translation tag="Volume {}%" es="Volumen {}%"/>
+  <translation tag="WEIGHT SYNC" es="SINCRONIZACIÓN DE PESO"/>
   <translation tag="WIDTH SENSORS" es="SENSORES DE ANCHO"/>
   <translation tag="WLED Preset" es="Preajuste WLED"/>
   <translation tag="WPA/WPA2" es="WPA/WPA2"/>

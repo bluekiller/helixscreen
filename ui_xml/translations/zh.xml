@@ -778,6 +778,7 @@
   <translation tag="Cutting" zh="切割中"/>
   <translation tag="Cutting filament..." zh="正在切断耗材..."/>
   <translation tag="DETECTED USB PRINTERS" zh="已检测到的 USB 打印机"/>
+  <translation tag="DEVICES" zh="设备"/>
   <translation tag="DISABLED" zh="已禁用"/>
   <translation tag="DISCOVERED PRINTERS" zh="已发现的打印机"/>
   <translation tag="DISPLAY" zh="显示"/>
@@ -1315,7 +1316,7 @@
   <translation tag="Hardware saved to config" zh="硬件已保存到配置"/>
   <translation tag="Hardware was present in previous session but is now missing" zh="硬件在上次会话中存在，但现在缺失"/>
   <translation tag="Have a piece of paper ready." zh="请准备好一张纸。"/>
-  <translation tag="Have your bed adjustment tool (screwdriver, hex-key, etc.) ready if your bed isn&apos;t adjusted with                              thumb wheels or some other built-in mechanism." zh="如果您的热床不是用旋钮或其他内置机构调整的，请准备好热床调整工具（螺丝刀、内六角扳手等）。"/>
+  <translation tag="Have your bed adjustment tool (screwdriver, hex-key, etc.) ready if your bed isn&apos;t adjusted with thumb wheels or some other built-in mechanism." zh="如果您的热床不是用旋钮或其他内置机构调整的，请准备好热床调整工具（螺丝刀、内六角扳手等）。"/>
   <translation tag="Heading" zh="标题"/>
   <translation tag="Healthy" zh="正常"/>
   <translation tag="Heat Capacity" zh="热容量"/>
@@ -1332,6 +1333,7 @@
   <translation tag="Heated Bed MPC Calibration" zh="热床 MPC 校准"/>
   <translation tag="Heated Bed PID Tuning" zh="热床 PID 调优"/>
   <translation tag="Heater" zh="加热器"/>
+  <translation tag="Heater Calibration" zh="加热器校准"/>
   <translation tag="Heater Power" zh="加热器功率"/>
   <translation tag="Heater connection lost" zh="加热器连接丢失"/>
   <translation tag="Heater fault" zh="加热器故障"/>
@@ -3294,6 +3296,7 @@
   <translation tag="Volume" zh="音量"/>
   <translation tag="Volume of filament used during ramming" zh="填充过程中使用的耗材体积"/>
   <translation tag="Volume {}%" zh="音量 {}%"/>
+  <translation tag="WEIGHT SYNC" zh="重量同步"/>
   <translation tag="WIDTH SENSORS" zh="宽度传感器"/>
   <translation tag="WLED Preset" zh="WLED 预设"/>
   <translation tag="WPA/WPA2" zh="WPA/WPA2"/>
