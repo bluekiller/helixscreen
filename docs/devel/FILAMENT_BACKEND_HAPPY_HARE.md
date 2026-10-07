@@ -150,20 +150,22 @@ The connect-time query reads `configfile.settings` and the live `mmu_machine` ob
 together, and `happy_hare::read_machine_layout()` (`include/happy_hare_status_parse.h`)
 decides which layout they describe. v4 is recognised by `happy_hare_version` on
 `mmu_machine` (the live object, else configfile's `[mmu_machine]`); v3 never publishes it
-there. The version lands in `AmsSystemInfo::version`. Every v3/v4 difference below asks that
-one layout.
+there. The version lands in `AmsSystemInfo::version`, and its number picks the parameter names
+`happy_hare::param_name()` hands out (`MachineLayout::version_number`). Every v3/v4 difference
+below asks that one layout; a status frame carrying `tangle_prevention`, which only v4
+publishes, sets its v4 flag before the query answers.
 
 | What | v3 | v4 |
 |------|----|----|
 | Machine fields (selector type, heaters, env sensors) | live `mmu_machine.unit_N` on v3.4, else `configfile.settings.mmu_machine` | live `mmu_machine.unit_N` |
 | Version (`AmsSystemInfo::version`) | `[mmu] happy_hare_version` (a number such as 3.42) | `mmu_machine.happy_hare_version` |
 | Tunables (tip macro, speeds, toolhead distances, `heater_max_temp`, `sync_to_extruder`) | `[mmu]` | `[mmu_parameters]`, `[mmu_unit_parameters <unit>]`, `[mmu_toolhead <toolhead of that unit>]`; `happy_hare::find_config_param()` owns which |
-| `MMU_TEST_CONFIG` gear speeds | `GEAR_FROM_SPOOL_SPEED`, `GEAR_FROM_BUFFER_SPEED` | `GEAR_LOAD_SPEED`, `GEAR_FROM_FILAMENT_BUFFER_SPEED`; `happy_hare::param_name()` maps them, and `CLOG_DETECTION` has no v4 parameter |
+| `MMU_TEST_CONFIG` gear speeds | `GEAR_FROM_SPOOL_SPEED`, `GEAR_FROM_BUFFER_SPEED`; `GEAR_UNLOAD_SPEED` from 3.10 | `GEAR_LOAD_SPEED`, `GEAR_FROM_FILAMENT_BUFFER_SPEED`, `GEAR_UNLOAD_SPEED` |
 | Bypass support | `printer.mmu.has_bypass` | any `mmu_machine.unit_N.has_bypass` (`printer.mmu.has_bypass` is a constant true) |
 | Per-gate pre-gate sensors | `printer.mmu.sensors.mmu_pre_gate_N` | `filament_switch_sensor mmu_entry_N` objects; `printer.mmu.sensors` covers only the selected gate |
 | eSpooler | `espooler_active` | per-gate `espooler` list, the selected gate's entry shown |
 | Calibrate gates | `MMU_CALIBRATE_GATES` | `MMU_CALIBRATE_GATE ALL=1` |
-| Clog detection mode (0 off, 1 manual, 2 auto) | `clog_detection_enabled`; written as `clog_detection` (+ `detection_length` in manual) | read from `flowguard.encoder_mode`, else `encoder.detection_mode` (`clog_detection_enabled` is a constant false); written as `flowguard_encoder_mode` (+ `flowguard_encoder_max_motion`) on the selected unit, and only on a unit with an encoder |
+| Clog detection mode (0 off, 1 manual, 2 auto) | read from `clog_detection_enabled`; written as `ENABLE_CLOG_DETECTION` (+ `MMU_CALIBRATION_CLOG_LENGTH` in manual) before 3.42, `FLOWGUARD_ENCODER_MODE` (+ `FLOWGUARD_ENCODER_MAX_MOTION`) on 3.42 | read from `flowguard.encoder_mode` only (`clog_detection_enabled` is a constant false; `encoder.detection_mode` is runtime state); written as `flowguard_encoder_mode` (+ `flowguard_encoder_max_motion`) on a unit with an encoder |
 
 **`UNIT=` on a multi-unit v4.** v4 refuses its per-unit commands without `UNIT=` once
 `mmu_machine.num_units` is above 1. `unit_suffix_locked()` builds it, and only there:
@@ -174,15 +176,17 @@ a whole-machine start or stop sends one `MMU_HEATER` per unit with a heater, bec
 (`printer.mmu.unit`), or, when it lacks the hardware, the first unit that has it. v3's
 `MMU_TEST_CONFIG` rejects an unknown `UNIT`, so it is never sent there.
 
-**Per-unit guards.** v4 refuses an `MMU_TEST_CONFIG` naming a parameter the target unit's
-hardware cannot take, so `happy_hare::unit_supports()` answers, from `mmu_machine.unit_N` and
+**Per-unit guards.** v4 applies the parameters a unit takes and answers the rest of an
+`MMU_TEST_CONFIG` with an error, and v3 refuses the whole command over any name that is not
+one of its own attributes, so `happy_hare::unit_supports()` answers, from `mmu_machine.unit_N` and
 the unit's `[mmu_unit <name>] encoder`: `MMU_SERVO` needs a servo selector,
 `selector_move_speed` a moving selector, the encoder mode and gate calibration an encoder,
 `sync_to_extruder` a unit that does not keep its filament gripped, and
 `gear_from_filament_buffer_speed` a filament buffer. The two toolhead distances tuned against a
-sensor need it fitted (its key in `printer.mmu.sensors`). A device action no unit takes is
-disabled, and the v4 override reapply sends one `MMU_TEST_CONFIG` per parameter, leaving out
-any no unit takes, so one refusal cannot sink the rest.
+sensor need it fitted and enabled (its key in `printer.mmu.sensors`, not null). v3 checks
+only names, so there only `selector_move_speed` is filtered, by selector. A device action no
+unit takes is disabled, and the override reapply sends one `MMU_TEST_CONFIG` per parameter on
+every version, leaving out any no unit takes, so one refusal cannot sink the rest.
 
 **Units.** `happy_hare::read_machine_units()` returns every `mmu_machine.unit_N` (v3.4 and v4
 both publish them; an older v3 falls back to configfile's `[mmu_machine]` as one unit). Each
@@ -198,11 +202,17 @@ on v4 and is never read.
 v4 sends `encoder`, `flowguard`, `tangle_prevention` and the `sync_feedback_*` fields as
 JSON null while the selected unit lacks that hardware. A null `sync_feedback_bias_*` returns
 the bias to the -2 "unavailable" sentinel, and a null `flowguard` or `encoder` clears
-`flowguard_info.enabled` / `encoder_info.enabled`; other fields keep their last value. The
-presence of `tangle_prevention` in a frame marks it v4 before the connect-time query answers,
-so v4's constant `has_bypass` shows no bypass in the meantime, and a v4 `espooler` list is read
-per gate (v3's covers only the gates fitted with one). The clog config modal asks `AmsBackend::clog_detection_mode_gcode()` for its
-command. `MMU_FLOWGUARD ENABLE=` switches buffer FlowGuard as a whole; no HelixScreen control
+`flowguard_info.enabled` / `encoder_info.enabled`; other fields keep their last value. An
+encoder-only unit publishes `flowguard` as `{active, enabled, encoder_mode}`, which is the
+encoder's detection rather than buffer FlowGuard, so `flowguard_info.enabled` follows only a
+`flowguard` carrying `level`, `trigger` or `max_clog`. Until the units are known, v4's constant
+`has_bypass` shows no bypass, and a v4 `espooler` list is read per gate (v3's covers only the
+gates fitted with one, so it is read per gate only when it covers every gate).
+
+The clog config modal asks `AmsBackend::clog_detection_mode_gcode()` for its command and
+pre-fills its length from `clog_detection_length_setting()`: the configured
+`flowguard_encoder_max_motion` from 3.42 on, else the live encoder length. Save sends the
+length only when the user moved it. `MMU_FLOWGUARD ENABLE=` switches buffer FlowGuard as a whole; no HelixScreen control
 sends it. Golden payloads: `tests/fixtures/happy_hare_v4_*.json`.
 
 ### Reset vs Recover
