@@ -3744,10 +3744,16 @@ PrintSelectPanel::fetch_esp_thumbnail(size_t index, const std::string& filename,
             auto thumb = helix::ui::EspPsramThumbnail::create_decoded(
                 png_bytes, target.width, target.height, slots, failure);
             if (!thumb) {
-                spdlog::warn("[PrintSelectPanel] Could not decode thumbnail {}: {}", filename,
+                // Slots in use against the pool's size, and the largest PSRAM block
+                // against the decode floor, say which memory ran out.
+                spdlog::warn("[PrintSelectPanel] Could not decode thumbnail {}: {} (slots {}/{} "
+                             "in use, largest PSRAM block {})",
+                             filename,
                              failure == helix::ThumbnailDecodeFailure::OutOfMemory
                                  ? "out of memory"
-                                 : "corrupt or too large");
+                                 : "corrupt or too large",
+                             slots ? slots->in_use() : 0, slots ? slots->allocated() : 0,
+                             heap_caps_get_largest_free_block(MALLOC_CAP_SPIRAM));
             }
             tok.defer("PrintSelectPanel::on_psram_thumbnail_fetched",
                       [this, index, filename, thumb = std::move(thumb)]() mutable {
