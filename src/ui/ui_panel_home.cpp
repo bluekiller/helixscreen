@@ -33,6 +33,7 @@
 #include "spoolman_manager.h"
 #include "static_panel_registry.h"
 #include "theme_manager.h"
+#include "ui/ui_widget_helpers.h"
 
 #include <spdlog/spdlog.h>
 
@@ -289,9 +290,8 @@ void HomePanel::apply_edit_swipe_policy() {
 }
 
 void HomePanel::build_carousel(int initial_page) {
-    carousel_host_ = lv_obj_find_by_name(panel_, "carousel_host");
+    carousel_host_ = helix::ui::find_required(panel_, "carousel_host", get_name());
     if (!carousel_host_) {
-        spdlog::error("[{}] carousel_host not found in XML", get_name());
         return;
     }
 
@@ -338,7 +338,8 @@ void HomePanel::build_carousel(int initial_page) {
             static_cast<lv_obj_t*>(lv_xml_create(carousel_host_, "home_next_page_slot", nullptr));
         if (slot) {
             ui_carousel_add_item(carousel_, slot);
-            next_page_container_ = lv_obj_find_by_name(slot, "next_page_container");
+            next_page_container_ =
+                helix::ui::find_required(slot, "next_page_container", get_name());
         } else {
             spdlog::error("[{}] Failed to create the next-page slot", get_name());
         }

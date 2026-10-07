@@ -19,6 +19,7 @@
 #include "printer_state.h"
 #include "text_io.h"
 #include "theme_manager.h"
+#include "ui/ui_widget_helpers.h"
 #include "utils/network_validation.h"
 
 #include <spdlog/spdlog.h>
@@ -82,12 +83,12 @@ bool ChangeHostModal::show_modal(lv_obj_t* parent, AddCallback on_add) {
         active_instance_ = this;
 
         // Register keyboards for text inputs
-        lv_obj_t* host_input = lv_obj_find_by_name(dialog(), "host_input");
+        lv_obj_t* host_input = helix::ui::find_required(dialog(), "host_input", get_name());
         if (host_input) {
             helix::ui::modal_register_keyboard(dialog(), host_input);
         }
 
-        lv_obj_t* port_input = lv_obj_find_by_name(dialog(), "port_input");
+        lv_obj_t* port_input = helix::ui::find_required(dialog(), "port_input", get_name());
         if (port_input) {
             helix::ui::modal_register_keyboard(dialog(), port_input);
         }
@@ -378,7 +379,7 @@ void ChangeHostModal::set_status(const char* icon_name, const char* color_token,
     if (!dialog())
         return;
 
-    lv_obj_t* icon_label = lv_obj_find_by_name(dialog(), "status_icon");
+    lv_obj_t* icon_label = helix::ui::find_required(dialog(), "status_icon", get_name());
     if (icon_label) {
         if (icon_name) {
             const char* icon_text = lv_xml_get_const(nullptr, icon_name);
@@ -392,7 +393,7 @@ void ChangeHostModal::set_status(const char* icon_name, const char* color_token,
         }
     }
 
-    lv_obj_t* text_label = lv_obj_find_by_name(dialog(), "status_text");
+    lv_obj_t* text_label = helix::ui::find_required(dialog(), "status_text", get_name());
     if (text_label) {
         lv_label_set_text(text_label, text ? text : "");
     }

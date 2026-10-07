@@ -11,6 +11,7 @@
 #include "ui_update_queue.h"
 
 #include "config.h"
+#include "ui/ui_widget_helpers.h"
 
 #include <spdlog/spdlog.h>
 
@@ -61,9 +62,8 @@ void PrinterSwitchMenu::populate_printer_list() {
     auto printer_ids = cfg->get_printer_ids();
     auto active_id = cfg->get_active_printer_id();
 
-    lv_obj_t* printer_list = lv_obj_find_by_name(menu(), "printer_list");
+    lv_obj_t* printer_list = helix::ui::find_required(menu(), "printer_list", "PrinterSwitchMenu");
     if (!printer_list) {
-        spdlog::error("[PrinterSwitchMenu] printer_list not found in XML");
         return;
     }
 

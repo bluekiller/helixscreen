@@ -630,6 +630,29 @@ SHAPES
     lacks "helix::Regex" "$output"
 }
 
+# Only <spdlog/fmt/fmt.h> is on every build's include path; the standalone
+# <fmt/...> headers are absent on hosts that build against spdlog's bundled fmt.
+bare_fmt_include_files() {
+    git ls-files --cached --others --exclude-standard src include tests firmware |
+        grep -E '\.(cpp|h)$'
+}
+
+check_no_bare_fmt_include() {
+    local offenders
+    # shellcheck disable=SC2046  # paths have no spaces; word splitting is intended
+    offenders=$(code_offenders '#[[:space:]]*include[[:space:]]*<fmt/' FMT_INCLUDE_OK $(bare_fmt_include_files))
+    [ -z "$offenders" ] && return 0
+    echo "bare <fmt/...> include (not on every host's include path):"
+    printf '%s\n' "$offenders"
+    echo "Use <spdlog/fmt/fmt.h>."
+    return 1
+}
+
+@test "no bare <fmt/...> include in src, include, tests or firmware" {
+    run check_no_bare_fmt_include
+    [ "$status" -eq 0 ]
+}
+
 # sigaltstack is per thread, so a thread that never installs its own signal
 # stack dies on a stack overflow without writing a crash file. helix::make_thread
 # (include/helix_thread.h) installs one before running the thread's body.

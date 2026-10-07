@@ -14,6 +14,7 @@
 #include "lvgl/src/others/translation/lv_translation.h"
 #include "page_scroll_auto_inject.h"
 #include "runtime_config.h"
+#include "ui/ui_widget_helpers.h"
 
 #include <spdlog/spdlog.h>
 
@@ -27,7 +28,7 @@ void sync_slider_value_label(lv_obj_t* slider, int value) {
     lv_obj_t* row = lv_obj_get_parent(lv_obj_get_parent(slider));
     if (!row)
         return;
-    if (lv_obj_t* value_label = lv_obj_find_by_name(row, "value_label")) {
+    if (lv_obj_t* value_label = helix::ui::find_required(row, "value_label", "ui_settings_touch")) {
         lv_label_set_text_fmt(value_label, "%d", value);
     }
 }
@@ -182,7 +183,7 @@ void TouchSettingsOverlay::init_input_sliders() {
         if (!row) {
             return;
         }
-        if (lv_obj_t* slider = lv_obj_find_by_name(row, "slider")) {
+        if (lv_obj_t* slider = helix::ui::find_required(row, "slider", get_name())) {
             lv_slider_set_value(slider, value, LV_ANIM_OFF);
             sync_slider_value_label(slider, value);
         }

@@ -366,6 +366,11 @@ void AmsState::clear_backends() {
     runout_grace_.reset();
     // A hold describes an operation on the departing backend.
     optimistic_action_until_.reset();
+    // Every trace describes the departing backend's buffers.
+    buffer_traces_.clear();
+    if (initialized_) {
+        publish_buffer_reading(BufferReading{});
+    }
 
     // Drop AMS-derived tool topology so the UI doesn't show stale tool pills
     // between backend disappearance and the next reconnect's init_tools().
@@ -626,6 +631,9 @@ void AmsState::sync_from_backend() {
 
     // Sync clog detection meter subjects
     sync_clog_meter_from_info(info);
+
+    // Sync the filament buffer reading and its traces
+    sync_buffer_from_info(info, buffer_clock_ms());
 
     // Sync "Currently Loaded" display subjects (pass info to avoid re-fetching)
     sync_current_loaded_from_backend(info);
@@ -1299,8 +1307,7 @@ void AmsState::on_backend_event(int backend_index, const std::string& event,
                 // the sync so an observer that re-reads backend state sees the
                 // synced values, not the previous ones. Main thread already (we
                 // are inside the queue_update body), so the subject write is safe.
-                auto* rev = AmsState::instance().get_ams_data_revision_subject();
-                lv_subject_set_int(rev, lv_subject_get_int(rev) + 1);
+                AmsState::instance().bump_data_revision();
             });
     };
 
