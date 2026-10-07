@@ -123,8 +123,7 @@ buffer_trace_polylines(const std::vector<BufferTracePoint>& window, int64_t now_
         const int older_x = x_of(it->t_ms);
         if (it->valid) {
             const int y = buffer_trace_y(it->bias, height);
-            const auto status = pressure_status(
-                static_cast<int>(std::lround(std::fabs(clamp_bias(it->bias)) * 100.0f)));
+            const auto status = pressure_status_of_bias(it->bias);
             run.push_back({newer_x, y, status});
             run.push_back({older_x, y, status});
         } else if (!run.empty()) {

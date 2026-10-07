@@ -37,7 +37,7 @@ BufferReading buffer_reading(const AmsSystemInfo& info, int unit) {
         r.value_pct = static_cast<int>(std::lround(r.bias * 100.0f));
     }
     if (r.has_slider) {
-        r.status = ui::pressure_status(static_cast<int>(std::lround(r.bias * 100.0f)));
+        r.status = ui::pressure_status_of_bias(r.bias);
     }
     return r;
 }

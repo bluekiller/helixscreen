@@ -14,6 +14,7 @@
 
 #include "clog_meter_geometry.h"
 
+#include <cmath>
 #include <string>
 
 #include "../catch_amalgamated.hpp"
@@ -317,6 +318,19 @@ TEST_CASE("pressure_status: the bands, by magnitude", "[clog][status][pressure]"
     CHECK(pressure_status(kPressureFaultPct - 1) == ClogMeterStatus::Warning);
     CHECK(pressure_status(kPressureFaultPct) == ClogMeterStatus::Fault);
     CHECK(pressure_status(-100) == ClogMeterStatus::Fault);
+}
+
+TEST_CASE("pressure_status_of_bias: the bands at their edges", "[clog][status][pressure]") {
+    CHECK(pressure_status_of_bias(-0.71f) == ClogMeterStatus::Fault);
+    CHECK(pressure_status_of_bias(-0.70f) == ClogMeterStatus::Fault);
+    CHECK(pressure_status_of_bias(-0.30f) == ClogMeterStatus::Warning);
+    CHECK(pressure_status_of_bias(-0.29f) == ClogMeterStatus::Ok);
+    CHECK(pressure_status_of_bias(0.0f) == ClogMeterStatus::Ok);
+    CHECK(pressure_status_of_bias(0.29f) == ClogMeterStatus::Ok);
+    CHECK(pressure_status_of_bias(0.30f) == ClogMeterStatus::Warning);
+    CHECK(pressure_status_of_bias(0.70f) == ClogMeterStatus::Fault);
+    CHECK(pressure_status_of_bias(5.0f) == ClogMeterStatus::Fault);
+    CHECK(pressure_status_of_bias(std::nanf("")) == ClogMeterStatus::Ok);
 }
 
 TEST_CASE("buffer_lean: tension is tight, compression loose, a deadband between",

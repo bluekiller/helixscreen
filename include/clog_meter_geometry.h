@@ -75,6 +75,9 @@ constexpr int kPressureFaultPct = 70;
 /// Severity of a buffer reading, `bias * 100` (-100..+100), by magnitude.
 ClogMeterStatus pressure_status(int pct);
 
+/// pressure_status() of a buffer bias (-1..+1, clamped; NaN reads as 0).
+ClogMeterStatus pressure_status_of_bias(float bias);
+
 /// The design token a buffer reading of this severity is drawn in: neutral on
 /// target, warning off it, danger near an end stop.
 const char* buffer_status_token(ClogMeterStatus s);

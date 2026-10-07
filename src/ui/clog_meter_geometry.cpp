@@ -64,6 +64,11 @@ ClogMeterStatus clog_meter_status(int mode, int value, int warning, int danger_p
     return ClogMeterStatus::Ok;
 }
 
+ClogMeterStatus pressure_status_of_bias(float bias) {
+    const float clamped = std::isnan(bias) ? 0.0f : std::clamp(bias, -1.0f, 1.0f);
+    return pressure_status(static_cast<int>(std::lround(clamped * 100.0f)));
+}
+
 bool clog_meter_is_symmetrical(int mode) {
     return static_cast<ClogMeterMode>(mode) == ClogMeterMode::Flowguard;
 }

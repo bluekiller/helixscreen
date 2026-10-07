@@ -247,12 +247,13 @@ void UiBufferSlider::draw_trace(lv_layer_t* layer) const {
     trace.width = 2;
     trace.round_start = 1;
     trace.round_end = 1;
+    const lv_color_t status_color[3] = {
+        muted, theme_manager_get_color(buffer_status_token(ClogMeterStatus::Warning)),
+        theme_manager_get_color(buffer_status_token(ClogMeterStatus::Fault))};
     for (const auto& run : lines) {
         for (std::size_t i = 1; i < run.size(); ++i) {
-            const auto status = buffer_trace_segment_status(run[i - 1], run[i]);
-            trace.color = status == ClogMeterStatus::Ok
-                              ? muted
-                              : theme_manager_get_color(buffer_status_token(status));
+            trace.color =
+                status_color[static_cast<int>(buffer_trace_segment_status(run[i - 1], run[i]))];
             trace.p1 = point(a.x1 + run[i - 1].x, a.y1 + run[i - 1].y);
             trace.p2 = point(a.x1 + run[i].x, a.y1 + run[i].y);
             lv_draw_line(layer, &trace);
