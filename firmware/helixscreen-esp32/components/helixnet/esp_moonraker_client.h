@@ -254,6 +254,9 @@ class EspMoonrakerClient final : public IMoonrakerClient {
     /// Frames dropped because they came from a transport no longer current; reported with
     /// the rx-stall and discovery-recovery lines.
     std::atomic<uint32_t> stale_frames_dropped_{0};
+    /// connection_lost callbacks for requests a disconnect failed, delivered by
+    /// process_timeouts(); guarded by requests_mutex_.
+    std::vector<std::function<void()>> failed_callbacks_;
     static constexpr int64_t RX_STALL_LOG_US = 5 * 1000 * 1000;
     static_assert(PING_PONG_TIMEOUT_SEC * 1000u < DEFAULT_REQUEST_TIMEOUT_MS,
                   "ping/pong must detect a dead link before the per-request timeout fires — "

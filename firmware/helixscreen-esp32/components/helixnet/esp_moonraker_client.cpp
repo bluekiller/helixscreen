@@ -35,6 +35,7 @@ int64_t now_us() {
 constexpr uint8_t OP_TEXT = 0x01;
 constexpr uint8_t OP_CONTINUATION = 0x00;
 constexpr uint8_t OP_PONG = 0x0A;
+constexpr uint8_t OP_CONTROL_BIT = 0x08; // close, ping, pong
 
 std::atomic<EspMoonrakerClient::LinkDropObserver> s_link_drop_observer{nullptr};
 
@@ -572,30 +573,30 @@ void EspMoonrakerClient::on_ws_disconnected() {
 }
 
 void EspMoonrakerClient::fail_pending_requests() {
-    // Fail every in-flight request with connection_lost (two-phase).
-    std::vector<std::function<void()>> cleanup;
-    {
-        std::lock_guard<std::mutex> lock(requests_mutex_);
-        cleanup.reserve(pending_.size());
-        for (auto& [id, req] : pending_) {
-            if (req.error_cb) {
-                MoonrakerError err = MoonrakerError::connection_lost(req.method);
-                auto cb = req.error_cb;
-                cleanup.emplace_back([cb, err]() { cb(err); });
-            }
+    // Fail every in-flight request with connection_lost. The callbacks run from
+    // process_timeouts(), not here: this is reached from the websocket task's disconnect
+    // event, and a failure callback can start a whole chain (discovery failing, a
+    // reconnect) that the task's stack has no room for.
+    std::lock_guard<std::mutex> lock(requests_mutex_);
+    for (auto& [id, req] : pending_) {
+        if (req.error_cb) {
+            MoonrakerError err = MoonrakerError::connection_lost(req.method);
+            auto cb = req.error_cb;
+            failed_callbacks_.emplace_back([cb, err]() { cb(err); });
         }
-        pending_.clear();
     }
-    for (auto& fn : cleanup) {
-        fn();
-    }
+    pending_.clear();
 }
 
 void EspMoonrakerClient::on_ws_data(const esp_websocket_event_data_t* d) {
     if (!d) {
         return;
     }
-    last_rx_us_.store(esp_timer_get_time());
+    // The component reports a read that timed out partway through a frame as a zero-length
+    // event carrying that frame's opcode, so only bytes or a control frame are traffic.
+    if (d->data_len > 0 || (d->op_code & OP_CONTROL_BIT) != 0) {
+        last_rx_us_.store(esp_timer_get_time());
+    }
     if (d->op_code == OP_PONG) {
         ++pongs_this_connection_;
         last_pong_us_.store(esp_timer_get_time());
@@ -796,6 +797,7 @@ void EspMoonrakerClient::process_timeouts() {
         MoonrakerError err;
     };
     std::vector<TimedOut> timed_out;
+    std::vector<std::function<void()>> failed;
     const int64_t now = now_us();
     size_t pending_n = 0;
     int64_t oldest_age_us = 0;
@@ -807,6 +809,7 @@ void EspMoonrakerClient::process_timeouts() {
         if (!alive_.load()) {
             return;
         }
+        failed.swap(failed_callbacks_);
         pending_n = pending_.size();
         for (auto it = pending_.begin(); it != pending_.end();) {
             const int64_t age_us = now - it->second.sent_us;
@@ -858,6 +861,9 @@ void EspMoonrakerClient::process_timeouts() {
         force_reconnect();
     }
 
+    for (auto& fn : failed) {
+        fn();
+    }
     for (auto& t : timed_out) {
         if (!t.silent) {
             emit_event(moonraker_event::request_timed_out(t.method, t.timeout_ms));
