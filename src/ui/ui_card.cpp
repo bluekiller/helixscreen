@@ -44,8 +44,8 @@ static void* ui_card_xml_create(lv_xml_parser_state_t* state, const char** attrs
     // unscaled. The tier is seeded once at startup, so reading it at create time
     // is as current as a binding.
     lv_subject_t* tier = lv_xml_get_subject(nullptr, "platform_tier");
-    if (!tier ||
-        helix::pressed_scale_allowed(static_cast<helix::PlatformTier>(lv_subject_get_int(tier)))) {
+    if (!tier || helix::full_style_effects_allowed(
+                     static_cast<helix::PlatformTier>(lv_subject_get_int(tier)))) {
         lv_obj_set_style_transform_scale_x(obj, 245, LV_PART_MAIN | LV_STATE_PRESSED); // 96%
         lv_obj_set_style_transform_scale_y(obj, 245, LV_PART_MAIN | LV_STATE_PRESSED);
         lv_obj_set_style_transform_pivot_x(obj, LV_PCT(50), LV_PART_MAIN | LV_STATE_PRESSED);

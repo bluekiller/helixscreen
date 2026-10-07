@@ -7,7 +7,7 @@
 namespace helix {
 
 void configure_pressed_for_tier(lv_style_t* s, PlatformTier tier) {
-    if (!pressed_scale_allowed(tier)) {
+    if (!full_style_effects_allowed(tier)) {
         return;
     }
     lv_style_set_transform_scale_x(s, 245); // 96% scale

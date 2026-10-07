@@ -38,9 +38,3 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     lv_subject_set_int(tier, saved);
     helix::ui::UpdateQueue::instance().drain();
 }
-
-TEST_CASE("scrolled_scrollbar_style_allowed: capable tier only", "[theme][platform_tier]") {
-    CHECK(helix::scrolled_scrollbar_style_allowed(PlatformTier::STANDARD));
-    CHECK_FALSE(helix::scrolled_scrollbar_style_allowed(PlatformTier::BASIC));
-    CHECK_FALSE(helix::scrolled_scrollbar_style_allowed(PlatformTier::EMBEDDED));
-}

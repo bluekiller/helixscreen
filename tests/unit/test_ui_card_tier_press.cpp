@@ -38,10 +38,10 @@ TEST_CASE_METHOD(LVGLUITestFixture, "ui_card: pressed scale-down on the capable 
     helix::ui::UpdateQueue::instance().drain();
 }
 
-TEST_CASE("pressed_scale_allowed: capable tier only", "[ui_card][platform_tier]") {
-    CHECK(helix::pressed_scale_allowed(PlatformTier::STANDARD));
-    CHECK_FALSE(helix::pressed_scale_allowed(PlatformTier::BASIC));
-    CHECK_FALSE(helix::pressed_scale_allowed(PlatformTier::EMBEDDED));
+TEST_CASE("full_style_effects_allowed: capable tier only", "[ui_card][platform_tier]") {
+    CHECK(helix::full_style_effects_allowed(PlatformTier::STANDARD));
+    CHECK_FALSE(helix::full_style_effects_allowed(PlatformTier::BASIC));
+    CHECK_FALSE(helix::full_style_effects_allowed(PlatformTier::EMBEDDED));
 }
 
 // The theme's Pressed style lands on every lv_button's PRESSED state.
