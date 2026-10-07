@@ -53,8 +53,8 @@
         <ams_mini_status name="ams_mini_status" height="100%" flex_grow="1" bars_align="start"/>
         <!-- Manage Button (shown when single-tool AMS, hidden when multi-tool) -->
         <ui_button name="btn_manage_slots"
-                   width="content" height="#button_height" text="Manage" translation_tag="Manage"
-                   style_pad_left="#space_md" style_pad_right="#space_md">
+                   width="content" height="#button_height" text="Manage" style_pad_left="#space_md"
+                   style_pad_right="#space_md">
           <event_cb trigger="clicked" callback="filament_manage_slots_cb"/>
         </ui_button>
         <!-- Extruder Dropdown (shown when multi-tool, replaces Manage button) -->
@@ -91,10 +91,8 @@
         <lv_obj height="content"
                 flex_grow="1" style_pad_all="0" scrollable="false" flex_flow="column" style_flex_main_place="center"
                 style_flex_cross_place="start" style_pad_gap="2" clickable="false" event_bubble="true">
-          <text_body name="external_spool_material_label"
-                     text="No spool assigned" translation_tag="No spool assigned" clickable="false" event_bubble="true"/>
-          <text_small name="external_spool_color_label"
-                      text="Tap to assign" translation_tag="Tap to assign" clickable="false" event_bubble="true"/>
+          <text_body name="external_spool_material_label" text="No spool assigned" clickable="false" event_bubble="true"/>
+          <text_small name="external_spool_color_label" text="Tap to assign" clickable="false" event_bubble="true"/>
         </lv_obj>
       </lv_obj>
     </lv_obj>

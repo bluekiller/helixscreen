@@ -56,9 +56,9 @@
             scrollable="false">
       <bind_flag_if_eq subject="recovery_can_restart" flag="hidden" ref_value="0"/>
       <modal_button_row secondary_text="Firmware Restart"
-                        secondary_variant="primary" secondary_tag="Firmware Restart" secondary_icon="update"
+                        secondary_variant="primary" secondary_icon="update"
                         secondary_callback="recovery_firmware_restart_clicked" primary_text="Restart Klipper"
-                        primary_tag="Restart Klipper" primary_icon="refresh" primary_variant="warning"
+                        primary_icon="refresh" primary_variant="warning"
                         primary_callback="recovery_restart_klipper_clicked"/>
     </lv_obj>
   </view>

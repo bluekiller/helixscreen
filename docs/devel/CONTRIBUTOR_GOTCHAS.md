@@ -309,7 +309,7 @@ Gate: `scripts/check_responsive_token_scope.py` (prestonbrown/helixscreen#1211).
 - **Product names:** HelixScreen, Klipper, Moonraker, Spoolman, Mainsail, Fluidd, OrcaSlicer.
 - **URLs / domains:** `https://helixscreen.org`, `github.com/prestonbrown/helixscreen`.
 - **Technical abbreviations as standalone labels:** AMS, QGL, ADXL, PID, IFS, CFS.
-- **Material codes:** PLA, PETG, ABS, TPU, PA. (Also: no `translation_tag` on these in XML.)
+- **Material codes:** PLA, PETG, ABS, TPU, PA. (In XML a literal is looked up anyway and renders as itself when the catalog has no key for it.)
 - **Universal terms:** OK, WiFi.
 
 Add a comment when you skip translation: `// i18n: do not translate (product name)`.
@@ -423,7 +423,7 @@ Run through this before opening a PR:
 - [ ] **Added a new XML component?** Registered in `src/xml_registration.cpp`.
 - [ ] **Added an event callback?** Registered with `lv_xml_register_event_cb()`.
 - [ ] **Any hardcoded colors or pixel values?** Swap for design tokens.
-- [ ] **Any new user-visible strings?** Wrapped for translation — `lv_tr()` in C++, or `translation_tag` in XML (the path most first contributions use) — *except* product names, URLs, material codes.
+- [ ] **Any new user-visible strings?** Wrapped for translation — `lv_tr()` in C++, or a literal `text=` in XML, which is its own translation key (the path most first contributions use) — *except* product names, URLs, material codes.
 - [ ] **Modified translation YAML?** Rebuild, then `git add` the regenerated `ui_xml/translations/translations.xml`.
 - [ ] **Added an observer on a dynamic subject?** The `SubjectLifetime` you fetched is passed to the `observe<V>` factory, not swapped for `{}` or `subject_never_freed()`.
 - [ ] **Tested at multiple sizes?** At minimum: `480x320`, `800x480`, `1024x600`. See `docs/devel/UI_CONTRIBUTOR_GUIDE.md` § Screen Breakpoints.

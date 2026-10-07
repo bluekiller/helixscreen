@@ -27,8 +27,8 @@
     <style name="comfort_list_wide" layout="flex" flex_flow="column" flex_grow="0"/>
   </styles>
   <view name="ams_environment_overlay"
-        extends="overlay_panel" title="Filament Humidity" title_tag="Filament Humidity"
-        title_subject="ams_env_overlay_title_text" bg_color="#screen_bg">
+        extends="overlay_panel" title="Filament Humidity" title_subject="ams_env_overlay_title_text"
+        bg_color="#screen_bg">
 
     <!-- Content area — no scroll, everything must fit -->
     <lv_obj name="overlay_content"
@@ -112,7 +112,7 @@
                     <bind_flag_if_eq subject="ams_env_overlay_drying_active" flag="hidden" ref_value="0"/>
                   </text_heading>
                 </lv_obj>
-                <text_small text="Temperature" translation_tag="Temperature" style_text_color="#text_muted"/>
+                <text_small text="Temperature" style_text_color="#text_muted"/>
               </lv_obj>
 
               <!-- Humidity (only when a sensor is present) -->
@@ -126,7 +126,7 @@
                   <icon src="water" size="lg" variant="primary"/>
                   <text_heading bind_text="ams_env_overlay_humidity_text"/>
                 </lv_obj>
-                <text_small text="Humidity" translation_tag="Humidity" style_text_color="#text_muted"/>
+                <text_small text="Humidity" style_text_color="#text_muted"/>
               </lv_obj>
             </lv_obj>
 
@@ -190,7 +190,7 @@
                 <lv_obj width="1"
                         height="content" flex_grow="1" style_pad_all="0" flex_flow="column" style_pad_gap="#space_xxs"
                         scrollable="false">
-                  <text_small text="Minutes" translation_tag="Minutes" style_text_color="#text_muted"/>
+                  <text_small text="Minutes" style_text_color="#text_muted"/>
                   <text_input name="duration_input" width="100%" text="240" one_line="true" max_length="4">
                     <event_cb trigger="clicked" callback="on_ams_env_duration_clicked"/>
                   </text_input>
@@ -217,7 +217,6 @@
               <icon src="info" size="md" variant="secondary"/>
               <text_small width="100%"
                           text="No dryer available. Store filament in a sealed dry box with desiccant for best results."
-                          translation_tag="No dryer available. Store filament in a sealed dry box with desiccant for best results."
                           style_text_align="center"/>
             </lv_obj>
 
@@ -240,7 +239,7 @@
           <lv_obj width="100%"
                   height="content" style_pad_all="0" flex_flow="row" style_flex_main_place="center"
                   style_flex_cross_place="center" style_pad_gap="#space_md" scrollable="false">
-            <text_body text="Material Comfort:" translation_tag="Material Comfort:"/>
+            <text_body text="Material Comfort:"/>
 
             <!-- Per-material items as a left-aligned list — a column where
                  there is height for it, wrapped to 2x2 at Micro (see styles).

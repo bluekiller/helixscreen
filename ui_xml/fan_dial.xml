@@ -34,7 +34,7 @@
       <ui_switch name="onoff_switch" size="tiny">
         <event_cb trigger="value_changed" callback="on_fan_dial_switch_changed"/>
       </ui_switch>
-      <text_small name="onoff_label" text="Off" translation_tag="Off" clickable="false" event_bubble="true"/>
+      <text_small name="onoff_label" text="Off" clickable="false" event_bubble="true"/>
     </lv_obj>
   </view>
 </component>

@@ -83,8 +83,7 @@
                   style_pad_gap="#space_xxs" style_bg_color="#card_bg" style_bg_opa="255" style_radius="#border_radius">
             <style name="styles.press_wash" selector="pressed"/>
             <event_cb trigger="clicked" callback="on_filament_nozzle_target_tap"/>
-            <text_small text="Nozzle"
-                        translation_tag="Nozzle" style_text_color="#text_muted" clickable="false" event_bubble="true"/>
+            <text_small text="Nozzle" style_text_color="#text_muted" clickable="false" event_bubble="true"/>
             <lv_obj height="content"
                     style_pad_all="0" scrollable="false" flex_flow="row" style_flex_cross_place="center"
                     style_pad_gap="#space_xxs" clickable="false" event_bubble="true">
@@ -101,8 +100,7 @@
                   style_pad_gap="#space_xxs" style_bg_color="#card_bg" style_bg_opa="255" style_radius="#border_radius">
             <style name="styles.press_wash" selector="pressed"/>
             <event_cb trigger="clicked" callback="on_filament_bed_target_tap"/>
-            <text_small text="Bed"
-                        translation_tag="Bed" style_text_color="#text_muted" clickable="false" event_bubble="true"/>
+            <text_small text="Bed" style_text_color="#text_muted" clickable="false" event_bubble="true"/>
             <lv_obj height="content"
                     style_pad_all="0" scrollable="false" flex_flow="row" style_flex_cross_place="center"
                     style_pad_gap="#space_xxs" clickable="false" event_bubble="true">
@@ -119,8 +117,7 @@
             <style name="styles.press_wash" selector="pressed"/>
             <event_cb trigger="clicked" callback="on_filament_chamber_target_tap"/>
             <bind_flag_if_eq subject="printer_has_chamber" flag="hidden" ref_value="0"/>
-            <text_small text="Chamber"
-                        translation_tag="Chamber" style_text_color="#text_muted" clickable="false" event_bubble="true"/>
+            <text_small text="Chamber" style_text_color="#text_muted" clickable="false" event_bubble="true"/>
             <lv_obj height="content"
                     style_pad_all="0" scrollable="false" flex_flow="row" style_flex_cross_place="center"
                     style_pad_gap="#space_xxs" clickable="false" event_bubble="true">
@@ -186,8 +183,7 @@
                     height="content" style_pad_all="0" scrollable="false" flex_flow="row" style_flex_main_place="start"
                     style_flex_cross_place="center" style_pad_gap="#space_sm">
               <icon src="thermometer" size="sm" variant="secondary"/>
-              <text_body text="Temperature"
-                         translation_tag="Temperature" text_transform="uppercase" style_translate_y="2"/>
+              <text_body text="Temperature" text_transform="uppercase" style_translate_y="2"/>
             </lv_obj>
 
             <!-- Nozzle Row: Current / Target (entire row tappable) -->
@@ -220,7 +216,7 @@
                     style_radius="#border_radius">
               <style name="styles.press_wash" selector="pressed"/>
               <event_cb trigger="clicked" callback="on_filament_bed_target_tap"/>
-              <text_small text="Bed" translation_tag="Bed" clickable="false" event_bubble="true"/>
+              <text_small text="Bed" clickable="false" event_bubble="true"/>
               <lv_obj height="content"
                       flex_flow="row" style_pad_all="0" scrollable="false" style_flex_cross_place="center"
                       style_pad_gap="#space_xs" clickable="false" event_bubble="true">
@@ -244,7 +240,7 @@
               <style name="styles.press_wash" selector="pressed"/>
               <event_cb trigger="clicked" callback="on_filament_chamber_target_tap"/>
               <bind_flag_if_eq subject="printer_has_chamber" flag="hidden" ref_value="0"/>
-              <text_small text="Chamber" translation_tag="Chamber" clickable="false" event_bubble="true"/>
+              <text_small text="Chamber" clickable="false" event_bubble="true"/>
               <lv_obj height="content"
                       flex_flow="row" style_pad_all="0" scrollable="false" style_flex_cross_place="center"
                       style_pad_gap="#space_xs" clickable="false" event_bubble="true">

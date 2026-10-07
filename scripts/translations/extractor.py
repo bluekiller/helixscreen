@@ -65,6 +65,107 @@ EXPLICIT_TAG_ATTRIBUTES = (
     "text_tag",
 )
 
+# Implied tags. A literal text attribute is its own translation key: the engine
+# reads `text="Save"` as `translation_tag="Save"`, and `label="Fan"` on a
+# component declaring label_tag as `label_tag="Fan"`. This is the Python half of
+# implied_tag_value()/collect_implied_tags() in lib/helix-xml/src/xml/lv_xml.c;
+# the extractor, the redundant-tag lint and the coverage gate all go through
+# implied_tags() so none of them can disagree with the engine on its own.
+# options_tag and placeholder_tag are never implied: code replaces a dropdown's
+# options and an input's placeholder at runtime, and a tagged one puts its XML
+# value back on every language change.
+NEVER_IMPLIED_TAGS = ("options_tag", "placeholder_tag")
+
+# One element's open tag, capturing name and attribute blob.
+ELEMENT_RE = re.compile(r'<([A-Za-z_][\w.-]*)((?:\s+[\w:.-]+\s*=\s*"[^"]*")*)\s*/?>')
+ATTR_RE = re.compile(r'([\w:.-]+)\s*=\s*"([^"]*)"')
+_TAG_PROP_RE = re.compile(r'<prop\b[^>]*?\bname="(\w+_tag)"')
+
+
+def implied_tag_value(attrs: Dict[str, str], tag: str) -> Optional[str]:
+    """The raw literal an absent `tag` is implied from, or None.
+
+    translation_tag pairs with text; any other X_tag with X, else X_text. An
+    explicit tag (empty included), bind_text, a $prop / #const / ${} value,
+    and a literal should_skip_text() rejects imply nothing. The engine gets
+    that last verdict from helix::ui::is_translation_key()."""
+    if tag in attrs or "bind_text" in attrs:
+        return None
+    if tag == "translation_tag":
+        value = attrs.get("text")
+    elif tag.endswith("_tag") and len(tag) > 4:
+        base = tag[:-4]
+        value = attrs.get(base, attrs.get(base + "_text"))
+    else:
+        return None
+    if not value or value[0] in "$#" or "${" in value:
+        return None
+    if should_skip_text(_decode_xml_entities(value)):
+        return None
+    return value
+
+
+def implied_tags(element: str, attrs: Dict[str, str], component_tag_props) -> Dict[str, str]:
+    """Every tag the engine implies on this element: tag name -> raw value.
+
+    `component_tag_props` maps a component name to the *_tag props it declares.
+    A <view extends="X"> is an X instance."""
+    if element == "view":
+        element = attrs.get("extends", "lv_obj")
+    candidates = ["translation_tag"] + [
+        t
+        for t in sorted(component_tag_props.get(element, ()))
+        if t != "translation_tag" and t not in NEVER_IMPLIED_TAGS
+    ]
+    found = {}
+    for tag in candidates:
+        value = implied_tag_value(attrs, tag)
+        if value is not None:
+            found[tag] = value
+    return found
+
+
+_component_tag_props_cache: Dict[Path, Dict[str, Set[str]]] = {}
+
+
+def component_tag_props(ui_xml_dir: Path) -> Dict[str, Set[str]]:
+    """Component name (file stem) -> the *_tag props its <api> declares."""
+    ui_xml_dir = ui_xml_dir.resolve()
+    if ui_xml_dir not in _component_tag_props_cache:
+        props: Dict[str, Set[str]] = {}
+        for xml in ui_xml_dir.rglob("*.xml"):
+            if "translations" in xml.relative_to(ui_xml_dir).parts:
+                continue
+            names = _TAG_PROP_RE.findall(_blank_xml_comments(xml.read_text(encoding="utf-8")))
+            if names:
+                props.setdefault(xml.stem, set()).update(names)
+        _component_tag_props_cache[ui_xml_dir] = props
+    return _component_tag_props_cache[ui_xml_dir]
+
+
+def _ui_xml_root(xml_path: Path) -> Path:
+    for parent in xml_path.resolve().parents:
+        if parent.name == "ui_xml":
+            return parent
+    return xml_path.resolve().parent
+
+
+def iter_elements(content: str):
+    """Yield (element, attrs, match) for each open tag outside comments."""
+    for match in ELEMENT_RE.finditer(_blank_xml_comments(content)):
+        yield match.group(1), dict(ATTR_RE.findall(match.group(2))), match
+
+
+def _iter_implied_tag_texts(content: str, xml_path: Path):
+    """Yield (text, match_start) for each key an implied tag makes translatable."""
+    props = component_tag_props(_ui_xml_root(xml_path))
+    for element, attrs, match in iter_elements(content):
+        for raw in implied_tags(element, attrs, props).values():
+            text = _decode_xml_entities(raw)
+            if not should_skip_text(text):
+                yield text, match.start()
+
+
 # Inline element text: <text_muted>Foo</text_muted>. The C parser
 # (lib/helix-xml/src/xml/lv_xml.c) applies this as text= + translation_tag=,
 # so it is translatable by default. Matches an open tag (capturing its
@@ -828,6 +929,9 @@ def extract_strings_from_xml(xml_path: Path) -> Set[str]:
     for text, _pos in _iter_tag_prop_defaults(content):
         result.add(text)
 
+    for text, _pos in _iter_implied_tag_texts(content, xml_path):
+        result.add(text)
+
     return result
 
 
@@ -913,7 +1017,11 @@ def extract_strings_with_locations(xml_path: Path) -> Dict[str, List[Tuple[str, 
                 result[decoded] = []
             result[decoded].append((filename, line_num))
 
-    for text, pos in [*_iter_inline_texts(content), *_iter_tag_prop_defaults(content)]:
+    for text, pos in [
+        *_iter_inline_texts(content),
+        *_iter_tag_prop_defaults(content),
+        *_iter_implied_tag_texts(content, xml_path),
+    ]:
         line_num = content[:pos].count("\n") + 1
         result.setdefault(text, []).append((filename, line_num))
 

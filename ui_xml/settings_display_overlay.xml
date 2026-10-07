@@ -15,8 +15,7 @@
     <style name="spacer_standard" height="#space_lg"/>
     <style name="spacer_micro" height="#space_md"/>
   </styles>
-  <view name="settings_display_overlay"
-        extends="overlay_panel" title="Display" title_tag="Display" bg_color="#screen_bg">
+  <view name="settings_display_overlay" extends="overlay_panel" title="Display" bg_color="#screen_bg">
     <!-- Content Area - no padding, rows handle their own -->
     <lv_obj name="overlay_content" width="100%" flex_grow="1" scrollable="true" flex_flow="column">
       <bind_style_if_eq name="content_micro" subject="ui_breakpoint" ref_value="0"/>
@@ -26,9 +25,8 @@
              screen reaches it with the least scrolling. Hidden where the display
              backend ignores /display/rotate (SDL desktop builds). -->
         <setting_dropdown_row name="row_display_rotation"
-                              label="Screen Rotation" label_tag="Screen Rotation" icon="rotate_right"
+                              label="Screen Rotation" icon="rotate_right"
                               description="Turn the picture to match how the screen is mounted. Applies after restart."
-                              description_tag="Turn the picture to match how the screen is mounted. Applies after restart."
                               options="Normal&#10;90° Clockwise&#10;180° Upside Down&#10;270° Clockwise"
                               options_tag="Normal&#10;90° Clockwise&#10;180° Upside Down&#10;270° Clockwise"
                               callback="on_display_rotation_changed">
@@ -37,10 +35,8 @@
         <!-- UI Scale (options populated dynamically in C++ — the Automatic row
              carries the DPI-resolved percentage) -->
         <setting_dropdown_row name="row_ui_scale"
-                              label="UI Scale" label_tag="UI Scale" icon="magnify"
-                              description="Interface size. Applies after restart."
-                              description_tag="Interface size. Applies after restart." options=""
-                              callback="on_ui_scale_changed"/>
+                              label="UI Scale" icon="magnify" description="Interface size. Applies after restart."
+                              options="" callback="on_ui_scale_changed"/>
         <!-- Brightness (conditional - hidden when no hardware backlight) -->
         <lv_obj name="brightness_section" width="100%" height="content" scrollable="false" flex_flow="column">
           <bind_flag_if_eq subject="settings_has_dimming" flag="hidden" ref_value="0"/>
@@ -54,12 +50,12 @@
                     flex_flow="row" style_flex_cross_place="center" style_pad_gap="#space_sm" style_pad_all="0"
                     scrollable="false">
               <icon src="light" size="sm" variant="secondary"/>
-              <text_body text="Brightness" translation_tag="Brightness"/>
+              <text_body text="Brightness"/>
             </lv_obj>
             <text_body name="brightness_value_label" bind_text="brightness_value"/>
           </lv_obj>
           <!-- Description -->
-          <text_small text="Adjust screen brightness level" translation_tag="Adjust screen brightness level"/>
+          <text_small text="Adjust screen brightness level"/>
           <!-- Slider with min/max icons -->
           <lv_obj width="100%"
                   height="content" flex_flow="row" style_flex_cross_place="center" style_pad_left="0"
@@ -77,9 +73,8 @@
         </lv_obj>
         <!-- Screen Dim -->
         <setting_dropdown_row name="row_display_dim"
-                              label="Screen Dim" label_tag="Screen Dim" icon="lightbulb_on_50"
+                              label="Screen Dim" icon="lightbulb_on_50"
                               description="Screen dims to lower brightness after period of inactivity"
-                              description_tag="Screen dims to lower brightness after period of inactivity"
                               options="Never&#10;30 seconds&#10;1 minute&#10;2 minutes&#10;5 minutes&#10;10 minutes"
                               options_tag="Never&#10;30 seconds&#10;1 minute&#10;2 minutes&#10;5 minutes&#10;10 minutes"
                               callback="on_dim_changed">
@@ -87,16 +82,14 @@
         </setting_dropdown_row>
         <!-- Display Sleep -->
         <setting_dropdown_row name="row_display_sleep"
-                              label="Display Sleep" label_tag="Display Sleep" icon="clock"
+                              label="Display Sleep" icon="clock"
                               description="Screen sleeps after the selected period of inactivity"
-                              description_tag="Screen sleeps after the selected period of inactivity"
                               options="Never&#10;1 minute&#10;5 minutes&#10;10 minutes&#10;20 minutes&#10;30 minutes"
                               options_tag="Never&#10;1 minute&#10;5 minutes&#10;10 minutes&#10;20 minutes&#10;30 minutes"
                               callback="on_sleep_changed"/>
         <!-- Screensaver -->
         <setting_dropdown_row name="row_screensaver"
-                              label="Screensaver" label_tag="Screensaver" icon="television_classic"
-                              description="Show instead of dimming" description_tag="Show instead of dimming"
+                              label="Screensaver" icon="television_classic" description="Show instead of dimming"
                               options="Off&#10;Flying Toasters&#10;Starfield&#10;3D Pipes&#10;Bouncing Printer&#10;Fireworks"
                               options_tag="Off&#10;Flying Toasters&#10;Starfield&#10;3D Pipes&#10;Bouncing Printer&#10;Fireworks"
                               bind_selected="settings_screensaver_type" callback="on_screensaver_changed"/>
@@ -107,21 +100,18 @@
                 style_flex_main_place="end" scrollable="false">
           <bind_flag_if_eq subject="settings_screensaver_type" flag="hidden" ref_value="0"/>
           <ui_button name="btn_test_screensaver"
-                     width="content" height="#button_height_sm" variant="outline" text="Test Screensaver"
-                     translation_tag="Test Screensaver" icon="play">
+                     width="content" height="#button_height_sm" variant="outline" text="Test Screensaver" icon="play">
             <event_cb trigger="clicked" callback="on_test_screensaver"/>
           </ui_button>
         </lv_obj>
         <!-- Sleep While Printing -->
         <setting_toggle_row name="row_sleep_while_printing"
-                            label="Sleep While Printing" label_tag="Sleep While Printing" icon="sleep"
+                            label="Sleep While Printing" icon="sleep"
                             description="Allow display to sleep during active prints"
-                            description_tag="Allow display to sleep during active prints"
                             subject="settings_sleep_while_printing" callback="on_sleep_while_printing_changed"/>
         <!-- Info Note -->
         <info_note icon="info"
-                   text="Touch screen to wake from sleep" translation_tag="Touch screen to wake from sleep"
-                   style_pad_left="#space_lg" style_pad_right="#space_lg"/>
+                   text="Touch screen to wake from sleep" style_pad_left="#space_lg" style_pad_right="#space_lg"/>
       </setting_group>
       <!-- Bottom padding for scroll -->
       <lv_obj width="100%" scrollable="false">

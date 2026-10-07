@@ -4,7 +4,7 @@
 <!-- Motion Settings Overlay Panel -->
 <!-- Jog feedrates and step distances (persisted settings) -->
 <component>
-  <view name="motion_settings_overlay" extends="overlay_panel" title="Motion" title_tag="Motion" bg_color="#screen_bg">
+  <view name="motion_settings_overlay" extends="overlay_panel" title="Motion" bg_color="#screen_bg">
     <!-- Content Area -->
     <lv_obj name="overlay_content"
             width="100%" flex_grow="1" style_pad_top="0" style_pad_left="#space_lg" style_pad_right="#space_lg"
@@ -23,8 +23,8 @@
                   style_pad_gap="#space_sm">
             <icon src="axis_arrow" size="sm" variant="secondary"/>
             <lv_obj height="content" style_pad_all="0" scrollable="false" flex_flow="column" style_pad_gap="#space_xxs">
-              <text_body text="Jog Speed XY" translation_tag="Jog Speed XY"/>
-              <text_small text="X and Y jog feedrate" translation_tag="X and Y jog feedrate"/>
+              <text_body text="Jog Speed XY"/>
+              <text_small text="X and Y jog feedrate"/>
             </lv_obj>
           </lv_obj>
           <!-- Current value: tap to type an exact number -->
@@ -61,8 +61,8 @@
                   style_pad_gap="#space_sm">
             <icon src="axis_z_arrow" size="sm" variant="secondary"/>
             <lv_obj height="content" style_pad_all="0" scrollable="false" flex_flow="column" style_pad_gap="#space_xxs">
-              <text_body text="Jog Speed Z" translation_tag="Jog Speed Z"/>
-              <text_small text="Z jog feedrate" translation_tag="Z jog feedrate"/>
+              <text_body text="Jog Speed Z"/>
+              <text_small text="Z jog feedrate"/>
             </lv_obj>
           </lv_obj>
           <!-- Current value: tap to type an exact number -->
@@ -92,7 +92,7 @@
               style_pad_top="#space_md" style_pad_bottom="#space_xs" flex_flow="row" style_flex_cross_place="center"
               style_pad_gap="#space_sm">
         <icon src="cursor_move" size="xs" variant="secondary"/>
-        <text_small text="Distance moved per jog button tap" translation_tag="Distance moved per jog button tap"/>
+        <text_small text="Distance moved per jog button tap"/>
       </lv_obj>
       <!-- Each distance row is one tappable setting_value_field carrying the
            row name; the container beside it is unnamed scaffolding. -->
@@ -100,7 +100,7 @@
               height="content" scrollable="false" style_pad_left="#space_lg" style_pad_right="#space_lg"
               style_pad_top="#space_sm" style_pad_bottom="#space_sm" flex_flow="row"
               style_flex_main_place="space_between" style_flex_cross_place="center">
-        <text_body text="Fine Inner" translation_tag="Fine Inner"/>
+        <text_body text="Fine Inner"/>
         <setting_value_field name="fine_inner_row"
                              value_subject="fine_inner_display" callback="on_motion_field_clicked" user_data="2"/>
       </lv_obj>
@@ -108,7 +108,7 @@
               height="content" scrollable="false" style_pad_left="#space_lg" style_pad_right="#space_lg"
               style_pad_top="#space_sm" style_pad_bottom="#space_sm" flex_flow="row"
               style_flex_main_place="space_between" style_flex_cross_place="center">
-        <text_body text="Fine Outer" translation_tag="Fine Outer"/>
+        <text_body text="Fine Outer"/>
         <setting_value_field name="fine_outer_row"
                              value_subject="fine_outer_display" callback="on_motion_field_clicked" user_data="3"/>
       </lv_obj>
@@ -116,7 +116,7 @@
               height="content" scrollable="false" style_pad_left="#space_lg" style_pad_right="#space_lg"
               style_pad_top="#space_sm" style_pad_bottom="#space_sm" flex_flow="row"
               style_flex_main_place="space_between" style_flex_cross_place="center">
-        <text_body text="Coarse Inner" translation_tag="Coarse Inner"/>
+        <text_body text="Coarse Inner"/>
         <setting_value_field name="coarse_inner_row"
                              value_subject="coarse_inner_display" callback="on_motion_field_clicked" user_data="4"/>
       </lv_obj>
@@ -124,7 +124,7 @@
               height="content" scrollable="false" style_pad_left="#space_lg" style_pad_right="#space_lg"
               style_pad_top="#space_sm" style_pad_bottom="#space_sm" flex_flow="row"
               style_flex_main_place="space_between" style_flex_cross_place="center">
-        <text_body text="Coarse Outer" translation_tag="Coarse Outer"/>
+        <text_body text="Coarse Outer"/>
         <setting_value_field name="coarse_outer_row"
                              value_subject="coarse_outer_display" callback="on_motion_field_clicked" user_data="5"/>
       </lv_obj>
@@ -132,7 +132,7 @@
               height="content" scrollable="false" style_pad_left="#space_lg" style_pad_right="#space_lg"
               style_pad_top="#space_sm" style_pad_bottom="#space_sm" flex_flow="row"
               style_flex_main_place="space_between" style_flex_cross_place="center">
-        <text_body text="Turbo Inner" translation_tag="Turbo Inner"/>
+        <text_body text="Turbo Inner"/>
         <setting_value_field name="turbo_inner_row"
                              value_subject="turbo_inner_display" callback="on_motion_field_clicked" user_data="6"/>
       </lv_obj>
@@ -140,7 +140,7 @@
               height="content" scrollable="false" style_pad_left="#space_lg" style_pad_right="#space_lg"
               style_pad_top="#space_sm" style_pad_bottom="#space_sm" flex_flow="row"
               style_flex_main_place="space_between" style_flex_cross_place="center">
-        <text_body text="Turbo Outer" translation_tag="Turbo Outer"/>
+        <text_body text="Turbo Outer"/>
         <setting_value_field name="turbo_outer_row"
                              value_subject="turbo_outer_display" callback="on_motion_field_clicked" user_data="7"/>
       </lv_obj>
@@ -155,9 +155,8 @@
                 style_pad_gap="#space_sm">
           <icon src="grid_large" size="sm" variant="secondary"/>
           <lv_obj height="content" style_pad_all="0" scrollable="false" flex_flow="column" style_pad_gap="#space_xxs">
-            <text_body text="Bed Map Clearance" translation_tag="Bed Map Clearance"/>
-            <text_small text="Bed tab moves lift to this height first"
-                        translation_tag="Bed tab moves lift to this height first"/>
+            <text_body text="Bed Map Clearance"/>
+            <text_small text="Bed tab moves lift to this height first"/>
           </lv_obj>
         </lv_obj>
         <setting_value_field name="bed_map_clearance_row"
@@ -172,7 +171,7 @@
     <divider_horizontal/>
     <lv_obj width="100%"
             height="content" style_pad_all="#space_md" flex_flow="row" style_flex_main_place="center" scrollable="false">
-      <ui_button name="reset_distances_btn" width="180" text="Reset Distances" translation_tag="Reset Distances">
+      <ui_button name="reset_distances_btn" width="180" text="Reset Distances">
         <event_cb trigger="clicked" callback="on_reset_distances"/>
       </ui_button>
     </lv_obj>

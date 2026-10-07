@@ -13,7 +13,7 @@
   </api>
   <view name="panel_widget_macros" extends="lv_obj" height="100%" flex_grow="1" style_pad_all="0" scrollable="false">
     <home_action_tile width="100%"
-                      height="100%" icon="script_text" icon_variant="secondary" label="Macros" label_tag="Macros"
+                      height="100%" icon="script_text" icon_variant="secondary" label="Macros"
                       callback="macros_widget_clicked_cb" button_name="macros_button" icon_name="macros_icon"
                       tile_icon_subject="$tile_icon_subject" tile_label_subject="$tile_label_subject"
                       tile_dir_subject="$tile_dir_subject" disabled_cond="printer_connection_state ne 2"/>

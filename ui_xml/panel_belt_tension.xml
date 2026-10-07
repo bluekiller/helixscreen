@@ -17,7 +17,7 @@
         extends="lv_obj" width="#overlay_width_transient" height="100%" align="right_mid" style_border_width="0"
         style_pad_all="0" style_bg_opa="255" style_bg_color="#card_bg" scrollable="false" flex_flow="column">
     <header_bar name="overlay_header"
-                title="Belt Tension" title_tag="Belt Tension" hide_action_button="true" action_button_icon="refresh"
+                title="Belt Tension" hide_action_button="true" action_button_icon="refresh"
                 action_button_callback="belt_tension_start_cb" action_button_disabled_cond="nav_buttons_enabled eq 0"/>
     <lv_obj name="overlay_content"
             width="100%" flex_grow="1" style_pad_top="0" style_pad_bottom="#space_md" style_pad_left="#space_lg"
@@ -35,7 +35,7 @@
         <bind_flag_if cond="belt_tension_state eq 0 or belt_tension_state eq 3" flag="hidden"/>
         <!-- Path A -->
         <lv_obj width="28%" height="content" style_pad_all="0" flex_flow="column" scrollable="false">
-          <text_small text="PATH A · 1,-1" translation_tag="PATH A · 1,-1">
+          <text_small text="PATH A · 1,-1">
             <style name="path_a_text"/>
             <bind_flag_if_eq subject="ui_breakpoint" flag="hidden" ref_value="0"/>
           </text_small>
@@ -62,7 +62,7 @@
             <lv_obj width="content"
                     height="content" style_pad_all="0" flex_flow="column" style_flex_cross_place="center"
                     scrollable="false">
-              <text_small text="Similarity" translation_tag="Similarity" style_text_color="#text_muted">
+              <text_small text="Similarity" style_text_color="#text_muted">
                 <bind_flag_if_eq subject="ui_breakpoint" flag="hidden" ref_value="0"/>
               </text_small>
               <lv_label name="bt_similarity" bind_text="bt_similarity" style_text_font="#font_display"/>
@@ -84,7 +84,7 @@
         <!-- Path B -->
         <lv_obj width="28%"
                 height="content" style_pad_all="0" flex_flow="column" style_flex_cross_place="end" scrollable="false">
-          <text_small text="PATH B · 1,1" translation_tag="PATH B · 1,1">
+          <text_small text="PATH B · 1,1">
             <style name="path_b_text"/>
             <bind_flag_if_eq subject="ui_breakpoint" flag="hidden" ref_value="0"/>
           </text_small>
@@ -107,8 +107,7 @@
             <lv_obj width="100%"
                     height="content" style_pad_all="0" flex_flow="row" style_flex_cross_place="center"
                     scrollable="false">
-              <text_heading text="Compare your belt paths"
-                            translation_tag="Compare your belt paths" flex_grow="1" long_mode="wrap"/>
+              <text_heading text="Compare your belt paths" flex_grow="1" long_mode="wrap"/>
               <ui_button name="btn_help"
                          width="#icon_button_size_lg" height="#icon_button_size_lg" variant="ghost" icon="help_circle">
                 <event_cb trigger="clicked" callback="belt_tension_help_cb"/>
@@ -116,7 +115,6 @@
             </lv_obj>
             <text_body width="100%"
                        text="Shakes the toolhead along each diagonal and overlays the two responses. Matched belts peak together."
-                       translation_tag="Shakes the toolhead along each diagonal and overlays the two responses. Matched belts peak together."
                        long_mode="wrap" style_text_color="#text_muted">
               <bind_flag_if_eq subject="ui_breakpoint" flag="hidden" ref_value="0"/>
             </text_body>
@@ -126,21 +124,21 @@
                       height="content" style_pad_ver="#space_xs" style_pad_hor="0" style_border_width="1"
                       style_border_side="bottom" style_border_color="#border" flex_flow="row"
                       style_flex_main_place="space_between" scrollable="false">
-                <text_body text="Kinematics" translation_tag="Kinematics" style_text_color="#text_muted"/>
+                <text_body text="Kinematics" style_text_color="#text_muted"/>
                 <text_body bind_text="bt_hw_kinematics"/>
               </lv_obj>
               <lv_obj width="100%"
                       height="content" style_pad_ver="#space_xs" style_pad_hor="0" style_border_width="1"
                       style_border_side="bottom" style_border_color="#border" flex_flow="row"
                       style_flex_main_place="space_between" scrollable="false">
-                <text_body text="Accelerometer" translation_tag="Accelerometer" style_text_color="#text_muted"/>
+                <text_body text="Accelerometer" style_text_color="#text_muted"/>
                 <text_body bind_text="bt_hw_accel"/>
               </lv_obj>
               <lv_obj width="100%"
                       height="content" style_pad_ver="#space_xs" style_pad_hor="0" style_border_width="1"
                       style_border_side="bottom" style_border_color="#border" flex_flow="row"
                       style_flex_main_place="space_between" scrollable="false">
-                <text_body text="Sweep" translation_tag="Sweep" style_text_color="#text_muted"/>
+                <text_body text="Sweep" style_text_color="#text_muted"/>
                 <text_body bind_text="bt_hw_sweep"/>
               </lv_obj>
             </lv_obj>
@@ -157,8 +155,7 @@
         <!-- bind_state_if_eq is the hard gate: bound to a subject, it holds -->
         <!-- however the user reached the panel. -->
         <ui_button name="btn_start"
-                   width="100%" height="#button_height" icon="waveform" text="Start check" translation_tag="Start check"
-                   variant="primary">
+                   width="100%" height="#button_height" icon="waveform" text="Start check" variant="primary">
           <bind_state_if_eq subject="bt_can_start" state="disabled" ref_value="0"/>
           <event_cb trigger="clicked" callback="belt_tension_start_cb"/>
         </ui_button>
@@ -180,12 +177,9 @@
                 height="content" style_pad_all="0" flex_flow="row" style_flex_cross_place="center"
                 style_pad_gap="#space_md" scrollable="false">
           <text_small flex_grow="1"
-                      text="Keep clear of the printer while the toolhead is moving"
-                      translation_tag="Keep clear of the printer while the toolhead is moving" long_mode="wrap"
+                      text="Keep clear of the printer while the toolhead is moving" long_mode="wrap"
                       style_text_color="#text_muted"/>
-          <ui_button name="btn_stop"
-                     width="35%" height="#button_height" icon="close" text="Stop" translation_tag="Stop"
-                     variant="danger">
+          <ui_button name="btn_stop" width="35%" height="#button_height" icon="close" text="Stop" variant="danger">
             <event_cb trigger="clicked" callback="belt_tension_stop_cb"/>
           </ui_button>
         </lv_obj>
@@ -215,18 +209,15 @@
                 height="content" style_pad_all="0" style_pad_top="#space_xs" flex_flow="row" style_pad_gap="#space_sm"
                 scrollable="false">
           <ui_button name="btn_retest_a"
-                     width="0" height="#button_height" flex_grow="1" icon="refresh" text="Re-test A"
-                     translation_tag="Re-test A" variant="secondary">
+                     width="0" height="#button_height" flex_grow="1" icon="refresh" text="Re-test A" variant="secondary">
             <event_cb trigger="clicked" callback="belt_tension_retest_a_cb"/>
           </ui_button>
           <ui_button name="btn_retest_b"
-                     width="0" height="#button_height" flex_grow="1" icon="refresh" text="Re-test B"
-                     translation_tag="Re-test B" variant="secondary">
+                     width="0" height="#button_height" flex_grow="1" icon="refresh" text="Re-test B" variant="secondary">
             <event_cb trigger="clicked" callback="belt_tension_retest_b_cb"/>
           </ui_button>
           <ui_button name="btn_test_both"
-                     width="0" height="#button_height" flex_grow="1" icon="restart" text="Test both"
-                     translation_tag="Test both" variant="primary">
+                     width="0" height="#button_height" flex_grow="1" icon="restart" text="Test both" variant="primary">
             <event_cb trigger="clicked" callback="belt_tension_start_cb"/>
           </ui_button>
         </lv_obj>
@@ -241,9 +232,7 @@
         <icon src="alert" size="lg" variant="warning"/>
         <text_body name="error_label"
                    width="90%" bind_text="bt_error_message" long_mode="wrap" style_text_align="center"/>
-        <ui_button name="btn_retry"
-                   width="50%" height="#button_height" icon="refresh" text="Retry" translation_tag="Retry"
-                   variant="primary">
+        <ui_button name="btn_retry" width="50%" height="#button_height" icon="refresh" text="Retry" variant="primary">
           <event_cb trigger="clicked" callback="belt_tension_retry_cb"/>
         </ui_button>
       </lv_obj>

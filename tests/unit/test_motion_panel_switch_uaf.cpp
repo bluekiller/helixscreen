@@ -188,10 +188,11 @@ TEST_CASE("motion panel fills the header slot and carries the portrait strip", "
     CHECK(xml.find("name=\"z_row\"") == std::string::npos);
     CHECK(xml.find("text=\"Z mm\"") == std::string::npos);
 
-    // The title is the same "Motion" key the controls panel button uses.
+    // The title is the same "Motion" key the controls panel button uses: the
+    // literal implies it, so no title_tag may name a different one.
     const auto title_needle = xml.find("title=\"Motion\"");
     REQUIRE(title_needle != std::string::npos);
-    CHECK(xml.substr(title_needle, 40).find("title_tag=\"Motion\"") != std::string::npos);
+    CHECK(xml.substr(title_needle, 40).find("title_tag=") == std::string::npos);
 
     // The position card is gone; a resurrection would orphan the deleted
     // subjects (motion_x_homed & co.) that no C++ registers any more.
