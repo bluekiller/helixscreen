@@ -6,8 +6,14 @@
 
 namespace helix {
 
-void configure_pressed_for_tier(lv_style_t* s, PlatformTier tier) {
+void configure_pressed_for_tier(lv_style_t* s, PlatformTier tier, const ThemePalette& p) {
     if (!pressed_scale_allowed(tier)) {
+        // A scale renders through a TRANSFORM layer. An outline draws in place,
+        // moves no layout, and unlike a recolor leaves image children untouched.
+        lv_style_set_outline_color(s, p.primary);
+        lv_style_set_outline_width(s, 3);
+        lv_style_set_outline_pad(s, 0);
+        lv_style_set_outline_opa(s, LV_OPA_COVER);
         return;
     }
     lv_style_set_transform_scale_x(s, 245); // 96% scale
@@ -84,8 +90,7 @@ void configure_disabled(lv_style_t* s, const ThemePalette& p) {
 }
 
 void configure_pressed(lv_style_t* s, const ThemePalette& p) {
-    (void)p;
-    helix::configure_pressed_for_tier(s, helix::PlatformCapabilities::detect().tier);
+    helix::configure_pressed_for_tier(s, helix::PlatformCapabilities::detect().tier, p);
 }
 
 void configure_focused(lv_style_t* s, const ThemePalette& p) {
@@ -214,8 +219,7 @@ void configure_button_disabled(lv_style_t* s, const ThemePalette& p) {
 }
 
 void configure_button_pressed(lv_style_t* s, const ThemePalette& p) {
-    (void)p;
-    helix::configure_pressed_for_tier(s, helix::PlatformCapabilities::detect().tier);
+    helix::configure_pressed_for_tier(s, helix::PlatformCapabilities::detect().tier, p);
 }
 
 // Severity border styles

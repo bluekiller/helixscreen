@@ -105,8 +105,9 @@ enum class PlatformTier;
 /// Style configure function type - applies palette colors to a style.
 using StyleConfigureFn = void (*)(lv_style_t* style, const ThemePalette& palette);
 
-/// Pressed-state scale-down, applied only where pressed_scale_allowed(tier).
-void configure_pressed_for_tier(lv_style_t* style, PlatformTier tier);
+/// Pressed state: a scale-down where pressed_scale_allowed(tier), else a
+/// primary outline, which renders without a layer.
+void configure_pressed_for_tier(lv_style_t* style, PlatformTier tier, const ThemePalette& palette);
 
 /**
  * @brief Breakpoint suffix for the nav_width token, e.g. "_small".
