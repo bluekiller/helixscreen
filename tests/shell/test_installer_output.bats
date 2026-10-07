@@ -461,8 +461,8 @@ _count_apply_install_steps() {
     update_mode=false clean_mode=false local_tarball=""
     [ $# -eq 0 ] || export "$@"
     local fn
-    for fn in $(declare -f apply_install | grep -oE '[a-z_][a-z0-9_]*' | sort -u); do
-        case "$fn" in apply_install|step|step_done|step_skip|step_fail|plan_*|_is_self_update) continue ;; esac
+    for fn in $(declare -f apply_install install_libraries_step | grep -oE '[a-z_][a-z0-9_]*' | sort -u); do
+        case "$fn" in apply_install|install_libraries_step|step|step_done|step_skip|step_fail|plan_*|_is_self_update) continue ;; esac
         [ "$(type -t "$fn")" = function ] && eval "$fn() { :; }"
     done
     platform=pi; version=v1.2.3; TMP_DIR="$BATS_TEST_TMPDIR/none"
@@ -488,9 +488,9 @@ _count_apply_install_steps() {
     [ "$COUNTED" = "8/8" ] || fail "steps closed/counted: $COUNTED"
 }
 
-@test "steps: a payload install that does not start the UI counts no start step" {
+@test "steps: a payload install that does not start the UI counts its Finishing setup step" {
     _count_apply_install_steps HOST_SERVICE_MECHANISM=mod-managed
-    [ "$COUNTED" = "5/5" ] || fail "steps closed/counted: $COUNTED"
+    [ "$COUNTED" = "6/6" ] || fail "steps closed/counted: $COUNTED"
 }
 
 @test "apply_install marks what it stops and removes before doing it" {
