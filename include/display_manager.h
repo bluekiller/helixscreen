@@ -169,10 +169,15 @@ class DisplayManager : public helix::ICalibrationSink {
 
     /**
      * @brief Get current display width
+     *
+     * Read from the display, never cached: a backend may settle rotation itself
+     * (a DRM plane taking 90/270 un-swaps LVGL's resolution) and a window resize
+     * changes it underneath us, so any copy taken earlier can be stale.
+     *
      * @return Width in pixels, or 0 if not initialized
      */
     int width() const {
-        return m_width;
+        return m_display ? lv_display_get_horizontal_resolution(m_display) : m_width;
     }
 
     /**
@@ -180,7 +185,7 @@ class DisplayManager : public helix::ICalibrationSink {
      * @return Height in pixels, or 0 if not initialized
      */
     int height() const {
-        return m_height;
+        return m_display ? lv_display_get_vertical_resolution(m_display) : m_height;
     }
 
     // ========================================================================
@@ -565,11 +570,12 @@ class DisplayManager : public helix::ICalibrationSink {
     // full init(). See tests/test_helpers/display_manager_test_access.h.
     friend class DisplayManagerTestAccess;
 
-    /// Rotates the display through the backend, then caches the resolution it settled on.
+    /// Rotates the display through the backend. width()/height() then read whatever it settled on.
     void settle_display_rotation(lv_display_rotation_t rot, int phys_w, int phys_h);
 
     bool m_initialized = false;
     bool m_shutting_down = false;
+    /// Physical (unrotated) size the display is created at; width()/height() report the live one.
     int m_width = 0;
     int m_height = 0;
     bool m_size_was_explicit = false;

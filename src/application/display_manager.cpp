@@ -363,7 +363,7 @@ bool DisplayManager::init(const Config& config) {
             }
 
             spdlog::info("[DisplayManager] Display rotated {}° — effective resolution: {}x{}",
-                         rotation_degrees, m_width, m_height);
+                         rotation_degrees, width(), height());
 #endif
         }
     }
@@ -538,7 +538,7 @@ bool DisplayManager::init(const Config& config) {
     // Debug touch visualization: draw ripple at each touch point.
     install_debug_touch_timer();
 
-    spdlog::trace("[DisplayManager] Initialized: {}x{}", m_width, m_height);
+    spdlog::trace("[DisplayManager] Initialized: {}x{}", width(), height());
     m_initialized = true;
     set_active_instance(this);
 
@@ -1157,8 +1157,7 @@ void DisplayManager::run_rotation_probe() {
                      "but UI and tap detection work for testing");
     }
 
-    // Physical dimensions: m_width/m_height are pre-rotation at this point
-    // because the probe runs before any rotation is applied in init().
+    // m_width/m_height hold the physical, unrotated size.
     const int phys_w = m_width;
     const int phys_h = m_height;
 
@@ -1174,11 +1173,9 @@ void DisplayManager::run_rotation_probe() {
 }
 
 void DisplayManager::settle_display_rotation(lv_display_rotation_t rot, int phys_w, int phys_h) {
-    // The backend may clear LVGL's rotation when the scanout plane rotates instead, so the
-    // resolution is read only after it settles (#1275, #1587).
+    // The backend may clear LVGL's rotation when the scanout plane rotates instead (#1275,
+    // #1587), which is why width()/height() read the display rather than a cache.
     m_backend->set_display_rotation(m_display, rot, phys_w, phys_h);
-    m_width = lv_display_get_horizontal_resolution(m_display);
-    m_height = lv_display_get_vertical_resolution(m_display);
 }
 
 // ============================================================================
@@ -1201,20 +1198,9 @@ void DisplayManager::resize_timer_cb(lv_timer_t* timer) {
         return;
     }
 
-    // Refresh cached dimensions from LVGL before fanning out callbacks.
-    // lv_display_set_resolution() (e.g. from the Android SDL window resize
-    // path on fold/unfold) does not update m_width/m_height, so without
-    // this any callback that reads dm->width()/height() would see stale
-    // startup values.  Reordering also catches non-rotation resizes from
-    // any future code path that calls lv_display_set_resolution directly.
-    if (self->m_display) {
-        self->m_width = lv_display_get_horizontal_resolution(self->m_display);
-        self->m_height = lv_display_get_vertical_resolution(self->m_display);
-    }
-
     spdlog::debug(
         "[DisplayManager] Resize debounce complete: {}x{}, calling {} registered callbacks",
-        self->m_width, self->m_height, self->m_resize_callbacks.size());
+        self->width(), self->height(), self->m_resize_callbacks.size());
 
     // Call all registered callbacks
     for (auto callback : self->m_resize_callbacks) {
