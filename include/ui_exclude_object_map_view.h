@@ -14,6 +14,7 @@
 #include <lvgl.h>
 #include <memory>
 #include <string>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -45,7 +46,7 @@ class ExcludeObjectMapView {
 
     void create(lv_obj_t* parent, helix::PrinterExcludedObjectsState* state, float bed_w_mm,
                 float bed_h_mm, ObjectTapFn on_object_tapped, ExcludeTapMode tap_mode,
-                std::shared_ptr<helix::gcode::ParsedGCodeFile> parsed_file = nullptr);
+                const helix::gcode::ParsedGCodeFile* parsed_file = nullptr);
     void destroy();
 
     [[nodiscard]] lv_obj_t* root() const {
@@ -65,6 +66,7 @@ class ExcludeObjectMapView {
     void build_object_rects();
     void update_visual_states();
     void draw_first_layer_outlines();
+    void copy_parsed_geometry(const helix::gcode::ParsedGCodeFile* parsed);
     lv_obj_t* create_object_rect(lv_obj_t* parent, const ObjectBadge& badge, const PixelRect& rect);
 
     static void on_close_clicked(lv_event_t* e);
@@ -81,7 +83,10 @@ class ExcludeObjectMapView {
     helix::PrinterExcludedObjectsState* state_{nullptr};
     ObjectTapFn on_object_tapped_;
     ExcludeTapMode tap_mode_{ExcludeTapMode::ExcludeOnly};
-    std::shared_ptr<helix::gcode::ParsedGCodeFile> parsed_file_;
+    // Copied from the parse at create(): its owner can free it while the map is open.
+    std::unique_ptr<helix::gcode::ParsedGCodeFile>
+        parsed_objects_; ///< objects only; null = no parse
+    std::unordered_map<std::string, std::vector<glm::vec2>> parsed_outlines_; ///< first-layer hulls
 
     float bed_w_mm_{235.0f};
     float bed_h_mm_{235.0f};

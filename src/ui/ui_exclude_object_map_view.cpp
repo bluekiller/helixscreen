@@ -49,7 +49,7 @@ ExcludeObjectMapView::~ExcludeObjectMapView() {
 void ExcludeObjectMapView::create(lv_obj_t* parent, helix::PrinterExcludedObjectsState* state,
                                   float bed_w_mm, float bed_h_mm, ObjectTapFn on_object_tapped,
                                   ExcludeTapMode tap_mode,
-                                  std::shared_ptr<helix::gcode::ParsedGCodeFile> parsed_file) {
+                                  const helix::gcode::ParsedGCodeFile* parsed_file) {
     if (root_) {
         spdlog::warn("[ExcludeObjectMapView] create() called but already active");
         return;
@@ -60,7 +60,7 @@ void ExcludeObjectMapView::create(lv_obj_t* parent, helix::PrinterExcludedObject
     state_ = state;
     on_object_tapped_ = std::move(on_object_tapped);
     tap_mode_ = tap_mode;
-    parsed_file_ = std::move(parsed_file);
+    copy_parsed_geometry(parsed_file);
     const auto bed = helix::bed_dimensions_from_volume(0.0f, bed_w_mm, 0.0f, bed_h_mm);
     bed_w_mm_ = bed.w_mm;
     bed_h_mm_ = bed.h_mm;
@@ -282,7 +282,8 @@ void ExcludeObjectMapView::destroy() {
 
     state_ = nullptr;
     on_object_tapped_ = nullptr;
-    parsed_file_.reset();
+    parsed_objects_.reset();
+    parsed_outlines_.clear();
 
     spdlog::debug("[ExcludeObjectMapView] Destroyed");
 }
@@ -302,7 +303,7 @@ void ExcludeObjectMapView::build_object_rects() {
     helix::ui::safe_clean_children(object_container_);
     object_rects_.clear();
 
-    const auto badges = compute_object_badges(*state_, parsed_file_.get());
+    const auto badges = compute_object_badges(*state_, parsed_objects_.get());
     int rects_created = 0;
 
     for (const auto& badge : badges) {
@@ -312,9 +313,9 @@ void ExcludeObjectMapView::build_object_rects() {
         bool have_bbox = false;
 
         // Priority 1: GCode parser bounding box (more accurate than Moonraker geometry)
-        if (parsed_file_) {
-            auto it = parsed_file_->objects.find(name);
-            if (it != parsed_file_->objects.end() && !it->second.bounding_box.is_empty()) {
+        if (parsed_objects_) {
+            auto it = parsed_objects_->objects.find(name);
+            if (it != parsed_objects_->objects.end() && !it->second.bounding_box.is_empty()) {
                 bbox_min = {it->second.bounding_box.min.x, it->second.bounding_box.min.y};
                 bbox_max = {it->second.bounding_box.max.x, it->second.bounding_box.max.y};
                 have_bbox = true;
@@ -419,6 +420,40 @@ static std::vector<glm::vec2> convex_hull(std::vector<glm::vec2>& pts) {
     return hull;
 }
 
+void ExcludeObjectMapView::copy_parsed_geometry(const helix::gcode::ParsedGCodeFile* parsed) {
+    parsed_objects_.reset();
+    parsed_outlines_.clear();
+    if (!parsed) {
+        return;
+    }
+    parsed_objects_ = std::make_unique<helix::gcode::ParsedGCodeFile>();
+    parsed_objects_->objects = parsed->objects;
+
+    const auto* first_layer = parsed->get_layer(0);
+    if (!first_layer) {
+        return;
+    }
+    std::unordered_map<std::string, std::vector<glm::vec2>> object_points;
+    for (const auto& seg : first_layer->segments) {
+        if (!seg.is_extrusion) {
+            continue;
+        }
+        const auto& obj_name = parsed->get_object_name(seg.object_name_index);
+        if (obj_name.empty()) {
+            continue;
+        }
+        auto& pts = object_points[obj_name];
+        pts.push_back({seg.start.x, seg.start.y});
+        pts.push_back({seg.end.x, seg.end.y});
+    }
+    for (auto& [name, pts] : object_points) {
+        auto hull = convex_hull(pts);
+        if (hull.size() >= 3) {
+            parsed_outlines_[name] = std::move(hull);
+        }
+    }
+}
+
 void ExcludeObjectMapView::draw_first_layer_outlines() {
     if (!canvas_ || !mapper_ || !state_)
         return;
@@ -426,36 +461,10 @@ void ExcludeObjectMapView::draw_first_layer_outlines() {
     // Clear canvas to transparent
     lv_canvas_fill_bg(canvas_, lv_color_black(), LV_OPA_TRANSP);
 
-    // Collect polygon data per object. Priority:
-    // 1. Convex hull from ParsedGCodeFile layer 0 segments
-    // 2. Polygon from Moonraker ObjectInfo (slicer-provided outline)
-    std::unordered_map<std::string, std::vector<glm::vec2>> object_polygons;
+    // Outline per object: the parsed first-layer hull, else Klipper's polygon.
+    std::unordered_map<std::string, std::vector<glm::vec2>> object_polygons = parsed_outlines_;
 
-    if (parsed_file_) {
-        // Source 1: compute convex hulls from first layer extrusion segments
-        const auto* first_layer = parsed_file_->get_layer(0);
-        if (first_layer && !first_layer->segments.empty()) {
-            std::unordered_map<std::string, std::vector<glm::vec2>> object_points;
-            for (const auto& seg : first_layer->segments) {
-                if (!seg.is_extrusion)
-                    continue;
-                const auto& obj_name = parsed_file_->get_object_name(seg.object_name_index);
-                if (obj_name.empty())
-                    continue;
-                auto& pts = object_points[obj_name];
-                pts.push_back({seg.start.x, seg.start.y});
-                pts.push_back({seg.end.x, seg.end.y});
-            }
-            for (auto& [name, pts] : object_points) {
-                auto hull = convex_hull(pts);
-                if (hull.size() >= 3) {
-                    object_polygons[name] = std::move(hull);
-                }
-            }
-        }
-    }
-
-    // Source 2: use Moonraker polygon data for any objects not covered by source 1
+    // Klipper's polygon for objects the parse did not outline.
     const auto& defined = state_->get_defined_objects();
     for (const auto& name : defined) {
         if (object_polygons.count(name) > 0)

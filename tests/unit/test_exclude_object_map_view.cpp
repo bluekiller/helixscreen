@@ -432,6 +432,59 @@ TEST_CASE_METHOD(XMLTestFixture, "A picked object's outline fades on the map lik
     process_lvgl(20);
 }
 
+TEST_CASE_METHOD(XMLTestFixture,
+                 "Map outlines come from the map's own copy once the source parse is gone",
+                 "[exclude_map][pre_start_exclude]") {
+    REQUIRE(register_component("components/exclude_object_map"));
+    auto& st = state().excluded_objects_state();
+    seed_objects(st);
+    // Only the parse knows OBJ_1's outline.
+    {
+        using ObjectInfo = helix::PrinterExcludedObjectsState::ObjectInfo;
+        std::vector<ObjectInfo> objs;
+        for (const auto& name : st.get_defined_objects()) {
+            ObjectInfo o = *st.get_object_geometry(name);
+            o.polygon.clear();
+            objs.push_back(std::move(o));
+        }
+        st.set_defined_objects_with_geometry(objs);
+    }
+
+    auto parsed = std::make_unique<helix::gcode::ParsedGCodeFile>();
+    helix::gcode::Layer layer0;
+    const int16_t idx = parsed->intern_object_name("OBJ_1");
+    const std::vector<glm::vec3> square = {
+        {60, 60, 0.2f}, {90, 60, 0.2f}, {90, 90, 0.2f}, {60, 90, 0.2f}};
+    for (size_t i = 0; i < square.size(); ++i) {
+        helix::gcode::ToolpathSegment seg;
+        seg.start = square[i];
+        seg.end = square[(i + 1) % square.size()];
+        seg.is_extrusion = true;
+        seg.object_name_index = idx;
+        layer0.segments.push_back(seg);
+    }
+    parsed->layers.push_back(std::move(layer0));
+
+    ExcludeObjectMapView view;
+    view.create(test_screen(), &st, 235.0f, 235.0f, {}, ExcludeTapMode::Toggle, parsed.get());
+    process_lvgl(50);
+    // Midpoint of the hull's bottom edge, (60,60)-(90,60).
+    REQUIRE(ExcludeObjectMapViewTestAccess::outline_alpha_near(view, 75.0f, 60.0f) > 0);
+
+    // The viewer frees its parse on clear while the map stays open.
+    parsed.reset();
+    st.set_excluded_objects({"OBJ_1"});
+    helix::ui::UpdateQueue::instance().drain();
+    process_lvgl(20);
+
+    const int picked = ExcludeObjectMapViewTestAccess::outline_alpha_near(view, 75.0f, 60.0f);
+    CHECK(picked > 0);
+    CHECK(picked <= static_cast<int>(helix::ui::object_badge_opa(true)));
+
+    view.destroy();
+    process_lvgl(20);
+}
+
 TEST_CASE_METHOD(XMLTestFixture, "Every object rect and its badge fit inside the map's plate",
                  "[exclude_map][fit]") {
     REQUIRE(register_component("components/exclude_object_map"));

@@ -44,15 +44,9 @@ void ExcludeModeController::show(const ExcludeModeTargets& targets,
         }
         map_view_ = std::make_unique<ExcludeObjectMapView>();
         map_view_->set_close_callback([this]() { hide(); });
-        std::shared_ptr<gcode::ParsedGCodeFile> parsed;
-        if (viewer_) {
-            if (const auto* raw = ui_gcode_viewer_get_parsed_file(viewer_)) {
-                parsed = std::shared_ptr<gcode::ParsedGCodeFile>(
-                    const_cast<gcode::ParsedGCodeFile*>(raw), [](gcode::ParsedGCodeFile*) {});
-            }
-        }
+        // The map copies what it draws; the viewer may free its parse while the map is open.
         map_view_->create(targets.card, state_, targets.bed_w_mm, targets.bed_h_mm, forward, mode,
-                          parsed);
+                          viewer_ ? ui_gcode_viewer_get_parsed_file(viewer_) : nullptr);
         // The list's X closes the whole mode; one dismiss control is enough.
         if (auto* map_root = map_view_->root()) {
             if (lv_obj_t* map_close = lv_obj_find_by_name(map_root, "close_btn")) {
