@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "ui_exclude_object_map_view.h"
 
-#include "ui_print_exclude_object_manager.h"
 #include "ui_update_queue.h"
 #include "ui_utils.h"
 
@@ -55,8 +54,8 @@ ExcludeObjectMapView::~ExcludeObjectMapView() {
 // ============================================================================
 
 void ExcludeObjectMapView::create(lv_obj_t* parent, helix::PrinterExcludedObjectsState* state,
-                                  float bed_w_mm, float bed_h_mm,
-                                  PrintExcludeObjectManager* exclude_manager,
+                                  float bed_w_mm, float bed_h_mm, ObjectTapFn on_object_tapped,
+                                  ExcludeTapMode tap_mode,
                                   std::shared_ptr<helix::gcode::ParsedGCodeFile> parsed_file) {
     if (root_) {
         spdlog::warn("[ExcludeObjectMapView] create() called but already active");
@@ -66,7 +65,8 @@ void ExcludeObjectMapView::create(lv_obj_t* parent, helix::PrinterExcludedObject
     spdlog::debug("[ExcludeObjectMapView] create() bed={}x{}", bed_w_mm, bed_h_mm);
 
     state_ = state;
-    exclude_manager_ = exclude_manager;
+    on_object_tapped_ = std::move(on_object_tapped);
+    tap_mode_ = tap_mode;
     parsed_file_ = std::move(parsed_file);
     const auto bed = helix::bed_dimensions_from_volume(0.0f, bed_w_mm, 0.0f, bed_h_mm);
     bed_w_mm_ = bed.w_mm;
@@ -298,7 +298,7 @@ void ExcludeObjectMapView::destroy() {
     }
 
     state_ = nullptr;
-    exclude_manager_ = nullptr;
+    on_object_tapped_ = nullptr;
     parsed_file_.reset();
 
     spdlog::debug("[ExcludeObjectMapView] Destroyed");
@@ -618,7 +618,7 @@ void ExcludeObjectMapView::update_visual_states() {
             lv_obj_set_style_border_width(rect, 0, 0);
             lv_obj_set_style_bg_opa(rect, LV_OPA_TRANSP, 0);
             lv_obj_set_style_opa(rect, object_badge_opa(is_excluded), 0);
-            if (is_excluded) {
+            if (is_excluded && tap_mode_ == ExcludeTapMode::ExcludeOnly) {
                 lv_obj_remove_flag(rect, LV_OBJ_FLAG_CLICKABLE);
             } else {
                 lv_obj_add_flag(rect, LV_OBJ_FLAG_CLICKABLE);
@@ -627,7 +627,11 @@ void ExcludeObjectMapView::update_visual_states() {
             lv_obj_set_style_border_color(rect, danger_color, 0);
             lv_obj_set_style_bg_opa(rect, LV_OPA_TRANSP, 0);
             lv_obj_set_style_opa(rect, object_badge_opa(true), 0);
-            lv_obj_remove_flag(rect, LV_OBJ_FLAG_CLICKABLE);
+            if (tap_mode_ == ExcludeTapMode::ExcludeOnly) {
+                lv_obj_remove_flag(rect, LV_OBJ_FLAG_CLICKABLE);
+            } else {
+                lv_obj_add_flag(rect, LV_OBJ_FLAG_CLICKABLE);
+            }
         } else if (is_current) {
             lv_obj_set_style_border_color(rect, primary_color, 0);
             lv_obj_set_style_bg_color(rect, primary_color, 0);
@@ -758,16 +762,13 @@ void ExcludeObjectMapView::on_close_clicked(lv_event_t* /*e*/) {
 
 void ExcludeObjectMapView::on_object_clicked(lv_event_t* e) {
     auto* self = static_cast<ExcludeObjectMapView*>(lv_event_get_user_data(e));
-    if (!self || !self->exclude_manager_)
+    if (!self || !self->on_object_tapped_)
         return;
-
     lv_obj_t* target = lv_event_get_target_obj(e);
-
-    // Find the name by matching the pointer against our recorded rects
     for (const auto& entry : self->object_rects_) {
         if (entry.rect == target) {
             spdlog::info("[ExcludeObjectMapView] Object rect clicked: '{}'", entry.name);
-            self->exclude_manager_->request_exclude(entry.name);
+            self->on_object_tapped_(entry.name);
             return;
         }
     }

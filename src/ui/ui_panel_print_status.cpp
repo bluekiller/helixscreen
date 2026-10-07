@@ -1678,8 +1678,13 @@ void PrintStatusPanel::show_exclude_map_view() {
             }
         }
 
+        auto request_exclude = [this](const std::string& name) {
+            if (exclude_manager_) {
+                exclude_manager_->request_exclude(name);
+            }
+        };
         map_view_->create(thumbnail_section, &printer_state_.excluded_objects_state(), bed_w, bed_h,
-                          exclude_manager_.get(), parsed);
+                          request_exclude, helix::ui::ExcludeTapMode::ExcludeOnly, parsed);
 
         // The side list's X already closes the whole panel — hide the map's
         // duplicate close button so users have one obvious dismiss control.
@@ -1714,7 +1719,14 @@ void PrintStatusPanel::show_exclude_map_view() {
     side_list_ = std::make_unique<helix::ui::ExcludeObjectSideList>();
     side_list_->set_close_callback([this]() { hide_exclude_map_view(); });
     side_list_->set_gcode_viewer(gcode_viewer_);
-    side_list_->create(overlay_content, &printer_state_, exclude_manager_.get(), list_geom);
+    side_list_->create(
+        overlay_content, &printer_state_.excluded_objects_state(),
+        [this](const std::string& name) {
+            if (exclude_manager_) {
+                exclude_manager_->request_exclude(name);
+            }
+        },
+        helix::ui::ExcludeTapMode::ExcludeOnly, list_geom);
 
     // Tapping an object in the viewer should request exclude, mirroring the
     // side list's row taps. Installed regardless of current view mode so that

@@ -16,13 +16,10 @@
 #include <vector>
 
 namespace helix {
-class PrinterState;
 class PrinterExcludedObjectsState;
 } // namespace helix
 
 namespace helix::ui {
-
-class PrintExcludeObjectManager;
 
 /// Side-panel companion to ExcludeObjectMapView. Slides in from the right edge
 /// of the print-status thumbnail card; the map shrinks to share horizontal
@@ -36,12 +33,10 @@ class ExcludeObjectSideList {
     ExcludeObjectSideList(const ExcludeObjectSideList&) = delete;
     ExcludeObjectSideList& operator=(const ExcludeObjectSideList&) = delete;
 
-    /// Create the panel as a floating child of `parent` (overlay_content).
-    /// `geom` says which edge to cover and how much of it — the controls are the
-    /// right-hand column in landscape and the bottom of the stack in portrait,
-    /// so the list anchors and slides in along the matching axis.
-    void create(lv_obj_t* parent, PrinterState* printer_state, PrintExcludeObjectManager* manager,
-                SideListGeometry geom);
+    /// Create the panel as a floating child of `parent`. `geom` says which edge
+    /// to cover and how much of it. Taps on rows reach `on_object_tapped`.
+    void create(lv_obj_t* parent, PrinterExcludedObjectsState* state, ObjectTapFn on_object_tapped,
+                ExcludeTapMode tap_mode, SideListGeometry geom);
 
     /// Animate out and destroy.
     void destroy();
@@ -81,12 +76,13 @@ class ExcludeObjectSideList {
     lv_obj_t* empty_state_{nullptr};
     lv_obj_t* gcode_viewer_{nullptr};
 
-    PrinterState* printer_state_{nullptr};
-    PrintExcludeObjectManager* manager_{nullptr};
+    PrinterExcludedObjectsState* state_{nullptr};
+    ObjectTapFn on_object_tapped_;
+    ExcludeTapMode tap_mode_{ExcludeTapMode::ExcludeOnly};
 
     /// Names the rows were built from, in row order.
     std::vector<std::string> row_names_;
-    /// One int per row, bound by exclude_object_row.xml: 0 idle, 1 printing, 2 excluded.
+    /// One int per row, bound by exclude_object_row.xml: 0 idle, 1 printing, 2 excluded, 3 picked.
     helix::xml::IndexedSubjectPool row_states_{"exclude_row_state",
                                                helix::xml::IndexedSubjectPool::Type::Int};
 

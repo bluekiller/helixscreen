@@ -102,6 +102,7 @@ TEST_CASE_METHOD(XMLTestFixture, "all 8 object color tokens are registered",
 #include "ui_exclude_object_map_view.h"
 
 using helix::ui::ExcludeObjectMapView;
+using helix::ui::ExcludeTapMode;
 
 // ============================================================================
 // KeyBarMode tests (pure logic, no LVGL widget creation needed)
@@ -237,6 +238,8 @@ TEST_CASE("CoordMapper edge cases", "[exclude_map][coords]") {
 // with seeded object geometry so the canvas path runs, then pump LVGL so the
 // async delete completes. They crash/assert if the ordering regresses.
 
+#include "ui_update_queue.h"
+
 #include "printer_excluded_objects_state.h"
 
 namespace {
@@ -268,8 +271,8 @@ TEST_CASE_METHOD(XMLTestFixture, "ExcludeObjectMapView create/destroy roundtrip 
     seed_objects(state().excluded_objects_state());
 
     auto view = std::make_unique<ExcludeObjectMapView>();
-    view->create(test_screen(), &state().excluded_objects_state(), 235.0f, 235.0f,
-                 /*exclude_manager=*/nullptr, /*parsed_file=*/nullptr);
+    view->create(test_screen(), &state().excluded_objects_state(), 235.0f, 235.0f, {},
+                 ExcludeTapMode::ExcludeOnly, nullptr);
     REQUIRE(view->is_active());
 
     // Let layout settle so the canvas buffer is allocated and drawn.
@@ -304,8 +307,8 @@ TEST_CASE_METHOD(XMLTestFixture,
 
     {
         ExcludeObjectMapView view;
-        view.create(test_screen(), &state().excluded_objects_state(), 200.0f, 200.0f, nullptr,
-                    nullptr);
+        view.create(test_screen(), &state().excluded_objects_state(), 200.0f, 200.0f, {},
+                    ExcludeTapMode::ExcludeOnly, nullptr);
         REQUIRE(view.is_active());
         REQUIRE(lv_obj_get_child_count(test_screen()) > baseline_children);
         process_lvgl(30);
@@ -320,4 +323,66 @@ TEST_CASE_METHOD(XMLTestFixture,
     // deferred deletion completed - and destroy() is the only path that frees
     // the draw buffer too.
     REQUIRE(lv_obj_get_child_count(test_screen()) == baseline_children);
+}
+
+class ExcludeObjectMapViewTestAccess {
+  public:
+    static lv_obj_t* rect_for(const ExcludeObjectMapView& view, const std::string& name) {
+        for (const auto& r : view.object_rects_) {
+            if (r.name == name) {
+                return r.rect;
+            }
+        }
+        return nullptr;
+    }
+};
+
+TEST_CASE_METHOD(
+    XMLTestFixture,
+    "Map view in toggle mode hands taps to the callback and keeps a picked rect tappable",
+    "[exclude_map][pre_start_exclude]") {
+    REQUIRE(register_component("components/exclude_object_map"));
+    auto& st = state().excluded_objects_state();
+    seed_objects(st);
+    std::vector<std::string> taps;
+
+    ExcludeObjectMapView view;
+    view.create(
+        test_screen(), &st, 235.0f, 235.0f, [&](const std::string& name) { taps.push_back(name); },
+        ExcludeTapMode::Toggle, nullptr);
+    process_lvgl(50);
+    st.set_excluded_objects({"OBJ_1"});
+    helix::ui::UpdateQueue::instance().drain();
+    process_lvgl(20);
+
+    lv_obj_t* rect = ExcludeObjectMapViewTestAccess::rect_for(view, "OBJ_1");
+    REQUIRE(rect != nullptr);
+    CHECK(lv_obj_has_flag(rect, LV_OBJ_FLAG_CLICKABLE));
+    lv_obj_send_event(rect, LV_EVENT_CLICKED, nullptr);
+    REQUIRE(taps.size() == 1);
+    CHECK(taps[0] == "OBJ_1");
+
+    view.destroy();
+    process_lvgl(20);
+}
+
+TEST_CASE_METHOD(XMLTestFixture, "Map view in exclude-only mode drops an excluded rect's tap",
+                 "[exclude_map][pre_start_exclude]") {
+    REQUIRE(register_component("components/exclude_object_map"));
+    auto& st = state().excluded_objects_state();
+    seed_objects(st);
+
+    ExcludeObjectMapView view;
+    view.create(test_screen(), &st, 235.0f, 235.0f, {}, ExcludeTapMode::ExcludeOnly, nullptr);
+    process_lvgl(50);
+    st.set_excluded_objects({"OBJ_1"});
+    helix::ui::UpdateQueue::instance().drain();
+    process_lvgl(20);
+
+    lv_obj_t* rect = ExcludeObjectMapViewTestAccess::rect_for(view, "OBJ_1");
+    REQUIRE(rect != nullptr);
+    CHECK_FALSE(lv_obj_has_flag(rect, LV_OBJ_FLAG_CLICKABLE));
+
+    view.destroy();
+    process_lvgl(20);
 }

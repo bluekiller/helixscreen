@@ -216,7 +216,8 @@ TEST_CASE_METHOD(XMLTestFixture, "Map view key keeps defined numbering when an o
     });
 
     helix::ui::ExcludeObjectMapView view;
-    view.create(test_screen(), &state().excluded_objects_state(), 235.0f, 235.0f, nullptr, nullptr);
+    view.create(test_screen(), &state().excluded_objects_state(), 235.0f, 235.0f, {},
+                helix::ui::ExcludeTapMode::ExcludeOnly, nullptr);
     REQUIRE(view.is_active());
     process_lvgl(30);
 

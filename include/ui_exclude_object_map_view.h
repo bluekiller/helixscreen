@@ -16,14 +16,15 @@
 #include <utility>
 #include <vector>
 
+class ExcludeObjectMapViewTestAccess; // NAMESPACE_OK: test seam befriended below, defined in the
+                                      // unit test
+
 // Forward declarations
 namespace helix {
 class PrinterExcludedObjectsState;
 }
 
 namespace helix::ui {
-
-class PrintExcludeObjectManager;
 
 class ExcludeObjectMapView {
   public:
@@ -45,7 +46,7 @@ class ExcludeObjectMapView {
     ExcludeObjectMapView& operator=(const ExcludeObjectMapView&) = delete;
 
     void create(lv_obj_t* parent, helix::PrinterExcludedObjectsState* state, float bed_w_mm,
-                float bed_h_mm, PrintExcludeObjectManager* exclude_manager,
+                float bed_h_mm, ObjectTapFn on_object_tapped, ExcludeTapMode tap_mode,
                 std::shared_ptr<helix::gcode::ParsedGCodeFile> parsed_file = nullptr);
     void destroy();
 
@@ -61,6 +62,8 @@ class ExcludeObjectMapView {
     }
 
   private:
+    friend class ::ExcludeObjectMapViewTestAccess;
+
     void build_object_rects();
     void update_visual_states();
     void build_key_bar();
@@ -78,7 +81,8 @@ class ExcludeObjectMapView {
     lv_draw_buf_t* canvas_buf_{nullptr};
 
     helix::PrinterExcludedObjectsState* state_{nullptr};
-    PrintExcludeObjectManager* exclude_manager_{nullptr};
+    ObjectTapFn on_object_tapped_;
+    ExcludeTapMode tap_mode_{ExcludeTapMode::ExcludeOnly};
     std::shared_ptr<helix::gcode::ParsedGCodeFile> parsed_file_;
 
     float bed_w_mm_{235.0f};
