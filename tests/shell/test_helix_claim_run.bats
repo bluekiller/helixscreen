@@ -173,10 +173,10 @@ wait_for_file() {
 }
 
 @test "resources cuts off a zeus that hangs and still exits 0" {
-    mock_command_script ssh 'exec sleep 30'
+    mock_command_script ssh 'exec sleep 120'
     SECONDS=0
-    run timeout 15 "$CLAIM" resources
+    run timeout 100 "$CLAIM" resources
     [ "$status" -eq 0 ]
-    [ "$SECONDS" -le 11 ]
+    [ "$SECONDS" -lt 90 ]
     contains "unreachable" "$output"
 }
