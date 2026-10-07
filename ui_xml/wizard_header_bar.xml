@@ -17,9 +17,9 @@
            printer's hardware, and a total that can lurch reads as a lie. -->
       <lv_obj name="wizard_progress"
               width="content" height="content" flex_flow="row" style_pad_all="0" style_pad_gap="4">
-        <text_small text="Step" translation_tag="Step"/>
+        <text_small text="Step"/>
         <text_small name="wizard_step_current" bind_text="wizard_step_current"/>
-        <text_small text="of" translation_tag="of">
+        <text_small text="of">
           <bind_flag_if_not_eq subject="wizard_total_visible" flag="hidden" ref_value="1"/>
         </text_small>
         <text_small name="wizard_step_total" bind_text="wizard_step_total">

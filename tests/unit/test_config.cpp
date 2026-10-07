@@ -3713,6 +3713,41 @@ TEST_CASE("Config::init() carries the Moonraker connection across the migration 
     REQUIRE(test_config.is_wizard_required());
 }
 
+TEST_CASE("Config::init() carries the update channel across the migration floor",
+          "[core][config][migration]") {
+    // The installer seeds the channel into a legacy backup, which is always
+    // below the floor; restored over a versionless settings.json, it is what
+    // decides the channel the app boots on.
+    TarballTestEnv env("floor_update_channel");
+    env.write_config({{"wizard_completed", false}, {"printer", {{"moonraker_host", "127.0.0.1"}}}});
+    json legacy = below_floor_backup();
+    legacy["config_version"] = 8;
+
+    SECTION("a channel in the legacy backup survives") {
+        legacy["update"] = {{"channel", 1}};
+        std::filesystem::create_directories(env.backup_dir);
+        std::ofstream(env.backup_dir + "/helixconfig.json.backup") << legacy.dump(2);
+
+        Config test_config;
+        test_config.init(env.config_path);
+
+        REQUIRE(test_config.get<int>("/config_version") == CURRENT_CONFIG_VERSION);
+        REQUIRE(test_config.get<int>("/update/channel", -1) == 1);
+    }
+    SECTION("no channel in the legacy backup leaves the default") {
+        std::filesystem::create_directories(env.backup_dir);
+        std::ofstream(env.backup_dir + "/helixconfig.json.backup") << legacy.dump(2);
+
+        Config test_config;
+        test_config.init(env.config_path);
+
+        REQUIRE(test_config.get<int>("/config_version") == CURRENT_CONFIG_VERSION);
+        REQUIRE(test_config.get<std::string>(test_config.df() + "moonraker_host") ==
+                "192.168.1.77");
+        REQUIRE_FALSE(test_config.exists("/update/channel"));
+    }
+}
+
 // ============================================================================
 // v10→v11 migration: PID heat rates to shared thermal path + strip heating phases
 // ============================================================================
@@ -4634,7 +4669,7 @@ TEST_CASE("Config::init() persists migrations by atomic replace, not truncate-in
     REQUIRE(witness_json.value("brightness", 0) == 55);
 
     // The atomic path must not leave its scratch file behind.
-    REQUIRE_FALSE(fs::exists(cfg.string() + ".tmp"));
+    REQUIRE(helix::test::staging_files_beside(cfg.string()) == 0);
 }
 
 TEST_CASE("Config::init() loads a read-only settings.json instead of condemning it as corrupt",

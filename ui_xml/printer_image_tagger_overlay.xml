@@ -6,7 +6,7 @@
      Full screen (width-unmanaged), so the image gets every pixel to tap. -->
 <component>
   <view name="printer_image_tagger_overlay"
-        extends="overlay_panel" width="100%" title="Tag Parts" title_tag="Tag Parts" bg_color="#card_bg"
+        extends="overlay_panel" width="100%" title="Tag Parts" bg_color="#card_bg"
         back_button_callback="on_printer_image_tagger_cancel">
     <lv_obj name="overlay_content"
             width="100%" flex_grow="1" style_pad_all="#space_sm" flex_flow="column" style_pad_gap="#space_xs"
@@ -69,25 +69,21 @@
       <lv_obj name="tagger_buttons"
               width="100%" height="content" flex_flow="row" style_pad_all="0" style_pad_gap="#space_sm"
               scrollable="false" style_bg_opa="0" style_border_width="0">
-        <ui_button name="btn_tagger_cancel"
-                   height="#button_height_sm" flex_grow="1" variant="secondary" text="Cancel" translation_tag="Cancel">
+        <ui_button name="btn_tagger_cancel" height="#button_height_sm" flex_grow="1" variant="secondary" text="Cancel">
           <event_cb trigger="clicked" callback="on_printer_image_tagger_cancel"/>
         </ui_button>
         <ui_button name="btn_tagger_undo"
-                   height="#button_height_sm" flex_grow="1" variant="secondary" icon="undo" text="Undo"
-                   translation_tag="Undo">
+                   height="#button_height_sm" flex_grow="1" variant="secondary" icon="undo" text="Undo">
           <bind_state_if_eq subject="printer_image_tagger_can_undo" state="disabled" ref_value="0"/>
           <event_cb trigger="clicked" callback="on_printer_image_tagger_undo"/>
         </ui_button>
         <ui_button name="btn_tagger_skip"
-                   height="#button_height_sm" flex_grow="1" variant="secondary" text="Skip" translation_tag="Skip"
-                   hidden="true">
+                   height="#button_height_sm" flex_grow="1" variant="secondary" text="Skip" hidden="true">
           <bind_flag_if_eq subject="printer_image_tagger_can_skip" flag="hidden" ref_value="0"/>
           <event_cb trigger="clicked" callback="on_printer_image_tagger_skip"/>
         </ui_button>
         <ui_button name="btn_tagger_save"
-                   height="#button_height_sm" flex_grow="1" icon="check" text="Save" translation_tag="Save"
-                   hidden="true">
+                   height="#button_height_sm" flex_grow="1" icon="check" text="Save" hidden="true">
           <bind_flag_if_eq subject="printer_image_tagger_reviewing" flag="hidden" ref_value="0"/>
           <event_cb trigger="clicked" callback="on_printer_image_tagger_save"/>
         </ui_button>

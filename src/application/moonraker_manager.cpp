@@ -160,6 +160,7 @@ void MoonrakerManager::shutdown() {
     m_preparing_epoch_observer.release();
     m_print_bed_target_fallback_observer.release();
     m_print_ext_target_fallback_observer.release();
+    m_print_homed_axes_fallback_observer.release();
     for (auto& guard : m_print_position_observers) {
         guard.release();
     }
@@ -1022,6 +1023,10 @@ void MoonrakerManager::init_print_start_collector() {
     m_print_ext_target_fallback_observer =
         ObserverGuard(get_printer_state().temperature_state().get_active_extruder_target_subject(),
                       fallback_cb, nullptr);
+    // A cold G28 changes no heater target, and the ETA timer can miss a homing
+    // that finishes inside one 5s tick.
+    m_print_homed_axes_fallback_observer = ObserverGuard(
+        get_printer_state().motion_state().get_homed_axes_subject(), fallback_cb, nullptr);
 
     // Toolhead position feeds the collector's silent-window inference
     // ("Probing Z..." / "Checking Bed Mesh..." / sweep → bed mesh). The

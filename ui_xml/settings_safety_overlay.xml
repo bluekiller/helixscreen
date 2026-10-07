@@ -4,8 +4,7 @@
 <!-- Safety & Alerts Settings Overlay Panel -->
 <!-- E-Stop confirmation, cancel escalation, escalation timeout, print completion alert -->
 <component>
-  <view name="settings_safety_overlay"
-        extends="overlay_panel" title="Safety &amp; Alerts" title_tag="Safety &amp; Alerts" bg_color="#screen_bg">
+  <view name="settings_safety_overlay" extends="overlay_panel" title="Safety &amp; Alerts" bg_color="#screen_bg">
     <!-- Content Area - no padding, rows handle their own -->
     <lv_obj name="overlay_content"
             width="100%" flex_grow="1" style_pad_top="0" style_pad_left="0" style_pad_right="0"
@@ -17,17 +16,15 @@
         <!-- E-STOP CONFIRMATION -->
         <!-- ================================================================== -->
         <setting_toggle_row name="row_estop_confirm"
-                            label="E-Stop Confirmation" label_tag="E-Stop Confirmation" icon="alert_octagon"
-                            description="Require confirmation before emergency stop"
-                            description_tag="Require confirmation before emergency stop"
-                            subject="settings_estop_confirm" callback="on_estop_confirm_changed"/>
+                            label="E-Stop Confirmation" icon="alert_octagon"
+                            description="Require confirmation before emergency stop" subject="settings_estop_confirm"
+                            callback="on_estop_confirm_changed"/>
         <!-- ================================================================== -->
         <!-- CANCEL ESCALATION -->
         <!-- ================================================================== -->
         <setting_toggle_row name="row_cancel_escalation"
-                            label="Cancel Escalation" label_tag="Cancel Escalation" icon="alert_octagon"
+                            label="Cancel Escalation" icon="alert_octagon"
                             description="Escalate to emergency stop if cancel doesn't respond"
-                            description_tag="Escalate to emergency stop if cancel doesn't respond"
                             subject="settings_cancel_escalation_enabled" callback="on_cancel_escalation_changed"/>
         <!-- ================================================================== -->
         <!-- CANCEL ESCALATION TIMEOUT (visible only when escalation enabled) -->
@@ -35,9 +32,8 @@
         <lv_obj name="container_cancel_escalation_timeout" width="100%" style_pad_all="0" scrollable="false">
           <bind_flag_if_eq subject="settings_cancel_escalation_enabled" flag="hidden" ref_value="0"/>
           <setting_dropdown_row name="row_cancel_escalation_timeout"
-                                label="Escalation Timeout" label_tag="Escalation Timeout" icon="clock"
+                                label="Escalation Timeout" icon="clock"
                                 description="Time to wait before escalating to emergency stop"
-                                description_tag="Time to wait before escalating to emergency stop"
                                 options="15 seconds&#10;30 seconds&#10;60 seconds&#10;120 seconds"
                                 options_tag="15 seconds&#10;30 seconds&#10;60 seconds&#10;120 seconds"
                                 bind_selected="settings_cancel_escalation_timeout"
@@ -47,9 +43,8 @@
         <!-- MACRO RUN CONFIRMATION -->
         <!-- ================================================================== -->
         <setting_toggle_row name="row_macro_confirm"
-                            label="Confirm before running macros" label_tag="Confirm before running macros"
-                            icon="script_text" description="Show a confirmation dialog when tapping a macro"
-                            description_tag="Show a confirmation dialog when tapping a macro"
+                            label="Confirm before running macros" icon="script_text"
+                            description="Show a confirmation dialog when tapping a macro"
                             subject="settings_macro_confirm" callback="on_macro_confirm_changed"/>
         <!-- ================================================================== -->
         <!-- SPAGHETTI DETECTION (only when a detection source is capable) -->
@@ -57,18 +52,16 @@
         <lv_obj name="container_detection" width="100%" style_pad_all="0" scrollable="false" flex_flow="column">
           <bind_flag_if_eq subject="detection_available" flag="hidden" ref_value="0"/>
           <setting_toggle_row name="row_detection_enabled"
-                              label="Spaghetti Detection" label_tag="Spaghetti Detection" icon="eye"
+                              label="Spaghetti Detection" icon="eye"
                               description="Watch the camera during a print for failed prints"
-                              description_tag="Watch the camera during a print for failed prints"
                               subject="detection_enabled" callback="on_detection_enabled_changed"/>
           <!-- Firmware-pausing sources ignore this setting (the pause already
                happened), so the row only shows when HelixScreen does the pausing. -->
           <lv_obj name="container_detection_pause" width="100%" style_pad_all="0" scrollable="false" flex_flow="column">
             <bind_flag_if_eq subject="detection_pause_applicable" flag="hidden" ref_value="0"/>
             <setting_toggle_row name="row_detection_pause"
-                                label="Pause on Detection" label_tag="Pause on Detection" icon="pause"
+                                label="Pause on Detection" icon="pause"
                                 description="Pause the print when a failure is seen (off = warn only)"
-                                description_tag="Pause the print when a failure is seen (off = warn only)"
                                 subject="detection_pause_on_detect" disabled="detection_enabled" disabled_ref_value="0"
                                 callback="on_detection_pause_changed"/>
           </lv_obj>
@@ -77,17 +70,16 @@
         <!-- PRINT COMPLETION ALERT -->
         <!-- ================================================================== -->
         <setting_dropdown_row name="row_completion_alert"
-                              label="Print Completion Alert" label_tag="Print Completion Alert" icon="notifications"
-                              description="Notify when print finishes" description_tag="Notify when print finishes"
-                              options="Off&#10;Notification&#10;Alert" options_tag="Off&#10;Notification&#10;Alert"
-                              bind_selected="settings_completion_alert" callback="on_completion_alert_changed"/>
+                              label="Print Completion Alert" icon="notifications"
+                              description="Notify when print finishes" options="Off&#10;Notification&#10;Alert"
+                              options_tag="Off&#10;Notification&#10;Alert" bind_selected="settings_completion_alert"
+                              callback="on_completion_alert_changed"/>
         <!-- ================================================================== -->
         <!-- MINIMUM TOAST SEVERITY (#1213) -->
         <!-- ================================================================== -->
         <setting_dropdown_row name="row_min_toast_severity"
-                              label="On-screen Alerts" label_tag="On-screen Alerts" icon="message"
+                              label="On-screen Alerts" icon="message"
                               description="Lowest notification level that interrupts with a toast"
-                              description_tag="Lowest notification level that interrupts with a toast"
                               options="All&#10;Warnings &amp; errors&#10;Errors only"
                               options_tag="All&#10;Warnings &amp; errors&#10;Errors only"
                               bind_selected="settings_min_toast_severity" callback="on_min_toast_severity_changed"/>

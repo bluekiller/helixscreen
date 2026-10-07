@@ -19,9 +19,7 @@
         style_radius="#border_radius_sm" style_border_width="#border_width" style_border_color="#danger">
     <bind_flag_if cond="chamber_heater_fault or chamber_heater_inhibited or chamber_heater_offline"
                   flag="hidden" invert="true"/>
-    <text_small name="offline_label"
-                text="Heater offline" translation_tag="Heater offline" style_text_color="#danger" flex_grow="1"
-                long_mode="dots">
+    <text_small name="offline_label" text="Heater offline" style_text_color="#danger" flex_grow="1" long_mode="dots">
       <bind_flag_if cond="chamber_heater_offline" flag="hidden" invert="true"/>
     </text_small>
     <text_small name="fault_reason_label"
@@ -32,9 +30,9 @@
          buttons: the button's width sets how much of the row the reason
          label gets, so the wrap point must follow the breakpoint. -->
     <ui_button name="reset_fault_button"
-               height="#button_height_sm_tiny" text="Reset" translation_tag="Reset" variant="ghost"
-               style_text_font="#font_small" style_pad_left="#space_xs" style_pad_right="#space_xs"
-               style_border_width="#border_width" style_border_color="#border" style_border_opa="255">
+               height="#button_height_sm_tiny" text="Reset" variant="ghost" style_text_font="#font_small"
+               style_pad_left="#space_xs" style_pad_right="#space_xs" style_border_width="#border_width"
+               style_border_color="#border" style_border_opa="255">
       <bind_flag_if cond="chamber_heater_offline" flag="hidden"/>
       <event_cb trigger="clicked" callback="on_chamber_fault_reset_clicked"/>
     </ui_button>

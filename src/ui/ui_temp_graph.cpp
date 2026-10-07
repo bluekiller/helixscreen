@@ -647,14 +647,18 @@ static bool gradient_skip_enabled() {
     return enabled;
 }
 
-// Gradients are skipped when too many series are visible (visual clutter).
-static bool gradient_series_fit(const ui_temp_graph_t* graph) {
+static int count_visible_series(const ui_temp_graph_t* graph) {
     int visible_count = 0;
     for (int i = 0; i < UI_TEMP_GRAPH_MAX_SERIES; i++) {
         if (graph->series_meta[i].chart_series && graph->series_meta[i].visible)
             visible_count++;
     }
-    return visible_count <= 3;
+    return visible_count;
+}
+
+// Gradients are skipped when too many series are visible (visual clutter).
+static bool gradient_series_fit(const ui_temp_graph_t* graph) {
+    return count_visible_series(graph) <= 3;
 }
 
 // Recompute the cached gradient buffer. lv_canvas_init_layer / finish_layer run a
@@ -800,55 +804,69 @@ static void draw_gradient_cb(lv_event_t* e) {
     graph->gradient_refresh.schedule_once([graph]() { gradient_recompute(graph); });
 }
 
-// Draw legend chips in the upper-left of the chart content area.
+static int32_t legend_chip_height() {
+    return theme_manager_get_font_height(theme_manager_get_font("font_xs")) + 4; // 2px each side
+}
+
+static bool legend_drawn(const ui_temp_graph_t* graph) {
+    // One series needs no key.
+    return (graph->features & TEMP_GRAPH_FEATURE_LEGEND) && count_visible_series(graph) > 1;
+}
+
+// The legend row lives in the chart's top padding, above the plot, so no curve,
+// fill or target line ever draws under its text. Re-run whenever the axis
+// padding, the feature set, or the number of visible series changes.
+static void apply_top_pad(ui_temp_graph_t* graph) {
+    int32_t top_pad = graph->axis_top_pad;
+    if (legend_drawn(graph))
+        top_pad = LV_MAX(top_pad, legend_chip_height() + theme_manager_get_spacing("space_xs"));
+    lv_obj_set_style_pad_top(graph->chart, top_pad, LV_PART_MAIN);
+}
+
+lv_area_t helix::temp_graph_internal::temp_graph_legend_row(ui_temp_graph_t* graph) {
+    lv_area_t row{0, 0, -1, -1};
+    if (!graph || !graph->chart || !legend_drawn(graph))
+        return row;
+
+    lv_area_t coords;
+    lv_obj_get_coords(graph->chart, &coords);
+    row.x1 = coords.x1 + lv_obj_get_style_pad_left(graph->chart, LV_PART_MAIN) + 4;
+    row.x2 = coords.x2 - lv_obj_get_style_pad_right(graph->chart, LV_PART_MAIN) - 4;
+    row.y1 = coords.y1;
+    row.y2 = row.y1 + legend_chip_height() - 1;
+    return row;
+}
+
+// Draw legend chips in a row along the top of the chart.
 // Each chip is a semi-transparent rounded rectangle with a color swatch and series name.
-// Only drawn when TEMP_GRAPH_FEATURE_LEGEND is enabled (rowspan >= 2 or colspan >= 2).
 static void draw_legend_cb(lv_event_t* e) {
-    lv_obj_t* chart = lv_event_get_target_obj(e);
     ui_temp_graph_t* graph = static_cast<ui_temp_graph_t*>(lv_event_get_user_data(e));
     if (!graph || !graph->chart)
         return;
 
-    if (!(graph->features & TEMP_GRAPH_FEATURE_LEGEND))
+    lv_obj_t* chart = graph->chart;
+    lv_area_t row = helix::temp_graph_internal::temp_graph_legend_row(graph);
+    if (row.x2 < row.x1)
         return;
 
     lv_layer_t* layer = lv_event_get_layer(e);
     if (!layer)
         return;
 
-    // Count visible series — skip legend if only one series (no ambiguity)
-    int visible_count = 0;
-    for (int i = 0; i < UI_TEMP_GRAPH_MAX_SERIES; i++) {
-        if (graph->series_meta[i].chart_series && graph->series_meta[i].visible)
-            visible_count++;
-    }
-    if (visible_count <= 1)
-        return;
-
-    // Content area (inside padding)
-    lv_area_t coords;
-    lv_obj_get_coords(chart, &coords);
-    int32_t pad_left = lv_obj_get_style_pad_left(chart, LV_PART_MAIN);
-    int32_t pad_top = lv_obj_get_style_pad_top(chart, LV_PART_MAIN);
-    int32_t pad_right = lv_obj_get_style_pad_right(chart, LV_PART_MAIN);
-    int32_t content_x1 = coords.x1 + pad_left;
-    int32_t content_x2 = coords.x2 - pad_right;
-    int32_t content_y1 = coords.y1 + pad_top;
+    int visible_count = count_visible_series(graph);
 
     // Layout constants
     const lv_font_t* font = theme_manager_get_font("font_xs");
     int32_t font_h = theme_manager_get_font_height(font);
-    int32_t chip_h = font_h + 4;      // 2px vertical padding
+    int32_t chip_h = row.y2 - row.y1 + 1;
     int32_t swatch_size = font_h - 2; // Color swatch square
     int32_t chip_pad_h = 4;           // Horizontal padding inside chip
     int32_t chip_gap = 3;             // Gap between chips
     int32_t chip_radius = chip_h / 2; // Fully rounded ends
 
-    // Starting position: upper-left with small inset
-    int32_t x_start = content_x1 + 4;
-    int32_t x = x_start;
-    int32_t y = content_y1 + 3;
-    int32_t available_x_max = content_x2 - 4;
+    int32_t x = row.x1;
+    int32_t y = row.y1;
+    int32_t available_x_max = row.x2;
 
     // Worst-case overflow indicator width ("+N" with N up to visible_count).
     // Reserved when there could still be more chips after the one we're about
@@ -1669,6 +1687,7 @@ ui_temp_graph_t* ui_temp_graph_create(lv_obj_t* parent) {
     int32_t label_height = theme_manager_get_font_height(theme_manager_get_font("font_small"));
     int32_t y_axis_label_width = 40; // Width for Y-axis labels (fits "320°")
 
+    graph->axis_top_pad = space_md;
     lv_obj_set_style_pad_top(graph->chart, space_md, LV_PART_MAIN);
     lv_obj_set_style_pad_right(graph->chart, space_md, LV_PART_MAIN);
     // Extra left padding for Y-axis labels: label width + gap
@@ -1933,6 +1952,7 @@ int ui_temp_graph_add_series(ui_temp_graph_t* graph, const char* name, lv_color_
 
     // New series introduces another gradient band.
     mark_gradient_cache_dirty(graph);
+    apply_top_pad(graph);
 
     spdlog::trace("[TempGraph] Added series {} '{}' (slot {}, color 0x{:06X})", meta->id,
                   meta->name, slot, lv_color_to_u32(color));
@@ -1962,6 +1982,7 @@ void ui_temp_graph_remove_series(ui_temp_graph_t* graph, int series_id) {
 
     // Removing a series drops its gradient band.
     mark_gradient_cache_dirty(graph);
+    apply_top_pad(graph);
 
     helix::temp_graph_internal::temp_graph_tooltip_on_series_hidden(graph, series_id);
 
@@ -1995,6 +2016,7 @@ void ui_temp_graph_show_series(ui_temp_graph_t* graph, int series_id, bool visib
 
     // Visibility change adds/removes a series' gradient band.
     mark_gradient_cache_dirty(graph);
+    apply_top_pad(graph);
 
     if (!visible) {
         helix::temp_graph_internal::temp_graph_tooltip_on_series_hidden(graph, series_id);
@@ -2462,7 +2484,8 @@ void ui_temp_graph_set_axis_size(ui_temp_graph_t* graph, const char* size) {
     int32_t bottom_pad =
         is_xs ? (space_xs + label_height + space_xs) : (space_sm + label_height + space_md);
 
-    lv_obj_set_style_pad_top(graph->chart, top_pad, LV_PART_MAIN);
+    graph->axis_top_pad = top_pad;
+    apply_top_pad(graph);
     lv_obj_set_style_pad_left(graph->chart, left_pad, LV_PART_MAIN);
     lv_obj_set_style_pad_bottom(graph->chart, bottom_pad, LV_PART_MAIN);
 
@@ -2519,8 +2542,8 @@ void ui_temp_graph_set_features(ui_temp_graph_t* graph, uint32_t features) {
     lv_obj_set_style_pad_bottom(graph->chart, bottom_pad, LV_PART_MAIN);
 
     // Top padding: reserve space for top Y-axis label, or use minimal padding
-    int32_t top_pad = want_y ? LV_MAX(space_sm, label_height) : space_xs;
-    lv_obj_set_style_pad_top(graph->chart, top_pad, LV_PART_MAIN);
+    graph->axis_top_pad = want_y ? LV_MAX(space_sm, label_height) : space_xs;
+    apply_top_pad(graph);
 
     // Toggle gradient opacity: zero out when disabled, restore defaults when enabled
     bool want_gradients = (features & TEMP_GRAPH_FEATURE_GRADIENTS) != 0;

@@ -8,6 +8,7 @@
 #include "../test_helpers/filament_slot_override_store_test_access.h"
 #include "../test_helpers/mock_printer.h"
 #include "../test_helpers/print_state_test_drivers.h"
+#include "../test_helpers/unique_temp_dir.h"
 #include "../ui_test_utils.h"
 #include "ams_backend_ad5x_ifs.h"
 #include "ams_backend_afc.h"
@@ -6873,8 +6874,6 @@ struct Ad5xIfsTmpJsonFile {
     ~Ad5xIfsTmpJsonFile() {
         std::error_code ec;
         std::filesystem::remove(path, ec);
-        // Cleanup any leftover temp from atomic write
-        std::filesystem::remove(path.string() + ".tmp", ec);
     }
 };
 } // namespace
@@ -6991,9 +6990,8 @@ TEST_CASE("AD5X IFS write_adventurer_json_local atomic — leaves no .tmp on suc
     auto err = Ad5xIfsTestAccess::write_adventurer_json_local(backend, 2, "ABCDEF", "TPU");
     REQUIRE(err.success());
 
-    // The atomic-rename pattern uses <path>.tmp as the staging file. After a
-    // successful write the temp must be gone (rename consumes it).
-    CHECK_FALSE(std::filesystem::exists(tmp.path.string() + ".tmp"));
+    // A successful write leaves no staging file (rename consumes it).
+    CHECK(helix::test::staging_files_beside(tmp.path.string()) == 0);
 }
 
 // ==========================================================================

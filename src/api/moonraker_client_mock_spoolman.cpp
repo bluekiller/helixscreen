@@ -11,6 +11,7 @@
 #include <cctype>
 #include <cmath>
 #include <cstdlib>
+#include <map>
 #include <optional>
 #include <tuple>
 
@@ -334,6 +335,10 @@ std::vector<FilamentInfo> MockSpoolmanServer::filament_list() const {
     // Seeded and created filaments first, then one per distinct
     // vendor+material+name among the spools.
     std::vector<FilamentInfo> filaments = filaments_;
+    std::map<std::string, int> vendor_ids;
+    for (const auto& v : vendor_list()) {
+        vendor_ids.emplace(v.name, v.id);
+    }
     std::set<std::string> seen;
     int next_id = 1;
     for (const auto& f : filaments_) {
@@ -345,6 +350,8 @@ std::vector<FilamentInfo> MockSpoolmanServer::filament_list() const {
             FilamentInfo f;
             f.id = next_id++;
             f.vendor_name = spool.vendor;
+            auto vid = vendor_ids.find(spool.vendor);
+            f.vendor_id = vid == vendor_ids.end() ? 0 : vid->second;
             f.material = spool.material;
             f.filament_name = spool.filament_name;
             f.color_hex = spool.color_hex;
@@ -578,28 +585,11 @@ bool MockSpoolmanServer::proxy(const json& params, json& result, MoonrakerError&
             }
             return true;
         }
-        // Seeded filaments honour the filter. Synthesized ones carry no vendor
-        // id, so all of them are served and the caller filters by name
-        // (docs/devel/architecture/15-known-debt.md).
         const int vendor_id = std::atoi(vendor_filter.c_str());
-        for (const auto& f : filaments_) {
+        for (const auto& f : filament_list()) {
             if (f.vendor_id == vendor_id) {
                 result.push_back(filament_json(f));
             }
-        }
-        int next_id = 1;
-        for (const auto& spool : spools_) {
-            FilamentInfo f;
-            f.id = next_id++;
-            f.vendor_name = spool.vendor;
-            f.material = spool.material;
-            f.filament_name = spool.filament_name;
-            f.color_hex = spool.color_hex;
-            f.diameter = 1.75f;
-            f.weight = static_cast<float>(spool.initial_weight_g);
-            f.nozzle_temp_min = f.nozzle_temp_max = spool.nozzle_temp_recommended;
-            f.bed_temp_min = f.bed_temp_max = spool.bed_temp_recommended;
-            result.push_back(filament_json(f));
         }
         return true;
     }

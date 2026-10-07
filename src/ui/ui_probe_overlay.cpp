@@ -42,7 +42,6 @@ using helix::sensors::ProbeSensorType;
 // ============================================================================
 
 // Forward declarations
-static void on_probe_row_clicked(lv_event_t* e);
 IMoonrakerAPI* get_moonraker_api();
 IMoonrakerClient* get_moonraker_client();
 
@@ -56,17 +55,16 @@ ProbeOverlay::~ProbeOverlay() {
 }
 
 void init_probe_row_handler() {
-    lv_xml_register_event_cb(nullptr, "on_probe_row_clicked", on_probe_row_clicked);
+    register_xml_callbacks({
+        {"on_probe_row_clicked",
+         [](lv_event_t*) {
+             spdlog::debug("[Probe] Probe row clicked");
+             auto& overlay = get_global_probe_overlay();
+             overlay.set_api(get_moonraker_api());
+             overlay.show(lv_display_get_screen_active(nullptr));
+         }},
+    });
     spdlog::trace("[Probe] Row click callback registered");
-}
-
-static void on_probe_row_clicked(lv_event_t* e) {
-    (void)e;
-    spdlog::debug("[Probe] Probe row clicked");
-
-    auto& overlay = get_global_probe_overlay();
-    overlay.set_api(get_moonraker_api());
-    overlay.show(lv_display_get_screen_active(nullptr));
 }
 
 // ============================================================================
@@ -827,6 +825,32 @@ void ProbeOverlay::handle_bed_mesh() {
 // CONFIG VALUE LOADING
 // ============================================================================
 
+namespace helix::ui {
+// Klipper's probe.py defaults, shared by [probe], [bltouch] and [smart_effector].
+std::string probe_config_klipper_default(const std::string& key) {
+    if (key == "x_offset" || key == "y_offset")
+        return "0";
+    if (key == "samples")
+        return "1";
+    if (key == "speed")
+        return "5";
+    if (key == "sample_retract_dist")
+        return "2";
+    if (key == "samples_tolerance")
+        return "0.1";
+    return "";
+}
+
+std::string probe_config_display_value(const std::string& key, const std::string& configured) {
+    if (!configured.empty())
+        return configured;
+    const std::string def = probe_config_klipper_default(key);
+    if (def.empty())
+        return lv_tr("Default");
+    return fmt::format("{} ({})", def, lv_tr("Default"));
+}
+} // namespace helix::ui
+
 std::string ProbeOverlay::get_probe_config_section() const {
     auto& mgr = ProbeSensorManager::instance();
     auto sensors = mgr.get_sensors();
@@ -865,30 +889,30 @@ void ProbeOverlay::load_config_values() {
 
             const auto& section = config[probe_section_];
 
-            // Helper to extract string value and copy to subject buffer
-            auto set_cfg = [](const json& sec, const char* key, char* buf, size_t buf_size,
-                              lv_subject_t* subject) {
-                if (sec.contains(key) && sec[key].is_string()) {
-                    std::string val = sec[key].get<std::string>();
-                    snprintf(buf, buf_size, "%s", val.c_str());
-                } else {
-                    snprintf(buf, buf_size, "default");
-                }
-                lv_subject_copy_string(subject, buf);
-            };
-
-            lifetime_.defer("ProbeOverlay::load_probe_config", [this, section, set_cfg]() {
-                set_cfg(section, "x_offset", probe_cfg_x_offset_buf_,
-                        sizeof(probe_cfg_x_offset_buf_), &probe_cfg_x_offset_);
-                set_cfg(section, "y_offset", probe_cfg_y_offset_buf_,
-                        sizeof(probe_cfg_y_offset_buf_), &probe_cfg_y_offset_);
-                set_cfg(section, "samples", probe_cfg_samples_buf_, sizeof(probe_cfg_samples_buf_),
+            lifetime_.defer("ProbeOverlay::load_probe_config", [this, section]() {
+                probe_cfg_configured_.clear();
+                auto set_cfg = [&](const char* key, char* buf, size_t buf_size,
+                                   lv_subject_t* subject) {
+                    std::string configured;
+                    if (section.contains(key) && section[key].is_string()) {
+                        configured = section[key].get<std::string>();
+                        probe_cfg_configured_[key] = configured;
+                    }
+                    snprintf(buf, buf_size, "%s",
+                             helix::ui::probe_config_display_value(key, configured).c_str());
+                    lv_subject_copy_string(subject, buf);
+                };
+                set_cfg("x_offset", probe_cfg_x_offset_buf_, sizeof(probe_cfg_x_offset_buf_),
+                        &probe_cfg_x_offset_);
+                set_cfg("y_offset", probe_cfg_y_offset_buf_, sizeof(probe_cfg_y_offset_buf_),
+                        &probe_cfg_y_offset_);
+                set_cfg("samples", probe_cfg_samples_buf_, sizeof(probe_cfg_samples_buf_),
                         &probe_cfg_samples_);
-                set_cfg(section, "speed", probe_cfg_speed_buf_, sizeof(probe_cfg_speed_buf_),
+                set_cfg("speed", probe_cfg_speed_buf_, sizeof(probe_cfg_speed_buf_),
                         &probe_cfg_speed_);
-                set_cfg(section, "sample_retract_dist", probe_cfg_retract_dist_buf_,
+                set_cfg("sample_retract_dist", probe_cfg_retract_dist_buf_,
                         sizeof(probe_cfg_retract_dist_buf_), &probe_cfg_retract_dist_);
-                set_cfg(section, "samples_tolerance", probe_cfg_tolerance_buf_,
+                set_cfg("samples_tolerance", probe_cfg_tolerance_buf_,
                         sizeof(probe_cfg_tolerance_buf_), &probe_cfg_tolerance_);
 
                 lv_subject_set_int(&probe_config_loaded_, 1);
@@ -938,14 +962,20 @@ void ProbeOverlay::handle_config_edit(const std::string& field_key, const std::s
              current_val);
     lv_subject_copy_string(&probe_config_edit_current_, probe_config_edit_current_buf_);
 
-    // Pre-fill edit value with current
-    snprintf(probe_config_edit_value_buf_, sizeof(probe_config_edit_value_buf_), "%s", current_val);
+    // An option not in printer.cfg starts empty, with Klipper's default as the hint
+    auto it = probe_cfg_configured_.find(field_key);
+    const std::string configured = it != probe_cfg_configured_.end() ? it->second : "";
+    snprintf(probe_config_edit_value_buf_, sizeof(probe_config_edit_value_buf_), "%s",
+             configured.c_str());
     lv_subject_copy_string(&probe_config_edit_value_, probe_config_edit_value_buf_);
 
     // Show the modal
     edit_modal_ = Modal::show("probe_config_edit_modal");
     if (!edit_modal_) {
         spdlog::error("[Probe] Failed to show config edit modal");
+    } else if (auto* input = lv_obj_find_by_name(edit_modal_, "probe_config_input")) {
+        lv_textarea_set_placeholder_text(
+            input, helix::ui::probe_config_klipper_default(field_key).c_str());
     }
 }
 
@@ -970,6 +1000,12 @@ void ProbeOverlay::handle_config_save() {
     std::string new_value = probe_config_edit_value_buf_;
     std::string field = editing_field_key_;
     std::string section = probe_section_;
+
+    if (new_value.empty()) {
+        spdlog::debug("[Probe] Empty value for {}, nothing to save", field);
+        handle_config_cancel();
+        return;
+    }
 
     spdlog::info("[Probe] Saving config: [{}] {} = {}", section, field, new_value);
 

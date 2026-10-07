@@ -91,3 +91,34 @@ TEST_CASE_METHOD(LVGLUITestFixture, "wifi rows and password buttons dispatch to 
         }
     }
 }
+
+TEST_CASE_METHOD(LVGLUITestFixture, "wifi password modal withdraws Connect while connecting",
+                 "[wifi][callbacks]") {
+    auto& overlay = get_network_settings_overlay();
+    overlay.init_subjects();
+    overlay.register_callbacks();
+    lv_subject_t* connecting = lv_xml_get_subject(nullptr, "wifi_connecting");
+    REQUIRE(connecting != nullptr);
+
+    const char* attrs[] = {"cancel_callback", "on_network_settings_password_cancel",
+                           "connect_callback", "on_network_settings_password_connect", nullptr};
+    auto* modal =
+        static_cast<lv_obj_t*>(lv_xml_create(test_screen(), "wifi_password_modal", attrs));
+    REQUIRE(modal != nullptr);
+    lv_obj_t* connect = lv_obj_find_by_name(modal, "modal_connect_btn");
+    lv_obj_t* cancel = lv_obj_find_by_name(modal, "modal_cancel_btn");
+    REQUIRE(connect != nullptr);
+    REQUIRE(cancel != nullptr);
+    // The divider between the two buttons sits directly before Connect.
+    lv_obj_t* divider = lv_obj_get_child(lv_obj_get_parent(connect), lv_obj_get_index(connect) - 1);
+    REQUIRE(divider != nullptr);
+
+    lv_subject_set_int(connecting, 1);
+    CHECK(lv_obj_has_flag(connect, LV_OBJ_FLAG_HIDDEN));
+    CHECK(lv_obj_has_flag(divider, LV_OBJ_FLAG_HIDDEN));
+    CHECK_FALSE(lv_obj_has_flag(cancel, LV_OBJ_FLAG_HIDDEN));
+
+    lv_subject_set_int(connecting, 0);
+    CHECK_FALSE(lv_obj_has_flag(connect, LV_OBJ_FLAG_HIDDEN));
+    CHECK_FALSE(lv_obj_has_flag(divider, LV_OBJ_FLAG_HIDDEN));
+}

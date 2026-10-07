@@ -20,7 +20,7 @@
          browsed and managed (prestonbrown/helixscreen#1395). The E-stop lives
          on the navbar. -->
     <header_bar name="overlay_header"
-                title="Print Status" title_tag="Print Status" hide_action_button_2="false" action_button_2_icon="folder"
+                title="Print Status" hide_action_button_2="false" action_button_2_icon="folder"
                 action_button_2_icon_size="sm" action_button_2_bg_color="#elevated_bg" action_button_2_radius="9999"
                 action_button_2_width="#button_height_sm" action_button_2_min_width="0"
                 action_button_2_callback="on_print_status_files"/>
@@ -149,10 +149,10 @@
                   style_pad_gap="#space_xs" scrollable="false" clickable="true" style_radius="#border_radius">
             <style name="styles.press_wash" selector="pressed"/>
             <event_cb trigger="clicked" callback="on_print_status_units_toggle"/>
-            <text_small text="Speed" translation_tag="Speed" clickable="false" event_bubble="true"/>
+            <text_small text="Speed" clickable="false" event_bubble="true"/>
             <text_small name="speed_value" bind_text="print_speed_text" clickable="false" event_bubble="true"/>
             <text_small text=" · " clickable="false" event_bubble="true"/>
-            <text_small text="Flow" translation_tag="Flow" clickable="false" event_bubble="true"/>
+            <text_small text="Flow" clickable="false" event_bubble="true"/>
             <text_small name="flow_value" bind_text="print_flow_text" clickable="false" event_bubble="true"/>
             <icon src="swap_horizontal" size="xs" variant="secondary" clickable="false" event_bubble="true"/>
           </lv_obj>
@@ -200,8 +200,8 @@
                   height="content" style_pad_all="0" scrollable="false" flex_flow="row" style_flex_main_place="center"
                   style_flex_cross_place="center" style_pad_gap="#space_sm">
             <ui_button name="btn_light"
-                       height="#button_height" flex_grow="1" text="Light" translation_tag="Light"
-                       icon="lightbulb_outline" bind_icon="light_button_icon" icon_position="top">
+                       height="#button_height" flex_grow="1" text="Light" icon="lightbulb_outline"
+                       bind_icon="light_button_icon" icon_position="top">
               <event_cb trigger="clicked" callback="on_print_status_light"/>
               <bind_flag_if_eq subject="led_controllable" flag="hidden" ref_value="0"/>
               <bind_state_if_eq subject="led_command_in_flight" state="disabled" ref_value="1"/>
@@ -219,9 +219,7 @@
               <event_cb trigger="clicked" callback="on_print_control_primary"/>
               <bind_state_if_eq subject="print_control_primary_enabled" state="disabled" ref_value="0"/>
             </ui_button>
-            <ui_button name="btn_tune"
-                       height="#button_height" flex_grow="1" icon="tune" text="Tune" translation_tag="Tune"
-                       icon_position="top">
+            <ui_button name="btn_tune" height="#button_height" flex_grow="1" icon="tune" text="Tune" icon_position="top">
               <event_cb trigger="clicked" callback="on_print_status_tune"/>
               <bind_state_if_eq subject="print_controls_enabled" state="disabled" ref_value="0"/>
             </ui_button>
@@ -239,14 +237,14 @@
             </ui_button>
             <ui_button name="btn_cancel"
                        height="#button_height" flex_grow="1" variant="danger" icon="stop" text="Cancel"
-                       translation_tag="Cancel" icon_position="top">
+                       icon_position="top">
               <bind_flag_if_not_eq subject="print_outcome" flag="hidden" ref_value="0"/>
               <bind_state_if_eq subject="print_control_stop_enabled" state="disabled" ref_value="0"/>
               <event_cb trigger="clicked" callback="on_print_control_stop"/>
             </ui_button>
             <ui_button name="btn_reprint"
-                       height="#button_height" flex_grow="1" icon="refresh" text="Reprint" translation_tag="Reprint"
-                       icon_position="top" hidden="true">
+                       height="#button_height" flex_grow="1" icon="refresh" text="Reprint" icon_position="top"
+                       hidden="true">
               <bind_flag_if_eq subject="print_outcome" flag="hidden" ref_value="0"/>
               <event_cb trigger="clicked" callback="on_print_status_reprint"/>
             </ui_button>

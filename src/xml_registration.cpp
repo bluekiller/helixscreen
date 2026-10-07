@@ -401,6 +401,7 @@ void register_xml_components() {
     // file detail view, and the whole print-status preview card shared by the
     // landscape and portrait status layouts. Registered here, ahead of both
     // consumers, because a component must exist before the file that nests it.
+    register_xml("components/exclude_objects_button.xml");
     register_xml("components/preview_stack.xml");
     register_xml("components/print_status_preview_card.xml");
     register_xml("header_bar.xml");
@@ -558,6 +559,7 @@ void register_xml_components() {
     register_xml("components/picker_option_row.xml");
     register_xml("components/picker_chip.xml");
     register_xml("fan_stack_picker.xml");
+    register_xml("power_device_picker.xml");
     register_xml("tool_switcher_picker.xml");
     register_xml("thermistor_sensor_picker.xml");
     register_xml("thermistor_configure_picker.xml");

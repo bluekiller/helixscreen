@@ -10,6 +10,7 @@
 #include "ui_panel_common.h"
 #include "ui_search_debounce.h"
 #include "ui_subject_registry.h"
+#include "ui_swatch.h"
 #include "ui_temperature_utils.h"
 #include "ui_timer_guard.h"
 #include "ui_toast_manager.h"
@@ -1390,7 +1391,7 @@ void SpoolWizardOverlay::populate_filament_list() {
         lv_obj_t* swatch = lv_obj_find_by_name(row, "color_swatch");
         if (swatch && !fil.color_hex.empty()) {
             uint32_t color_val = std::strtoul(fil.color_hex.c_str(), nullptr, 16);
-            lv_obj_set_style_bg_color(swatch, lv_color_hex(color_val), 0);
+            helix::ui::apply_swatch_color(swatch, color_val, "");
         }
 
         // Set combined material - name label

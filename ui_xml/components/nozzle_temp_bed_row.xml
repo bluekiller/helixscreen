@@ -26,9 +26,7 @@
         <!-- The bed has no tool number, and its radiator glyph already
              identifies it, so the label shows for the text rungs only and the
              icon carries the row below them. -->
-        <text_small name="bed_label"
-                    width="content" text="Bed" translation_tag="Bed" style_text_color="#primary"
-                    style_min_width="#space_xl">
+        <text_small name="bed_label" width="content" text="Bed" style_text_color="#primary" style_min_width="#space_xl">
           <bind_flag_if_lt subject="nozzle_row_label_mode" flag="hidden" ref_value="2"/>
           <bind_style_if_eq name="nozzle_compact_font" subject="nozzle_row_compact" ref_value="1"/>
         </text_small>

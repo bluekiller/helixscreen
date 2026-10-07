@@ -11,7 +11,7 @@
     <style name="spacer_standard" height="#space_lg"/>
     <style name="spacer_micro" height="#space_md"/>
   </styles>
-  <view name="settings_sound_overlay" extends="overlay_panel" title="Sound" title_tag="Sound" bg_color="#screen_bg">
+  <view name="settings_sound_overlay" extends="overlay_panel" title="Sound" bg_color="#screen_bg">
     <!-- Content Area - no padding, rows handle their own -->
     <lv_obj name="overlay_content" width="100%" flex_grow="1" scrollable="true" flex_flow="column">
       <bind_style_if_eq name="content_micro" subject="ui_breakpoint" ref_value="0"/>
@@ -22,33 +22,30 @@
         <lv_obj name="container_sounds" width="100%" style_pad_all="0" scrollable="false">
           <bind_flag_if_eq subject="printer_has_speaker" flag="hidden" ref_value="0"/>
           <setting_toggle_row name="row_sounds"
-                              label="Sounds" label_tag="Sounds" icon="notifications" description="Enable audio feedback"
-                              description_tag="Enable audio feedback" subject="settings_sounds_enabled"
-                              callback="on_sounds_changed"/>
+                              label="Sounds" icon="notifications" description="Enable audio feedback"
+                              subject="settings_sounds_enabled" callback="on_sounds_changed"/>
         </lv_obj>
         <!-- Volume Slider (hidden when master sounds off) -->
         <lv_obj name="container_volume" width="100%" style_pad_all="0" scrollable="false">
           <bind_flag_if_eq subject="settings_sounds_enabled" flag="hidden" ref_value="0"/>
           <setting_slider_row name="row_volume"
-                              label="Volume" label_tag="Volume" icon="volume_high" description="Master volume level"
-                              description_tag="Master volume level" min="0" max="100" value="80" min_icon="volume_off"
-                              max_icon="volume_high" callback="on_volume_changed" commit_callback="on_volume_commit"/>
+                              label="Volume" icon="volume_high" description="Master volume level" min="0" max="100"
+                              value="80" min_icon="volume_off" max_icon="volume_high" callback="on_volume_changed"
+                              commit_callback="on_volume_commit"/>
         </lv_obj>
         <!-- UI Sounds Toggle (hidden when master sounds off) -->
         <lv_obj name="container_ui_sounds" width="100%" style_pad_all="0" scrollable="false">
           <bind_flag_if_eq subject="settings_sounds_enabled" flag="hidden" ref_value="0"/>
           <setting_toggle_row name="row_ui_sounds"
-                              label="UI Sounds" label_tag="UI Sounds" icon="notifications"
-                              description="Button taps and navigation sounds"
-                              description_tag="Button taps and navigation sounds" subject="settings_ui_sounds_enabled"
-                              callback="on_ui_sounds_changed"/>
+                              label="UI Sounds" icon="notifications" description="Button taps and navigation sounds"
+                              subject="settings_ui_sounds_enabled" callback="on_ui_sounds_changed"/>
         </lv_obj>
         <!-- Sound Theme Dropdown (hidden when master sounds off) -->
         <lv_obj name="container_sound_theme" width="100%" style_pad_all="0" scrollable="false">
           <bind_flag_if_eq subject="settings_sounds_enabled" flag="hidden" ref_value="0"/>
           <setting_dropdown_row name="row_sound_theme"
-                                label="Sound Theme" label_tag="Sound Theme" icon="tune" description="Choose sound style"
-                                description_tag="Choose sound style" callback="on_sound_theme_changed"/>
+                                label="Sound Theme" icon="tune" description="Choose sound style"
+                                callback="on_sound_theme_changed"/>
         </lv_obj>
         <!-- Output Device Dropdown: shown only when sounds are on AND an ALSA
              backend with device selection is active. This one compound cond owns
@@ -56,24 +53,21 @@
         <lv_obj name="container_audio_device" width="100%" style_pad_all="0" scrollable="false">
           <bind_flag_if cond="settings_sounds_enabled eq 0 or settings_audio_device_available eq 0" flag="hidden"/>
           <setting_dropdown_row name="row_audio_device"
-                                label="Output Device" label_tag="Output Device" icon="volume_high"
-                                description="Where UI sounds play" description_tag="Where UI sounds play"
+                                label="Output Device" icon="volume_high" description="Where UI sounds play"
                                 callback="on_audio_device_changed"/>
         </lv_obj>
         <!-- Preview Sounds (hidden when master sounds off) -->
         <lv_obj name="container_preview_sounds" width="100%" style_pad_all="0" scrollable="false">
           <bind_flag_if_eq subject="settings_sounds_enabled" flag="hidden" ref_value="0"/>
           <setting_action_row name="row_preview_sounds"
-                              label="Preview Sounds" label_tag="Preview Sounds" icon="play"
-                              description="Listen to all theme sounds" description_tag="Listen to all theme sounds"
+                              label="Preview Sounds" icon="play" description="Listen to all theme sounds"
                               callback="on_preview_sounds"/>
         </lv_obj>
         <!-- Test Tracker (hidden when master sounds off) -->
         <lv_obj name="container_test_tracker" width="100%" style_pad_all="0" scrollable="false">
           <bind_flag_if_eq subject="settings_sounds_enabled" flag="hidden" ref_value="0"/>
           <setting_action_row name="row_test_tracker"
-                              label="Test Tracker" label_tag="Test Tracker" icon="tune"
-                              description="Play / stop Crockett's Theme" description_tag="Play / stop Crockett's Theme"
+                              label="Test Tracker" icon="tune" description="Play / stop Crockett's Theme"
                               callback="on_test_tracker"/>
         </lv_obj>
       </setting_group>

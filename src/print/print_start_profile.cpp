@@ -215,6 +215,7 @@ bool PrintStartProfile::match_pattern_list(const std::vector<ResponsePattern>& p
                 substitute_captures(std::string(lv_tr(rp.message_template.c_str())), match);
             result.progress = rp.weight; // Caller interprets based on progress_mode
             result.hold_seconds = 0;
+            result.narrates = rp.narrates;
             if (rp.hold_minutes_group > 0 &&
                 static_cast<size_t>(rp.hold_minutes_group) < match.size()) {
                 // Firmware prints the number with a '.' whatever the UI locale.
@@ -511,6 +512,15 @@ void PrintStartProfile::parse_pattern_array(const nlohmann::json& array,
             rp.weight = 0;
         }
 
+        if (rp_json.contains("narrates")) {
+            if (rp_json["narrates"].is_boolean()) {
+                rp.narrates = rp_json["narrates"].get<bool>();
+            } else {
+                spdlog::warn("[PrintStartProfile] Ignoring non-boolean narrates for {} '{}' in {}",
+                             kind, pattern_str, source_path);
+            }
+        }
+
         // Silent minutes the text announces, from a capture group (optional)
         if (rp_json.contains("hold_minutes_group")) {
             const auto& group = rp_json["hold_minutes_group"];
@@ -684,6 +694,15 @@ void PrintStartProfile::parse_status_signals(const json& array, const std::strin
         }
         if (rule_json.contains("weight") && rule_json["weight"].is_number()) {
             rule.weight = rule_json["weight"].get<int>();
+        }
+        if (rule_json.contains("after_heat")) {
+            if (rule_json["after_heat"].is_boolean()) {
+                rule.after_heat = rule_json["after_heat"].get<bool>();
+            } else {
+                spdlog::warn("[PrintStartProfile] Ignoring non-boolean after_heat for status "
+                             "signal '{}' in {}",
+                             rule.name, source_path);
+            }
         }
 
         status_signals_.push_back(std::move(rule));

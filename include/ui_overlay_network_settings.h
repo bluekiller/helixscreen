@@ -207,6 +207,9 @@ class NetworkSettingsOverlay : public OverlayBase {
     lv_subject_t wifi_connecting_{};          // 0=idle, 1=connecting (toggles modal form)
     lv_subject_t wifi_password_modal_ssid_{}; // SSID displayed in password modal
 
+    // Hidden-network modal subject
+    lv_subject_t hidden_connecting_{}; // 0=idle, 1=connecting (toggles modal form)
+
     // String buffers (subjects need stable char* pointers)
     char ssid_buffer_[64];
     char ip_buffer_[32];
@@ -325,7 +328,6 @@ class NetworkSettingsOverlay : public OverlayBase {
     // Hidden network modal callbacks
     void handle_hidden_cancel_clicked();
     void handle_hidden_connect_clicked();
-    void handle_security_changed(lv_event_t* e);
 
     // Password modal methods
     void show_password_modal(const char* ssid);

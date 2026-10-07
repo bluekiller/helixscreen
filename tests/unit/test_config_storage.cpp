@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "../test_helpers/config_dir_guard.h"
 #include "../test_helpers/mock_config_storage.h"
+#include "../test_helpers/unique_temp_dir.h"
 #include "config.h"
 #include "config_storage.h"
 
@@ -31,7 +32,7 @@ TEST_CASE("file storage round-trips a document atomically", "[config][storage]")
     auto doc = storage->load(read_error);
     REQUIRE(doc.has_value());
     REQUIRE(doc->find("config_version") != std::string::npos);
-    REQUIRE_FALSE(fs::exists(path + ".tmp")); // no temp litter after store
+    REQUIRE(helix::test::staging_files_beside(path) == 0); // no temp litter after store
 
     storage->preserve_corrupt();
     REQUIRE_FALSE(storage->load(read_error).has_value());
