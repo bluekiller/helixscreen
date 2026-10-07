@@ -278,7 +278,7 @@ configure_forgex_display() {
         return 1
     fi
     if [ "$changed" = true ]; then
-        log_success "ForgeX configured for HelixScreen (HEADLESS mode, GuppyScreen disabled)"
+        log_note "ForgeX configured for HelixScreen (HEADLESS mode, GuppyScreen disabled)"
     fi
     # An already-HEADLESS printer with nothing left to de-exec is the
     # takeover's goal state; a re-run (upgrade) lands here and must not read
@@ -484,7 +484,7 @@ disable_stock_firmware_ui() {
             log_info "Disabling stock FlashForge UI in auto_run.sh..."
             # Comment out the ffstartup-arm line
             $SUDO sed -i 's|^/opt/PROGRAM/ffstartup-arm|# Disabled by HelixScreen: /opt/PROGRAM/ffstartup-arm|' "$auto_run"
-            log_success "Stock FlashForge UI disabled"
+            log_note "Stock FlashForge UI disabled"
             return 0
         fi
     fi
