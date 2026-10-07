@@ -31,6 +31,7 @@
 #include "../lvgl_ui_test_fixture.h"
 #include "../test_helpers/mock_bypass.h"
 #include "../test_helpers/printer_state_test_access.h"
+#include "../test_helpers/update_queue_test_access.h"
 #include "../ui_test_utils.h"
 #include "ams_backend_mock.h"
 #include "ams_remap.h"
@@ -48,6 +49,7 @@
 #include "theme_manager.h"
 #include "tools_used_cache.h"
 
+#include <chrono>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
@@ -55,6 +57,7 @@
 #include <memory>
 #include <set>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include "../catch_amalgamated.hpp"
@@ -1702,4 +1705,34 @@ TEST_CASE_METHOD(LVGLUITestFixture,
 
     CHECK(d.view.exclude_objects().get_defined_objects() ==
           std::vector<std::string>{"Left", "Right"});
+}
+
+// The viewer outlives the view on teardown (its tree is deleted on a later
+// tick), so a parse finishing after cleanup() must not reach the view.
+TEST_CASE_METHOD(LVGLUITestFixture, "A parse finishing after cleanup never reaches the view",
+                 "[print_select][detail_view][pre_start_exclude]") {
+    OpenDetail d(test_screen(), "exclude_object_test.gcode", kThreeParts);
+    REQUIRE(d.view.get_widget() != nullptr);
+    REQUIRE(lv_obj_find_by_name(d.view.get_widget(), "detail_gcode_viewer") != nullptr);
+    auto& queue = helix::ui::UpdateQueue::instance();
+    helix::ui::UpdateQueueTestAccess::drain_all(queue);
+
+    int loaded = 0;
+    PrintSelectDetailViewTestAccess::begin_viewer_load(
+        d.view, "assets/test_gcodes/exclude_object_test.gcode");
+    d.view.run_when_loaded([&loaded]() { ++loaded; });
+
+    // The parse's result is built and waiting in the queue, not yet delivered.
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(30);
+    while (helix::ui::UpdateQueueTestAccess::queue_empty(queue) &&
+           std::chrono::steady_clock::now() < deadline) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(5));
+    }
+    REQUIRE_FALSE(helix::ui::UpdateQueueTestAccess::queue_empty(queue));
+    REQUIRE(loaded == 0);
+
+    d.view.cleanup();
+    helix::ui::UpdateQueueTestAccess::drain_all(queue);
+    CHECK(loaded == 0);
+    CHECK_FALSE(d.view.is_gcode_loaded());
 }

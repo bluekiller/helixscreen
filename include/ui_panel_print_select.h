@@ -1046,7 +1046,9 @@ class PrintSelectPanel : public PanelBase {
     bool refuse_start_with_every_object_picked();
 
     /// post_job @p filename (Moonraker-relative) with the detail view's options.
-    void queue_file(const std::string& filename);
+    /// Picks are dropped once the add succeeds, if @p tapped (the composed
+    /// name at the tap) is still the selected file.
+    void queue_file(const std::string& filename, const std::string& tapped);
 
     /**
      * @brief Update sort indicator icons on column headers

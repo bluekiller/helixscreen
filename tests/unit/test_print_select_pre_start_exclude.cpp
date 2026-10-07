@@ -21,9 +21,11 @@
 #include "app_globals.h"
 #include "helix-xml/src/xml/lv_xml.h"
 #include "job_queue_state.h"
+#include "moonraker_api_mock.h"
 #include "printer_discovery.h"
 #include "printer_state.h"
 
+#include <algorithm>
 #include <functional>
 #include <string>
 #include <vector>
@@ -71,9 +73,7 @@ class PickStartFixture : private helix::PrintSelectGlobalStateReset,
     }
 
     ~PickStartFixture() override {
-        PrintSelectPanelTestAccess::hide_detail_view(*panel_);
-        drain();
-        lv_timer_handler(); // the close callback runs on the next tick
+        drop_print_status();
         helix::ui::set_test_notification_info_hook(nullptr);
         helix::ui::set_test_notification_warning_hook(nullptr);
         auto& ps = get_printer_state();
@@ -109,14 +109,30 @@ class PickStartFixture : private helix::PrintSelectGlobalStateReset,
             });
     }
 
+    /// The print status tree is process-wide: leave none behind.
+    void drop_print_status() {
+        lv_obj_t* status = PrintStatusPanel::get_cached_overlay();
+        if (!status) {
+            return;
+        }
+        auto& nav = NavigationManager::instance();
+        auto stack = NavigationManagerTestAccess::panel_stack(nav);
+        stack.erase(std::remove(stack.begin(), stack.end(), status), stack.end());
+        NavigationManagerTestAccess::set_panel_stack(nav, stack);
+        PrintStatusPanel::destroy_cached_overlay(
+            helix::ui::PrintStatusTreeDestroyCause::PanelRegistryTeardown);
+        drain();
+    }
+
     /// Start the open file through the panel's controller, past initiate().
-    /// @p hide_details runs the controller's own hide, as a real start does.
-    helix::ui::PrintStartController& start_held(bool hide_details) {
+    /// @p navigate keeps the panel's own navigation: details hides and print
+    /// status opens, as a real start does. Without it details stays open.
+    helix::ui::PrintStartController& start_held(bool navigate) {
         auto* controller = PrintSelectPanelTestAccess::print_controller(*panel_);
         REQUIRE(controller != nullptr);
-        // No status overlay in a unit test; a no-op still lets the start hide details.
-        controller->set_navigate_to_print_status(hide_details ? std::function<void()>([]() {})
-                                                              : nullptr);
+        if (!navigate) {
+            controller->set_navigate_to_print_status(nullptr);
+        }
         controller->set_file(file_.name(), "", {}, "");
         controller->set_exclude_picks(detail->exclude_picks());
         hold_print_start();
@@ -153,7 +169,7 @@ class PickStartFixture : private helix::PrintSelectGlobalStateReset,
 TEST_CASE_METHOD(PickStartFixture, "Picks are sent only after Moonraker confirms the start",
                  "[print_select][pre_start_exclude][start]") {
     detail->toggle_exclude_pick("Cube_id_1");
-    auto& controller = start_held(/*hide_details=*/false);
+    auto& controller = start_held(/*navigate=*/false);
     CHECK(PrintStartControllerTestAccess::exclude_picks(controller).empty()); // consumed
     CHECK(exclusions().empty()); // nothing before Moonraker answers
 
@@ -166,7 +182,7 @@ TEST_CASE_METHOD(PickStartFixture,
                  "Opening another file while the start is in flight keeps the started file's picks",
                  "[print_select][pre_start_exclude][start]") {
     detail->toggle_exclude_pick("Cone_id_0");
-    start_held(/*hide_details=*/false);
+    start_held(/*navigate=*/false);
 
     PrintSelectPanelTestAccess::hide_detail_view(*panel_);
     drain();
@@ -191,17 +207,19 @@ TEST_CASE_METHOD(PickStartFixture, "A failed start comes back to details with th
     detail->toggle_exclude_pick("Cube_id_1");
     drain();
     REQUIRE(pick_count() == 1);
-    start_held(/*hide_details=*/true);
+    start_held(/*navigate=*/true);
     REQUIRE_FALSE(PrintSelectPanelTestAccess::detail_view_visible(*panel_));
     CHECK(detail->picks_held_for_start());
 
+    REQUIRE(NavigationManager::instance().is_panel_on_top(PrintStatusPanel::get_cached_overlay()));
+
     held_error(MoonrakerError::unknown("Klipper refused the print", "printer.print.start"));
     drain();
-    // The controller re-shows details through this callback when the status
-    // overlay it pushed is on top; a unit test pushes none.
-    PrintSelectPanelTestAccess::show_detail_view(*panel_);
+    lv_timer_handler();
     drain();
 
+    // The controller popped print status and re-showed details itself.
+    REQUIRE(PrintSelectPanelTestAccess::detail_view_visible(*panel_));
     CHECK(detail->exclude_picks() == std::vector<std::string>{"Cube_id_1"});
     CHECK(pick_count() == 1);
     CHECK(exclusions().empty());
@@ -210,7 +228,7 @@ TEST_CASE_METHOD(PickStartFixture, "A failed start comes back to details with th
 TEST_CASE_METHOD(PickStartFixture, "A confirmed start spends the picks and releases the hold",
                  "[print_select][pre_start_exclude][start]") {
     detail->toggle_exclude_pick("Cube_id_1");
-    start_held(/*hide_details=*/true);
+    start_held(/*navigate=*/true);
     REQUIRE(detail->picks_held_for_start());
 
     held_start(json{{"result", "ok"}});
@@ -252,18 +270,32 @@ TEST_CASE_METHOD(PickStartFixture, "Every object picked refuses the start before
     CHECK(exclusions().empty());
 }
 
+namespace {
+
+/// The queue's state while a print runs: the Print tap queues the file.
+struct QueueMode {
+    JobQueueState jqs;
+    JobQueueState* previous = get_job_queue_state();
+    QueueMode(PickStartFixture& f, IMoonrakerAPI* api, MoonrakerClientMock& client)
+        : jqs(api, &client) {
+        set_job_queue_state(&jqs);
+        auto& ps = get_printer_state();
+        // The button re-decides on print state, not on queue availability.
+        ps.capabilities_state().set_job_queue_available(true);
+        set_wire_state(ps, PrintJobState::PRINTING);
+        f.drain();
+        REQUIRE(lv_subject_get_int(lv_xml_get_subject(nullptr, "print_select_button_mode")) == 1);
+    }
+    ~QueueMode() {
+        set_job_queue_state(previous);
+    }
+};
+
+} // namespace
+
 TEST_CASE_METHOD(PickStartFixture, "A queued start drops the picks and says so",
                  "[print_select][pre_start_exclude][start][job_queue]") {
-    auto& ps = get_printer_state();
-    JobQueueState jqs(api_.get(), &mock_client_);
-    JobQueueState* previous = get_job_queue_state();
-    set_job_queue_state(&jqs);
-    // The button re-decides on print state, not on queue availability.
-    ps.capabilities_state().set_job_queue_available(true);
-    set_wire_state(ps, PrintJobState::PRINTING);
-    drain();
-    REQUIRE(lv_subject_get_int(lv_xml_get_subject(nullptr, "print_select_button_mode")) == 1);
-
+    QueueMode queue(*this, api_.get(), mock_client_);
     detail->toggle_exclude_pick("Cube_id_1");
     panel_->start_print();
     drain();
@@ -273,7 +305,70 @@ TEST_CASE_METHOD(PickStartFixture, "A queued start drops the picks and says so",
     CHECK(contains(infos, "Object picks apply only to prints started now"));
     CHECK(detail->exclude_picks().empty());
     CHECK(exclusions().empty());
-    set_job_queue_state(previous);
+}
+
+TEST_CASE_METHOD(PickStartFixture, "A refused queue add keeps the picks",
+                 "[print_select][pre_start_exclude][start][job_queue]") {
+    QueueMode queue(*this, api_.get(), mock_client_);
+    bool asked = false;
+    helix::MoonrakerClientMockTestAccess::set_method_handler(
+        mock_client_, "server.job_queue.post_job",
+        [&asked](MoonrakerClientMock*, const json&, std::function<void(const json&)>,
+                 std::function<void(const MoonrakerError&)> error_cb) -> bool {
+            asked = true;
+            error_cb(MoonrakerError::unknown("refused", "server.job_queue.post_job"));
+            return true;
+        });
+    detail->toggle_exclude_pick("Cube_id_1");
+    panel_->start_print();
+    drain();
+
+    REQUIRE(asked);
+    CHECK_FALSE(contains(infos, "Object picks apply only to prints started now"));
+    CHECK(detail->exclude_picks() == std::vector<std::string>{"Cube_id_1"});
+}
+
+TEST_CASE_METHOD(PickStartFixture, "A queue add answered after another file opened keeps its picks",
+                 "[print_select][pre_start_exclude][start][job_queue]") {
+    QueueMode queue(*this, api_.get(), mock_client_);
+    std::function<void(const json&)> held_add;
+    helix::MoonrakerClientMockTestAccess::set_method_handler(
+        mock_client_, "server.job_queue.post_job",
+        [&held_add](MoonrakerClientMock*, const json&, std::function<void(const json&)> success_cb,
+                    std::function<void(const MoonrakerError&)>) -> bool {
+            held_add = std::move(success_cb);
+            return true;
+        });
+    detail->toggle_exclude_pick("Cube_id_1");
+    panel_->start_print();
+    drain();
+    REQUIRE(held_add);
+
+    PrintSelectPanelTestAccess::hide_detail_view(*panel_);
+    drain();
+    lv_timer_handler(); // the close callback runs on the next tick
+    helix::PlantedGcode other("other_file.gcode", "", kPlate);
+    panel_->refresh_files(/*force=*/true);
+    drain();
+    REQUIRE(panel_->select_file_by_name(other.name()));
+    REQUIRE(wait_until([&] {
+        drain();
+        return detail->exclude_objects().get_defined_objects().size() == 3;
+    }));
+    detail->toggle_exclude_pick("Cone_id_0");
+    REQUIRE(detail->exclude_picks() == std::vector<std::string>{"Cone_id_0"});
+
+    json result;
+    result["queue_state"] = "ready";
+    result["queued_jobs"] = json::array({{{"job_id", "0001"},
+                                          {"filename", file_.name()},
+                                          {"time_added", 0.0},
+                                          {"time_in_queue", 0.0}}});
+    held_add(json{{"result", result}});
+    drain();
+
+    CHECK(detail->exclude_picks() == std::vector<std::string>{"Cone_id_0"});
+    CHECK_FALSE(contains(infos, "Object picks apply only to prints started now"));
 }
 
 namespace {
@@ -293,13 +388,12 @@ struct RewriteRemap {
 
 } // namespace
 
-TEST_CASE_METHOD(PickStartFixture, "A rewritten-remap start carries the picks after confirmation",
+TEST_CASE_METHOD(PickStartFixture,
+                 "A remap that changes nothing starts the original and carries the picks",
                  "[print_select][pre_start_exclude][start][remap]") {
     RewriteRemap remap;
-    auto& nav = NavigationManager::instance();
-    const auto stack_before = NavigationManagerTestAccess::panel_stack(nav);
     detail->toggle_exclude_pick("Cube_id_1");
-    hold_print_start();
+    hold_print_start(); // the plate has no tool change, so the original prints
     PrintSelectPanelTestAccess::apply_remap(*panel_, remap.mappings);
     drain();
     REQUIRE(held_start);
@@ -310,12 +404,71 @@ TEST_CASE_METHOD(PickStartFixture, "A rewritten-remap start carries the picks af
     CHECK(exclusions() == std::vector<std::string>{"EXCLUDE_OBJECT NAME=Cube_id_1"});
     CHECK(detail->exclude_picks().empty());
     CHECK(PrintStatusPanel::get_cached_overlay() != nullptr); // the start navigated
+}
 
-    // The print status tree is process-wide: leave none behind.
-    NavigationManagerTestAccess::set_panel_stack(nav, stack_before);
-    PrintStatusPanel::destroy_cached_overlay(
-        helix::ui::PrintStatusTreeDestroyCause::PanelRegistryTeardown);
+namespace {
+
+const char* kToolPlate = "; HEADER\n"
+                         "EXCLUDE_OBJECT_DEFINE NAME=Cone_id_0 CENTER=25,-4\n"
+                         "EXCLUDE_OBJECT_DEFINE NAME=Cube_id_1 CENTER=-36,6\n"
+                         "EXCLUDE_OBJECT_DEFINE NAME=Cylinder_id_2 CENTER=-22,30\n"
+                         "T0\n"
+                         "G28\n"
+                         "T1\n";
+
+} // namespace
+
+TEST_CASE_METHOD(PickStartFixture, "A rewritten-remap start carries the picks after confirmation",
+                 "[print_select][pre_start_exclude][start][remap]") {
+    RewriteRemap remap;
+    helix::PlantedGcode tools("tool_plate.gcode", "", kToolPlate);
+    PrintSelectPanelTestAccess::hide_detail_view(*panel_);
     drain();
+    lv_timer_handler(); // the close callback runs on the next tick
+    panel_->refresh_files(/*force=*/true);
+    drain();
+    REQUIRE(panel_->select_file_by_name(tools.name()));
+    REQUIRE(wait_until([&] {
+        drain();
+        return detail->exclude_objects().get_defined_objects().size() == 3;
+    }));
+    detail->toggle_exclude_pick("Cube_id_1");
+    auto& transfers = static_cast<MoonrakerAPIMock&>(*api_).transfers_mock();
+    auto& jobs = static_cast<MoonrakerAPIMock&>(*api_).job_mock();
+    transfers.mock_hold_path_uploads();
+
+    PrintSelectPanelTestAccess::apply_remap(*panel_, remap.mappings);
+    drain();
+    REQUIRE(transfers.path_uploads().size() == 1); // the rewritten copy
+    CHECK(jobs.modified_prints().empty());
+    CHECK(exclusions().empty());
+
+    SECTION("the open file") {
+        transfers.release_held_path_uploads();
+        drain();
+        REQUIRE(jobs.modified_prints().size() == 1);
+        CHECK(exclusions() == std::vector<std::string>{"EXCLUDE_OBJECT NAME=Cube_id_1"});
+        CHECK(detail->exclude_picks().empty());
+    }
+
+    SECTION("another file opened during the rewrite: only the started file's picks go out") {
+        PrintSelectPanelTestAccess::hide_detail_view(*panel_);
+        drain();
+        lv_timer_handler();
+        REQUIRE(panel_->select_file_by_name(file_.name()));
+        REQUIRE(wait_until([&] {
+            drain();
+            return detail->exclude_objects().get_defined_objects().size() == 3;
+        }));
+        detail->toggle_exclude_pick("Cone_id_0");
+        REQUIRE(detail->exclude_picks() == std::vector<std::string>{"Cone_id_0"});
+        transfers.release_held_path_uploads();
+        drain();
+        REQUIRE(jobs.modified_prints().size() == 1);
+        // Print status opening over details is leaving that file too, which
+        // clears its picks; none of them reach this print.
+        CHECK(exclusions() == std::vector<std::string>{"EXCLUDE_OBJECT NAME=Cube_id_1"});
+    }
 }
 
 TEST_CASE_METHOD(PickStartFixture, "A rewritten-remap start is refused with every object picked",

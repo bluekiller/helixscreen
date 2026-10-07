@@ -28,6 +28,7 @@
 #include "moonraker_client_mock.h"
 #include "moonraker_error.h"
 #include "operation_registry.h"
+#include "pre_start_exclude.h"
 #include "preprint_predictor.h"
 #include "print_start_analyzer.h"
 #include "print_start_checks.h"
@@ -4100,4 +4101,41 @@ TEST_CASE_METHOD(ObjectScanFixture, "Definitions past the scan window are not in
 
     REQUIRE(manager.has_scan_result_for(file.name()));
     CHECK(manager.get_scan_result()->objects.empty());
+}
+
+// The plugin-modified start confirms through the same navigate callback the
+// direct start uses, so object picks wrapped around it follow the print.
+TEST_CASE_METHOD(HelixTestFixture,
+                 "PrintPreparationManager: a plugin-modified start sends the picks it was handed",
+                 "[print_preparation][pre_start_exclude]") {
+    lv_init_safe();
+    PrinterStateTestAccess::reset(get_printer_state());
+    get_printer_state().init_subjects(false);
+
+    MockPrinter mock_printer;
+    mock_printer.client.connect("ws://mock/websocket", []() {}, []() {});
+    mock_printer.state.set_klippy_state_sync(helix::KlippyState::READY);
+    set_moonraker_api(&mock_printer.api);
+    PrintPreparationManager manager;
+    manager.set_dependencies(&mock_printer.api, &mock_printer.state);
+    manager.set_cached_scan_result(gcode::ScanResult{}, kRemapFixture);
+    mock_printer.client.clear_gcode_script_history();
+
+    int navigated = 0;
+    PrintPreparationManagerTestAccess::modify_and_print(
+        manager, kRemapFixture,
+        helix::ui::with_pre_start_exclusions([&navigated]() { ++navigated; }, {"Cube_id_1"}));
+    drain_until_quiet();
+
+    CHECK(mock_printer.api.transfers_mock().path_uploads().size() == 1); // the modified copy
+    CHECK(navigated == 1);
+    std::vector<std::string> exclusions;
+    for (const auto& line : mock_printer.client.gcode_script_history()) {
+        if (line.rfind("EXCLUDE_OBJECT NAME=", 0) == 0) {
+            exclusions.push_back(line);
+        }
+    }
+    CHECK(exclusions == std::vector<std::string>{"EXCLUDE_OBJECT NAME=Cube_id_1"});
+    set_moonraker_api(nullptr);
+    mock_printer.client.disconnect();
 }

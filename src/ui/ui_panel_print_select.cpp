@@ -2885,9 +2885,6 @@ void PrintSelectPanel::start_print(bool force) {
         return;
     }
     if (print_button_mode_ == helix::ui::PrintSelectButtonMode::Queue) {
-        if (detail_view_ && detail_view_->drop_exclude_picks()) {
-            NOTIFY_INFO(lv_tr("Object picks apply only to prints started now"));
-        }
         add_to_queue();
         return;
     }
@@ -3138,13 +3135,14 @@ void PrintSelectPanel::add_to_queue() {
     // Moonraker addresses queued files the same way started ones: relative to
     // the gcodes root, with any subdirectory prefixed.
     if (!selected_local_path_.empty()) {
-        copy_usb_file_to_printer([this](const std::string& dest) { queue_file(dest); });
+        copy_usb_file_to_printer([this, tapped = composed_selected_filename()](
+                                     const std::string& dest) { queue_file(dest, tapped); });
         return;
     }
-    queue_file(composed_selected_filename());
+    queue_file(composed_selected_filename(), composed_selected_filename());
 }
 
-void PrintSelectPanel::queue_file(const std::string& filename) {
+void PrintSelectPanel::queue_file(const std::string& filename, const std::string& tapped) {
     auto* jqs = get_job_queue_state();
     if (!api_ || !jqs) {
         NOTIFY_ERROR(lv_tr("Cannot add to queue: internal error"));
@@ -3172,10 +3170,17 @@ void PrintSelectPanel::queue_file(const std::string& filename) {
         filename,
         object_lifetime_.bg_cb(
             "PrintSelectPanel::add_to_queue",
-            [this, before_ids = std::move(before_ids),
-             options = std::move(options)](const JobQueueStatus& status) {
+            [this, before_ids = std::move(before_ids), options = std::move(options),
+             tapped](const JobQueueStatus& status) {
                 queue_add_in_flight_ = false;
                 update_print_button_state();
+
+                // A queued job carries no picks. Another file opened since the
+                // tap keeps its own.
+                if (detail_view_ && composed_selected_filename() == tapped &&
+                    detail_view_->drop_exclude_picks()) {
+                    NOTIFY_INFO(lv_tr("Object picks apply only to prints started now"));
+                }
 
                 const auto new_id = helix::queue::find_new_job_id(before_ids, status.queued_jobs);
                 if (new_id) {
@@ -3332,16 +3337,15 @@ void PrintSelectPanel::finish_pending_queued_job() {
                                        jqs->fetch();
                                    }
                                }),
-        object_lifetime_.bg_cb("PrintSelectPanel::queued_job_removal_failed",
-                               [this, job_id](const MoonrakerError& err) {
-                                   spdlog::warn(
-                                       "[PrintSelectPanel] Removing queued job {} failed: {}",
-                                       job_id, err.message);
-                                   NOTIFY_WARNING(lv_tr("Could not remove the job from the queue"));
-                                   if (auto* jqs = get_job_queue_state()) {
-                                       jqs->fetch();
-                                   }
-                               }));
+        object_lifetime_.bg_cb(
+            "PrintSelectPanel::queued_job_removal_failed", [job_id](const MoonrakerError& err) {
+                spdlog::warn("[PrintSelectPanel] Removing queued job {} failed: {}", job_id,
+                             err.message);
+                NOTIFY_WARNING(lv_tr("Could not remove the job from the queue"));
+                if (auto* jqs = get_job_queue_state()) {
+                    jqs->fetch();
+                }
+            }));
 }
 
 void PrintSelectPanel::show_preflight_modal(const helix::PreflightResult& pf) {
@@ -3504,13 +3508,11 @@ void PrintSelectPanel::apply_remap(const std::vector<helix::ToolMapping>& update
         prep->modify_and_print_with_remap(
             file_path, remap,
             helix::ui::with_pre_start_exclusions(
-                object_lifetime_.bg_cb("PrintSelectPanel::remap_print_started",
-                                       [this]() {
-                                           PrintStatusPanel::push_overlay(parent_screen_);
-                                           if (detail_view_) {
-                                               detail_view_->drop_exclude_picks();
-                                           }
-                                       }),
+                // Print status opening over details is leaving the file, which
+                // clears its picks.
+                object_lifetime_.bg_cb(
+                    "PrintSelectPanel::remap_print_started",
+                    [this]() { PrintStatusPanel::push_overlay(parent_screen_); }),
                 detail_view_ ? detail_view_->exclude_picks() : std::vector<std::string>{}));
         break;
     }

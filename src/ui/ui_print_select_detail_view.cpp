@@ -113,6 +113,8 @@ PrintSelectDetailView::~PrintSelectDetailView() {
     // stays armed on a freed `this` when teardown skips it (#1173).
     cancel_progress_timer();
 
+    disarm_viewer_callbacks();
+
     // Unregister from NavigationManager (fallback if cleanup() wasn't called)
     if (overlay_root_) {
         helix::nav::unregister_overlay(overlay_root_);
@@ -936,18 +938,27 @@ void PrintSelectDetailView::on_deactivating(DeactivateReason reason) {
     // will check cleanup_called() if needed.
 }
 
+void PrintSelectDetailView::disarm_viewer_callbacks() {
+    // Every viewer callback carries `this` and touches subjects this view
+    // deinitialises. The viewer outlives the view on teardown (its tree is
+    // deleted on a later tick), and a parse finishing in that window would
+    // otherwise call into a cleaned-up or freed view.
+    if (!gcode_viewer_) {
+        return;
+    }
+    ui_gcode_viewer_set_first_frame_callback(gcode_viewer_, nullptr, nullptr);
+    ui_gcode_viewer_set_load_callback(gcode_viewer_, nullptr, nullptr);
+    ui_gcode_viewer_set_clear_callback(gcode_viewer_, nullptr, nullptr);
+}
+
 void PrintSelectDetailView::cleanup() {
     spdlog::debug("[DetailView] cleanup()");
 
     // Pause viewer before subject cleanup to avoid rendering with freed subjects.
-    // Drop the first-frame callback too: it captures `this` and writes
-    // detail_viewer_first_frame_, which subjects_.deinit_all() below destroys.
-    // The viewer outlives this object on some teardown paths, and paused
-    // rendering is not a guarantee — unpausing anywhere else would resurrect it.
     if (gcode_viewer_) {
         ui_gcode_viewer_set_paused(gcode_viewer_, true);
-        ui_gcode_viewer_set_first_frame_callback(gcode_viewer_, nullptr, nullptr);
     }
+    disarm_viewer_callbacks();
 
     // Expire all outstanding async tokens
     lifetime_.invalidate();

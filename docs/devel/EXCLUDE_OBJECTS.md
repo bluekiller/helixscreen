@@ -314,8 +314,9 @@ second model for this: details owns a private `PrinterExcludedObjectsState`
   (`src/ui/ui_panel_print_select.cpp#apply_remap`).
 - **Refusals.** Picking every object refuses the start before anything heats
   (`src/ui/ui_panel_print_select.cpp#refuse_start_with_every_object_picked`).
-  A tap that queues the file drops the picks with the toast "Object picks apply only to
-  prints started now" and queues without them.
+  A tap that queues the file queues it without them; once the add succeeds the picks are
+  dropped with the toast "Object picks apply only to prints started now". A refused add
+  keeps them.
 - **Lifetime.** The start hides details with the picks held, so a start that fails comes
   back to the same file with them intact. They clear once Moonraker confirms the start, or
   when the user leaves the file (back to the list, or another file).

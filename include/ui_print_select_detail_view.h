@@ -1026,6 +1026,8 @@ class PrintSelectDetailView : public OverlayBase {
      * and post-download paths; it lives here once now.
      */
     void begin_viewer_load(const std::string& path);
+    /// Clear every viewer callback that carries `this`.
+    void disarm_viewer_callbacks();
 
     /**
      * @brief Apply a finished headless tools-scan result (callable from any thread)
