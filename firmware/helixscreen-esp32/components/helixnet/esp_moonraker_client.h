@@ -246,9 +246,10 @@ class EspMoonrakerClient final : public IMoonrakerClient {
     /// timer-side dead-link check.
     std::atomic<int64_t> last_pong_us_{0};
     std::atomic<bool> dead_link_reported_{false};
-    /// A connection with no PONG for this long is not answering our PINGs (one every
-    /// 10 s), whatever the websocket task believes; the client reconnects.
-    static constexpr int64_t PONG_DEAD_US = 30LL * 1000 * 1000;
+    /// A connection with no PONG and no other frame for this long is dead, whatever the
+    /// websocket task believes; the client reconnects. Above Moonraker's 25 s pong
+    /// timeout, so a link Moonraker gives up on closes before this fires.
+    static constexpr int64_t LINK_DEAD_US = 40LL * 1000 * 1000;
     int64_t connected_us_ = 0;
     // Any frame received (websocket task writes, timer task reads) and the last
     // stall report, for the rx-stall tripwire in process_timeouts().
