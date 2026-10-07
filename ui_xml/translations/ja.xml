@@ -1268,6 +1268,7 @@
   <translation tag="Found 1 printer" ja="プリンター1台を検出"/>
   <translation tag="Framerate" ja="フレームレート"/>
   <translation tag="From Buffer" ja="バッファから"/>
+  <translation tag="From SpoolmanDB" ja="SpoolmanDB から"/>
   <translation tag="From Version" ja="更新前バージョン"/>
   <translation tag="Front" ja="手前"/>
   <translation tag="Front Left" ja="左手前"/>
@@ -1888,6 +1889,7 @@
   <translation tag="No jobs in queue" ja="キューにジョブがありません"/>
   <translation tag="No macro devices configured" ja="マクロデバイスが設定されていません"/>
   <translation tag="No macros available" ja="利用可能なマクロがありません"/>
+  <translation tag="No matches in SpoolmanDB" ja="SpoolmanDB に一致なし"/>
   <translation tag="No matching prints" ja="一致する印刷なし"/>
   <translation tag="No media installed" ja="メディアが挿入されていません"/>
   <translation tag="No mesh data" ja="メッシュデータなし"/>
@@ -2807,6 +2809,7 @@
   <translation tag="Spoolman was not configured." ja="Spoolman は設定されていませんでした。"/>
   <translation tag="Spoolman: %zu Spool%s" ja="Spoolman: %zu 個のスプール%s"/>
   <translation tag="Spoolman: %zu/%zu Spool%s" ja="Spoolman: %zu/%zu 個のスプール%s"/>
+  <translation tag="SpoolmanDB search failed" ja="SpoolmanDB の検索に失敗しました"/>
   <translation tag="Spools are off" ja="スプールを取り出しました"/>
   <translation tag="Spools are on the bed: remove them and confirm before moving the printer" ja="ベッドにスプールがあります: 取り除いて確認してからプリンターを動かしてください"/>
   <translation tag="Spools are on the bed: tap the drying banner to confirm they are off, then restart." ja="ベッドにスプールがあります: 乾燥のバナーをタップして取り出したことを確認してから、再起動してください。"/>

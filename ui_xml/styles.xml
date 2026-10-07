@@ -96,7 +96,6 @@
     <!-- A filament color swatch's edge, so black reads on a dark card and white
          on a light one. apply_swatch_color() repaints the color and opacity of
          the swatches it fills; this supplies the width they all need. -->
-    <style name="filament_swatch_edge" border_width="#border_width" border_color="#text_muted" border_opa="160"/>
     <style name="contrast_edge_outline"
            outline_width="#border_width" outline_color="#border" outline_opa="255" outline_pad="0"/>
     <style name="led_chip_idle" bg_color="#card_bg" bg_opa="255" border_width="#border_width" border_color="#border"/>

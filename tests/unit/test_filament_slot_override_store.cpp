@@ -1074,27 +1074,32 @@ TEST_CASE("FilamentSlotOverrideStore clear_async propagates non-missing-key erro
     CHECK(cb_err.find("internal server error") != std::string::npos);
 }
 
-TEST_CASE("FilamentSlotOverrideStore clear_async maps message-based missing-key error to success",
+TEST_CASE("FilamentSlotOverrideStore clear_async reads Moonraker's missing-key answer as success",
           "[filament_slot_override]") {
+    // Moonraker sends a missing key as -32601 with its message; the same code
+    // with "Method not found" is a missing method and stays an error.
     TmpCacheDir tmp("clear_msg_missing");
     MockPrinter mock_printer;
     auto& api = mock_printer.api;
 
-    MoonrakerError err;
-    err.code = 0; // no code, only message
-    err.message = "Key 'lane1' in namespace 'lane_data' not found";
-    mock_printer.client.fail_next("server.database.delete_item", err);
-
-    FilamentSlotOverrideStore store(&api, "ifs");
-    FilamentSlotOverrideStoreTestAccess::set_cache_directory(store, tmp.path);
-    bool cb_done = false;
-    bool cb_ok = false;
-    store.clear_async(0, [&](bool ok, std::string) {
-        cb_ok = ok;
-        cb_done = true;
-    });
-    REQUIRE(cb_done);
-    CHECK(cb_ok); // "not found" substring → treated as success
+    auto clear_with = [&](const char* message) {
+        mock_printer.client.fail_next(
+            "server.database.delete_item",
+            MoonrakerError::from_json_rpc({{"code", -32601}, {"message", message}},
+                                          "server.database.delete_item"));
+        FilamentSlotOverrideStore store(&api, "ifs");
+        FilamentSlotOverrideStoreTestAccess::set_cache_directory(store, tmp.path);
+        bool cb_done = false;
+        bool cb_ok = false;
+        store.clear_async(0, [&](bool ok, std::string) {
+            cb_ok = ok;
+            cb_done = true;
+        });
+        REQUIRE(cb_done);
+        return cb_ok;
+    };
+    CHECK(clear_with("Key 'lane1' in namespace 'lane_data' not found"));
+    CHECK_FALSE(clear_with("Method not found"));
 }
 
 // ============================================================================
