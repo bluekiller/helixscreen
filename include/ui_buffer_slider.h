@@ -34,6 +34,12 @@ class UiBufferSlider {
 
     void set_reading(float bias, ClogMeterStatus status);
 
+    [[nodiscard]] float bias() const {
+        return bias_;
+    }
+    [[nodiscard]] ClogMeterStatus status() const {
+        return status_;
+    }
     /// How many times the once-a-second timer has redrawn the trace.
     [[nodiscard]] int trace_ticks() const {
         return trace_ticks_;
