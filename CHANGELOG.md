@@ -5,6 +5,209 @@ All notable changes to HelixScreen will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0-beta.5] - 2026-10-07
+
+<!-- whatsnew
+The fifth beta of 1.1.
+
+- Spool wizard searches SpoolmanDB as you type
+- Excluded objects greyed out with a red hatch in the G-code preview, numbered badges on the render
+- Print history keeps paging in older jobs
+- K-Touch: smoother scrolling, far fewer out-of-memory aborts, steadier Wi-Fi
+- Installer shows its steps and keeps a log
+- Cleaner outlined inputs and grouped settings pages
+-->
+
+The fifth beta of 1.1. The headline additions are SpoolmanDB search in the spool wizard,
+excluded objects shown in the G-code preview, and a pass over the installer. A lot of the
+rest is the BTT K-Touch: scrolling feels right, print cards and file lists stop running the
+board out of memory, and Wi-Fi is steadier. Settings pages and text fields get a visual
+cleanup, and a long list of fixes covers printing from rewritten files, Spoolman and config
+handling.
+
+**Upgrading from beta.4?**
+
+- **Spoolman filament temperatures are one number.** Spoolman stores a single temperature per
+  filament, so the wizard and the spool screens now show one value instead of a range.
+- **The external vendor and filament catalog calls are gone.** They never worked against
+  Spoolman. Use the new SpoolmanDB search in the spool wizard instead (needs Spoolman 0.26 or
+  newer).
+
+### Added
+
+**Filament systems**
+
+- **Search SpoolmanDB from the spool wizard** - type in the vendor step and matching spools
+  appear as you type. Picking one fills in vendor, material, colour, temperatures and weights,
+  and reuses a vendor and filament you already have when they match exactly. The search is
+  hidden on Spoolman servers older than 0.26.
+- **Alarm when a print takes the machine with spools still on the bed** - if spools are
+  latched on the bed for drying and a print starts, the screen wakes and raises an alarm
+  instead of letting the print start fail (#1745).
+
+**Printing**
+
+- **Excluded objects show up in the G-code preview** - they are greyed out with a red hatch in
+  2D and 3D, and the 2D and 3D render carries numbered badges that match the object list. The
+  side list keeps its scroll position and puts the status beside the name in portrait.
+- **Pre-print options from your PRINT_START macro** - when the printer database has no
+  options for a printer, the print file screen builds them from what PRINT_START actually
+  does. Wrapper macros are followed into the macro that does the work.
+- **Print history pages in older jobs** - the history list loads further back as you scroll,
+  and the dashboard says when its stats cover only the newest prints. The K-Touch now has
+  print history too, so Reprint Last, the idle print card and the history marks in the file
+  list work there.
+- **A notification with no title leads with its message** in the history list.
+
+**Home screen**
+
+- **Printer images are cleaner** - the white backgrounds are cut out of four printer images,
+  the art is cropped to its content, there is new generic CoreXY art, and the image shrinks
+  slightly in pinned mode so callout leader lines still fit.
+- **Plugin widgets can take half-cell sizes** if the plugin asks for it.
+
+**Installer**
+
+- **The installer shows what it is doing** - it detects first, prints a plan, asks once before
+  changing anything, and then shows each step as it runs. The log survives failures, apt and
+  service output goes to the log instead of the screen, and `--dry-run` and `--verbose` are
+  supported. `--uninstall` lists what it removed and what it kept.
+
+**BTT K-Touch (alpha)**
+
+- **Leaves a weak access point** - when Moonraker keeps stalling on one access point, the
+  board moves on to another with near-equal signal.
+
+### Fixed
+
+**Filament systems**
+
+- **Spoolman deletes and missing data read correctly** - a deleted spool is reported as not
+  found instead of Spoolman being unreachable, and a missing lane data entry reads as empty.
+  This now works against a real Moonraker, not just the mock.
+- **Spool weight edits and new vendors save correctly** - a weight edit changes the spool
+  instead of its filament, and a new vendor's website goes in the vendor's comment.
+- **Happy Hare loads and unloads no longer flash Idle** before the printer reports them (#1057).
+  A preheat from the sidebar cancels the previous operation's cooldown and says when a load is
+  dropped.
+- **The home spool row** stacks the name over the spool and re-measures when it resizes.
+- **Colour names** - the picker's black and other near-blacks are named Black, and the
+  darkest ones Deep Black, instead of Dark Gray.
+
+**Printing**
+
+- **Reprint after a rewritten print** - a print started from a rewritten copy reprints the
+  original file, keeps working after a restart, shows in history as the original's print, and
+  follows a print started by another client.
+- **Pre-print options stay with their printer** - stored settings reset when the hardware
+  changes, and an option the firmware already holds no longer strips the file.
+- **Starting a print with spools on the bed** opens the prompt instead of failing.
+- **Snapmaker U1 spaghetti detection** raises its modal even when the detection code arrives
+  after the pause.
+- **Timelapse frame counts** restart with each new print and survive joining a print already
+  running.
+- **Bed mesh overlays and 2D touch** follow the frame on screen, so the 2D view draws again
+  when forced.
+- **Print Files rebuilds an open detail view** when a new analysis lands, and a metadata
+  request lost with the connection is fetched again instead of extracting the G-code.
+- **Cached thumbnails that are not real PNGs** are deleted and regenerated, and unknown free
+  space is not treated as disk pressure.
+- **Thumbnails are sturdier** - the active print's thumbnail is found for files in subfolders,
+  downloads land whole or not at all, a refresh keeps a local file's thumbnail, and leftovers
+  from a crash are cleaned from the cache.
+
+**Screens and navigation**
+
+- **Screens opened from a home card are no longer blank** - Print Files, Recent Prints and
+  Reprint Last come up activated.
+- **Fewer double closes and ghost screens** - a cancelled duplicate push no longer closes the
+  stacked screen twice, and a push for a screen closed in the meantime is dropped.
+- **The recovery dialog has a close X** in its header, and never shows a ready-era message
+  under a shutdown title.
+- **The temperature graph rebinds after a Klipper restart** and a graph built while hidden
+  starts paused.
+- **Notification panels** no longer stack a second one while one slides out.
+- **A scroll that starts on a settings row** leaves the row unpressed.
+- **Bed screw intro text spacing** and the Heater Calibration title fit properly.
+- **Probe settings left unset show Klipper's default** and no longer save the word "default".
+- **Text fields bound to a setting keep their full value** instead of being cut to one character.
+- **Dialog buttons fill their rounded corners.**
+- **Joining a hidden Wi-Fi network shows Connecting** while it connects.
+- **The filament runout dialog's Resume button** shows its accent and blocked states.
+
+**Config**
+
+- **Config migration is safer** - a config from a newer build gets no default printer
+  injected, a versionless config with no printer starts from fresh defaults, legacy display
+  keys migrate before the defaults, and the touch calibration of a versionless config is left
+  alone.
+- **PRINT_START analysis downloads only what it needs** - the printer config download follows
+  the include chain a few files at a time, reads includes the way Klipper does, retries when
+  the queue is full, and fails loudly instead of returning a partial config.
+- **A broken printer database** shows one toast instead of one per lookup.
+- **Beacon accelerometers** found only through the resonance tester no longer drop out on
+  every second discovery.
+
+**Installer and updates**
+
+- **A beta install stays on the beta channel** - settings and the update_manager stanza record
+  it, an explicit `--version` finds its manifest in any channel, and a `--local` archive never
+  moves the channel.
+- **settings.json is written safely** - by one writer, atomically, keeping its mode and link,
+  and an unreadable one is left for the app to recover.
+- **Moonraker restarts when an existing update_manager stanza is rewritten.**
+- **The plan reads sensibly** - `Update <installed> -> <target>`, only the stock UIs that run,
+  and no version learned by running the installed binary. `--clean` lists its deletions and
+  asks once.
+- **Update failures show the real cause** on the touchscreen, not an earlier harmless error.
+- **An update never installs from a `--test` run**, the update service skips cleanly instead of
+  failing, and the launcher stops display-sleep only on a host that has it.
+- **Device deploys strip group and other write permission** from what they unpack.
+
+**BTT K-Touch (alpha)**
+
+- **Scrolling feels right** - throw, limit and long-press settings reach every touch input
+  including the K-Touch's, with a shorter glide by default there, and momentum follows elapsed
+  time so slow-rendering screens scroll as far as fast ones.
+- **Out-of-memory aborts are reduced** - a file list, history page or Print Select list too
+  big for memory shows an error and keeps the list, and the network lane sizes its buffers
+  from what it receives and fails a request instead of the board.
+- **Print card thumbnails use far less memory** - they decode once at card size, only on-screen
+  cards hold one, and they come back after leaving Print Files. The active print's thumbnail is
+  released and kept correctly, and the file detail backdrop uses half the memory.
+- **Wi-Fi is steadier** - access point steering is bounded to near-equal signal and its own
+  scans, rides out a failed join, and BSSIDs are redacted from the logs.
+- **Overlay screens have square corners** on the K-Touch, as on other limited hardware.
+
+**Plugins**
+
+- **Runaway plugins are stopped sooner** - the time budget counts CPU time with a one second
+  wall-clock ceiling, a backtracking string pattern trips the budget, and `string.rep` of an
+  empty string returns at once.
+- **Plugin storage writes** no longer happen inside a plugin call.
+- **Print symlinks** carry the original's full path, and a failed link leaves no directories.
+
+**Other**
+
+- **A USB stick's volume name no longer crashes** the app when the list is read (#1746).
+- **Debug bundles are more useful** - they keep Klipper webhooks state and git SHAs, carry
+  object-list errors, and Android release builds may upload diagnostics.
+
+### Changed
+
+- **Settings pages group their rows in captioned cards**, and the PID screen is titled Heater
+  Calibration.
+- **Text inputs, dropdowns and spinboxes are outlined**, field outlines clear 3:1 contrast in
+  every theme, the off-state switch knob is muted (outlined white in light mode), dropdown
+  popups stay opaque, and dropdown row labels are centered.
+- **Pressed feedback is lighter on slow hardware** - on limited tiers and the K-Touch, a
+  pressed card shows a primary-colour ring instead of scaling down, and buttons keep their
+  pressed colour.
+- **The home screen edit mode is much smoother** - dragging, resizing and leaving edit mode no
+  longer rebuild the page, and nothing is saved until edits settle.
+- **The widget catalog opens faster**, and the temperature graph stops sampling while its
+  screen is inactive.
+
 ## [1.1.0-beta.4] - 2026-10-05
 
 <!-- whatsnew
@@ -8260,6 +8463,7 @@ Initial tagged release. Foundation for all subsequent development.
 - Automated GitHub Actions release pipeline
 - One-liner installation script with platform auto-detection
 
+[1.1.0-beta.5]: https://github.com/prestonbrown/helixscreen/compare/v1.1.0-beta.4...v1.1.0-beta.5
 [1.1.0-beta.4]: https://github.com/prestonbrown/helixscreen/compare/v1.1.0-beta.3...v1.1.0-beta.4
 [1.1.0-beta.3]: https://github.com/prestonbrown/helixscreen/compare/v1.1.0-beta.2...v1.1.0-beta.3
 [1.1.0-beta.2]: https://github.com/prestonbrown/helixscreen/compare/v1.1.0-beta.1...v1.1.0-beta.2
