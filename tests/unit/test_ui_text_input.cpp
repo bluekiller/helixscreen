@@ -280,6 +280,18 @@ TEST_CASE_METHOD(TextInputBindingFixture,
     CHECK(std::string(lv_textarea_get_text(ta)) == "from subject");
 }
 
+TEST_CASE_METHOD(TextInputBindingFixture,
+                 "text_input with max_length takes a whole subject value, not its first character",
+                 "[text_input][xml][bind_text]") {
+    const char* attrs[] = {"bind_text", "ti_text_subject", "max_length", "12", nullptr};
+    lv_obj_t* ta = create_text_input(test_screen(), attrs);
+    REQUIRE(ta != nullptr);
+
+    lv_subject_copy_string(text_subject(), "7.5");
+    CHECK(std::string(lv_textarea_get_text(ta)) == "7.5");
+    CHECK(std::string(lv_subject_get_string(text_subject())) == "7.5");
+}
+
 TEST_CASE_METHOD(TextInputBindingFixture, "text_input bind_text writes edits back to the subject",
                  "[text_input][xml][bind_text]") {
     const char* attrs[] = {"bind_text", "ti_text_subject", nullptr};

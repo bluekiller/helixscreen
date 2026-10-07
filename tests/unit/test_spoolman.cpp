@@ -2062,3 +2062,32 @@ TEST_CASE("mock Spoolman embeds a listed filament in a spool created on it", "[s
     CHECK(created.vendor == listed.vendor_name);
     CHECK(created.nozzle_temp_recommended == listed.nozzle_temp_max);
 }
+
+TEST_CASE("mock Spoolman serves only the asked vendor's filaments", "[spoolman][mock]") {
+    // The spool wizard's filament step lists exactly what /v1/filament?vendor.id= returns.
+    PrinterState state;
+    MoonrakerClientMock client;
+    MoonrakerAPIMock api(client, state);
+
+    std::vector<VendorInfo> vendors;
+    api.spoolman().get_spoolman_vendors([&](const std::vector<VendorInfo>& v) { vendors = v; },
+                                        nullptr);
+    std::vector<FilamentInfo> all;
+    api.spoolman().get_spoolman_filaments([&](const std::vector<FilamentInfo>& f) { all = f; },
+                                          nullptr);
+    REQUIRE(vendors.size() > 1);
+
+    size_t served = 0;
+    for (const auto& vendor : vendors) {
+        std::vector<FilamentInfo> got;
+        api.spoolman().get_spoolman_filaments(
+            vendor.id, [&](const std::vector<FilamentInfo>& f) { got = f; }, nullptr);
+        for (const auto& f : got) {
+            CHECK(f.vendor_id == vendor.id);
+            CHECK(f.vendor_name == vendor.name);
+        }
+        served += got.size();
+    }
+    // Every listed filament belongs to exactly one vendor.
+    CHECK(served == all.size());
+}
