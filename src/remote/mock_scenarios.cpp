@@ -212,6 +212,12 @@ static std::vector<MockScenario> clog_scenarios() {
     s.push_back({"buffer_fps_loose", "Filament pressure sensor above its set point (loose)",
                  []() { apply_clog_state([](AmsBackendMock& m) { set_fps(m, 0.71f); }); }});
 
+    s.push_back({"buffer_fps_on_target", "Filament pressure sensor on its set point",
+                 []() { apply_clog_state([](AmsBackendMock& m) { set_fps(m, 0.52f); }); }});
+
+    s.push_back({"buffer_fps_danger", "Filament pressure sensor pinned near the tight end",
+                 []() { apply_clog_state([](AmsBackendMock& m) { set_fps(m, 0.08f); }); }});
+
     s.push_back({"buffer_fps_no_target", "Filament pressure sensor with no set point",
                  []() { apply_clog_state([](AmsBackendMock& m) { set_fps(m, 0.32f, -1.0f); }); }});
 
