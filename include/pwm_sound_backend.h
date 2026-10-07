@@ -56,7 +56,7 @@ class PWMSoundBackend : public SoundBackend {
     void clear_render_source() override;
 
     /// Write the channel to pwmchipN/export when initialize() finds it missing.
-    /// Defaults on for HELIX_PWM_AUTO_EXPORT builds; call before initialize().
+    /// Off by default; call before initialize().
     void set_auto_export(bool on) {
         auto_export_ = on;
     }

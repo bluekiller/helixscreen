@@ -132,11 +132,7 @@ void PWMSoundBackend::silence_signal_safe() {
 }
 
 PWMSoundBackend::PWMSoundBackend(const std::string& base_path, int chip, int channel)
-    : base_path_(base_path), chip_(chip), channel_(channel) {
-#ifdef HELIX_PWM_AUTO_EXPORT
-    auto_export_ = true;
-#endif
-}
+    : base_path_(base_path), chip_(chip), channel_(channel) {}
 
 PWMSoundBackend::~PWMSoundBackend() {
     shutdown();

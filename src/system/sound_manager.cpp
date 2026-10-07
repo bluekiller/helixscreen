@@ -485,6 +485,8 @@ std::shared_ptr<SoundBackend> SoundManager::create_backend() {
     // platform device on the same controller. Only enable this where the buzzer
     // is known to exist (AD5M); everywhere else it takes a named channel.
     auto pwm_backend = std::make_shared<PWMSoundBackend>();
+    // The stock AD5M kernel ships the beeper channel (pwm6) unexported.
+    pwm_backend->set_auto_export(true);
     if (pwm_backend->initialize()) {
         spdlog::info("[SoundManager] Using PWM sysfs backend ({})", pwm_backend->channel_path());
         return pwm_backend;

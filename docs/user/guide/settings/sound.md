@@ -112,7 +112,7 @@ The full file format is in the [Sound System developer docs](../../../devel/SOUN
 | **FlashForge AD5X** | The printer's speaker. Chords, full themes and music (including the startup jingle) played as tone sequences |
 | **FlashForge AD5M / AD5M Pro** | The printer's buzzer. Tones only: no startup music and no music themes |
 | **Other Klipper printers** | Beeps sent through Moonraker. Needs `[output_pin beeper]` in your Klipper config. Simple beeps only |
-| **Buzzer on a board's PWM pin** | A buzzer wired to a Raspberry Pi, BTT CB1 or other board. Louder single-tone chiptune, or on a Pi, full sound through its audio. See [Buzzer on a PWM Pin](#buzzer-on-a-pwm-pin) |
+| **Buzzer on a board's PWM pin** | A buzzer wired to a Raspberry Pi, BTT CB1 or other board. Louder single-tone chiptune, or on a Pi 4 or earlier, full sound through its audio. See [Buzzer on a PWM Pin](#buzzer-on-a-pwm-pin) |
 
 If no sound hardware is found, the Sound row and page are hidden.
 
@@ -130,24 +130,24 @@ A small buzzer wired straight to your board's header can play HelixScreen's soun
 
 HelixScreen drives the pin itself. Only one note plays at a time: chords and music come out as fast Game Boy-style arpeggios.
 
-1. **Turn the pin into a PWM output.** How depends on the board: a device-tree overlay on a Raspberry Pi or Armbian, or your vendor's pin-mux setting. On a Raspberry Pi, add one line to `/boot/config.txt` (or `/boot/firmware/config.txt` on newer systems) and reboot:
+1. **Turn the pin into a PWM output.** How depends on the board: a device-tree overlay on a Raspberry Pi or Armbian, or your vendor's pin-mux setting. On a Raspberry Pi 4 or earlier, add one line to `/boot/config.txt` (or `/boot/firmware/config.txt` on newer systems) and reboot:
    ```ini
    # GPIO 18 (header pin 12). For GPIO 12 use: dtoverlay=pwm,pin=12,func=4
    dtoverlay=pwm,pin=18,func=2
    ```
-   On a Pi, the pins that can do PWM are GPIO 12, 13, 18 and 19 (header pins 32, 33, 12 and 35).
-2. **Find the channel.** It's the chip and channel number under `/sys/class/pwm`: `pwmchip0` channel `0` is `"0:0"`. On a Pi, use `"0:0"` for GPIO 12 or 18, and `"0:1"` for GPIO 13 or 19. On other boards, the board's pinout or its overlay documentation lists which `pwmchip` and channel a pin uses.
-3. **Tell HelixScreen.** In `settings.json`, add:
+   On a Pi 4 or earlier, the pins that can do PWM are GPIO 12, 13, 18 and 19 (header pins 32, 33, 12 and 35). A Raspberry Pi 5 uses different PWM hardware with its own overlay settings and channel numbers: check the Pi 5 documentation for your pin.
+2. **Find the channel.** It's the chip and channel number under `/sys/class/pwm`: `pwmchip0` channel `0` is `"0:0"`. Run `ls /sys/class/pwm` after the reboot to see which chips exist. On a Pi 4 or earlier, use `"0:0"` for GPIO 12 or 18, and `"0:1"` for GPIO 13 or 19. On other boards, including the Pi 5, the board's pinout or its overlay documentation lists which `pwmchip` and channel a pin uses.
+3. **Tell HelixScreen.** In `settings.json`, add the line below. If the file already has a `"sound"` section, put `"pwm_channel"` inside it instead of adding a second one:
    ```json
    "sound": { "pwm_channel": "0:0" }
    ```
 4. Restart HelixScreen, and turn on **Settings > Sound > Sounds**.
 
-The user HelixScreen runs as needs write access to `/sys/class/pwm`. On Raspberry Pi OS, being in the `gpio` group gives it.
+The user HelixScreen runs as needs write access to `/sys/class/pwm`. On Raspberry Pi OS, being in the `gpio` group gives it. Other systems may need a udev rule that grants that access, or HelixScreen running as root.
 
-### Full sound through the Pi's audio (Raspberry Pi only)
+### Full sound through the Pi's audio (Raspberry Pi 4 and earlier)
 
-A Raspberry Pi can instead send its own audio output to the buzzer pins. HelixScreen then plays everything through its normal sound path: chords, music and every theme. On a small buzzer it is quieter than driving it directly. Leave `pwm_channel` unset, add one line to `/boot/config.txt` and reboot:
+A Raspberry Pi 4 or earlier can instead send its own audio output to the buzzer pins. The Pi 5 has no analog audio, so this option doesn't exist there. HelixScreen then plays everything through its normal sound path: chords, music and every theme. On a small buzzer it is quieter than driving it directly. Leave `pwm_channel` unset, add one line to `/boot/config.txt` and reboot:
 
 ```ini
 # Pi audio on GPIO 18 and 19 (use pins_12_13 for GPIO 12 and 13)
