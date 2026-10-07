@@ -46,6 +46,7 @@
 #include "../test_helpers/panel_widget_size_harness.h"
 #include "../test_helpers/tips_manager_test_access.h"
 #include "../test_helpers/update_queue_test_access.h"
+#include "ams_backend_mock.h"
 #include "ams_state.h"
 #include "display_metrics.h"
 #include "grid_layout.h"
@@ -296,8 +297,8 @@ void seed_printer_topology(PrinterState& state) {
 
 /// The filament buffer tile binds to AmsState subjects, so it only has content
 /// to lay out while a pressure reading with a set point is published. Scoped to
-/// that tile: registering the AmsState subjects for the whole sweep would also
-/// change what clog_detection binds to.
+/// that tile so the AmsState subjects exist only while a widget that binds them
+/// is measured.
 struct BufferReadingSeed {
     BufferReadingSeed() {
         AmsState::instance().init_subjects(true);
@@ -308,6 +309,50 @@ struct BufferReadingSeed {
         AmsStateTestAccess::clear_buffer_traces(AmsState::instance());
         AmsState::instance().deinit_subjects();
     }
+};
+
+/// The Clog Detection tile binds the clog_meter_* subjects, so unseeded it
+/// measures placeholder text. Two readings cover the widest cases: FlowGuard
+/// (end labels, signed centre text) and the encoder (longest mode text).
+struct ClogReadingSeed {
+    ClogReadingSeed() {
+        auto& ams = AmsState::instance();
+        ams.init_subjects(true);
+        auto mock = std::make_unique<AmsBackendMock>();
+        backend_ = mock.get();
+        backend_->set_operation_delay(0);
+        ams.set_backend(std::move(mock));
+        backend_->start();
+    }
+    ~ClogReadingSeed() {
+        AmsState::instance().set_backend(nullptr);
+        AmsState::instance().deinit_subjects();
+    }
+    // The widget re-syncs from the backend when it attaches, so the reading has
+    // to live there rather than on the subjects.
+    void flowguard() {
+        FlowguardInfo fg;
+        fg.enabled = true;
+        fg.level = 0.45f;
+        backend_->set_encoder_clog_info(EncoderClogInfo{}, 0);
+        backend_->set_flowguard_info(fg);
+        AmsState::instance().sync_from_backend();
+    }
+    void encoder() {
+        backend_->set_flowguard_info(FlowguardInfo{});
+        EncoderClogInfo enc;
+        enc.enabled = true;
+        enc.detection_mode = 1;
+        enc.detection_length = 20.0f;
+        enc.headroom = 12.5f;
+        enc.desired_headroom = 5.0f;
+        enc.min_headroom = 8.0f;
+        backend_->set_encoder_clog_info(enc, 1);
+        AmsState::instance().sync_from_backend();
+    }
+
+  private:
+    AmsBackendMock* backend_ = nullptr;
 };
 
 struct Rendered {
@@ -627,33 +672,42 @@ TEST_CASE_METHOD(ContentFitsFixture,
             std::optional<BufferReadingSeed> buffer_seed;
             if (std::string_view(def.id) == "filament_buffer")
                 buffer_seed.emplace();
-            const Rendered rendered = render_at(test_screen(), def, m, min_c, min_r);
-            if (!rendered.built) {
-                spdlog::warn("[content_fits] {} @ {}: component would not build", def.id, g.name);
-                ++unbuildable;
-                continue;
-            }
-            const OverflowReport& r = rendered.report;
-            ++checked;
+            std::optional<ClogReadingSeed> clog_seed;
+            if (std::string_view(def.id) == "clog_detection")
+                clog_seed.emplace();
+            for (int pass = 0; pass < (clog_seed ? 2 : 1); ++pass) {
+                if (clog_seed) {
+                    pass == 0 ? clog_seed->flowguard() : clog_seed->encoder();
+                }
+                const Rendered rendered = render_at(test_screen(), def, m, min_c, min_r);
+                if (!rendered.built) {
+                    spdlog::warn("[content_fits] {} @ {}: component would not build", def.id,
+                                 g.name);
+                    ++unbuildable;
+                    continue;
+                }
+                const OverflowReport& r = rendered.report;
+                ++checked;
 
-            if (!r.clean()) {
-                observed.insert({def.id, g.name});
-                for (const auto& f : r.findings) {
-                    spdlog::warn("[content_fits] {} @ {} ({}x{}px, min span {}x{}) [{}] {}: {}",
-                                 def.id, g.name, w_px, h_px, min_c, min_r,
-                                 overflow_kind_name(f.kind), f.path, f.detail);
+                if (!r.clean()) {
+                    observed.insert({def.id, g.name});
+                    for (const auto& f : r.findings) {
+                        spdlog::warn("[content_fits] {} @ {} ({}x{}px, min span {}x{}) [{}] {}: {}",
+                                     def.id, g.name, w_px, h_px, min_c, min_r,
+                                     overflow_kind_name(f.kind), f.path, f.detail);
+                    }
+                    for (const auto& s : r.skipped) {
+                        spdlog::info("[content_fits] {} @ {} skipped {}", def.id, g.name, s);
+                    }
+                } else if (r.min_text_slack_px <= 2 && r.min_text_slack_px != INT32_MAX) {
+                    // One translation away from clipping. Text slack only: a child
+                    // sitting flush against its parent's content box is what
+                    // LV_PCT(100) is for and says nothing about the next language,
+                    // whereas a string with 2px to spare in English will not
+                    // survive German.
+                    tight.push_back(std::string(def.id) + " @ " + g.name + " (text slack " +
+                                    std::to_string(r.min_text_slack_px) + "px)");
                 }
-                for (const auto& s : r.skipped) {
-                    spdlog::info("[content_fits] {} @ {} skipped {}", def.id, g.name, s);
-                }
-            } else if (r.min_text_slack_px <= 2 && r.min_text_slack_px != INT32_MAX) {
-                // One translation away from clipping. Text slack only: a child
-                // sitting flush against its parent's content box is what
-                // LV_PCT(100) is for and says nothing about the next language,
-                // whereas a string with 2px to spare in English will not
-                // survive German.
-                tight.push_back(std::string(def.id) + " @ " + g.name + " (text slack " +
-                                std::to_string(r.min_text_slack_px) + "px)");
             }
         }
     }
