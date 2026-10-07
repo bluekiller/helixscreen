@@ -50,6 +50,7 @@
 #include "theme_manager.h"
 #include "tool_state.h"
 #include "toolhead_homing.h"
+#include "ui/ui_widget_helpers.h"
 
 #include <spdlog/fmt/fmt.h>
 #include <spdlog/spdlog.h>
@@ -572,7 +573,7 @@ void FilamentPanel::bind_widgets() {
     // Action buttons (btn_load, btn_unload, btn_purge) - disabled state managed by XML bindings
 
     // Find safety warning card
-    safety_warning_ = lv_obj_find_by_name(panel_, "safety_warning");
+    safety_warning_ = helix::ui::find_required(panel_, "safety_warning", get_name());
 
     // Find status icon for dynamic updates
     status_icon_ = lv_obj_find_by_name(panel_, "status_icon");
@@ -594,27 +595,31 @@ void FilamentPanel::bind_widgets() {
     // Fresh tree: the graph starts shown, so the spacer bookkeeping does too.
     portrait_graph_spacer_ = false;
     lv_subject_set_int(&graph_spacer_subject_, 0);
-    btn_temp_graph_ = lv_obj_find_by_name(panel_, "btn_temp_graph");
+    btn_temp_graph_ = helix::ui::find_required(panel_, "btn_temp_graph", get_name());
 
     // Find spool card widgets (serves both Multi-Filament and External Spool modes)
-    spool_card_ = lv_obj_find_by_name(panel_, "spool_card");
-    spool_card_header_row_ = lv_obj_find_by_name(panel_, "spool_card_header_row");
-    extruder_selector_group_ = lv_obj_find_by_name(panel_, "extruder_selector_group");
-    extruder_dropdown_ = lv_obj_find_by_name(panel_, "extruder_dropdown");
-    btn_manage_slots_ = lv_obj_find_by_name(panel_, "btn_manage_slots");
-    ams_manage_row_ = lv_obj_find_by_name(panel_, "ams_manage_row");
+    spool_card_ = helix::ui::find_required(panel_, "spool_card", get_name());
+    spool_card_header_row_ = helix::ui::find_required(panel_, "spool_card_header_row", get_name());
+    extruder_selector_group_ =
+        helix::ui::find_required(panel_, "extruder_selector_group", get_name());
+    extruder_dropdown_ = helix::ui::find_required(panel_, "extruder_dropdown", get_name());
+    btn_manage_slots_ = helix::ui::find_required(panel_, "btn_manage_slots", get_name());
+    ams_manage_row_ = helix::ui::find_required(panel_, "ams_manage_row", get_name());
 
     // Find external spool row widgets
-    external_spool_row_ = lv_obj_find_by_name(panel_, "external_spool_row");
-    external_spool_container_ = lv_obj_find_by_name(panel_, "external_spool_container");
-    external_spool_material_label_ = lv_obj_find_by_name(panel_, "external_spool_material_label");
-    external_spool_color_label_ = lv_obj_find_by_name(panel_, "external_spool_color_label");
+    external_spool_row_ = helix::ui::find_required(panel_, "external_spool_row", get_name());
+    external_spool_container_ =
+        helix::ui::find_required(panel_, "external_spool_container", get_name());
+    external_spool_material_label_ =
+        helix::ui::find_required(panel_, "external_spool_material_label", get_name());
+    external_spool_color_label_ =
+        helix::ui::find_required(panel_, "external_spool_color_label", get_name());
 
     // Find spool preset widgets
-    spool_preset_row_ = lv_obj_find_by_name(panel_, "spool_preset_row");
-    spool_preset_button_ = lv_obj_find_by_name(panel_, "preset_spool");
-    spool_preset_label_ = lv_obj_find_by_name(panel_, "spool_preset_label");
-    spool_preset_temps_ = lv_obj_find_by_name(panel_, "spool_preset_temps");
+    spool_preset_row_ = helix::ui::find_required(panel_, "spool_preset_row", get_name());
+    spool_preset_button_ = helix::ui::find_required(panel_, "preset_spool", get_name());
+    spool_preset_label_ = helix::ui::find_required(panel_, "spool_preset_label", get_name());
+    spool_preset_temps_ = helix::ui::find_required(panel_, "spool_preset_temps", get_name());
 
     // Setup external spool display (creates canvas, wires observer)
     setup_external_spool_display();
