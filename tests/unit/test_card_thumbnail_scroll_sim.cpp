@@ -11,6 +11,7 @@
 #include "card_thumbnail_plan.h"
 #include "thumbnail_slot_pool.h"
 
+#include <atomic>
 #include <cstdlib>
 #include <deque>
 #include <memory>
@@ -42,11 +43,13 @@ struct File {
     ThumbPtr thumb;
     bool tried = false;
     uint32_t shown = 0;
+    std::shared_ptr<std::atomic<bool>> cancel;
 };
 
 struct Job {
     size_t index;
     std::shared_ptr<helix::ThumbnailSlotPool> pool;
+    std::shared_ptr<std::atomic<bool>> cancel;
 };
 
 struct Done {
@@ -68,6 +71,9 @@ struct Panel {
     std::vector<ssize_t> widget_items;
     std::vector<ThumbPtr> widget_thumbs;
     int acquire_failures = 0;
+    int decodes = 0;
+    int wasted = 0; ///< decodes whose card had left by the time they completed
+    bool cancel_dropped = true;
 
     explicit Panel(size_t n, size_t widgets)
         : files(n), widget_items(widgets, -1), widget_thumbs(widgets) {}
@@ -116,6 +122,10 @@ struct Panel {
                 [](void* p) { std::free(p); });
         }
         for (size_t i : plan.drop) {
+            if (cancel_dropped && files[i].cancel) {
+                files[i].cancel->store(true);
+            }
+            files[i].cancel.reset();
             files[i].thumb.reset();
             files[i].tried = false;
         }
@@ -126,7 +136,8 @@ struct Panel {
                 refused = true;
                 break;
             }
-            lane.push_back({i, pool});
+            files[i].cancel = std::make_shared<std::atomic<bool>>(false);
+            lane.push_back({i, pool, files[i].cancel});
             ++in_flight;
         }
     }
@@ -138,6 +149,11 @@ struct Panel {
         }
         Job job = lane.front();
         lane.pop_front();
+        if (job.cancel->load()) {
+            done.push_back({job.index, nullptr}); // dropped unsent: an error reply
+            return;
+        }
+        ++decodes;
         uint8_t* slot = job.pool->acquire();
         if (!slot) {
             ++acquire_failures;
@@ -156,6 +172,9 @@ struct Panel {
         done.pop_front();
         --in_flight;
         refused = false;
+        if (d.thumb && !files[d.index].tried) {
+            ++wasted;
+        }
         if (d.thumb && files[d.index].tried) {
             files[d.index].thumb = std::move(d.thumb);
             for (size_t s = 0; s < widget_items.size(); ++s) {
@@ -168,54 +187,58 @@ struct Panel {
     }
 };
 
+constexpr int COLS = 4, ROW = 215, VIEW = 425, FILES = 50;
+constexpr int ROWS = (FILES + COLS - 1) / COLS;
+constexpr int BOTTOM = ROWS * ROW - VIEW;
+
+/// Down to the bottom and back, twice, in uneven steps, with decodes and
+/// completions landing between steps at random; then the lane drains.
+void scroll(Panel& panel, unsigned seed) {
+    std::mt19937 rng(seed);
+    std::vector<int> path;
+    for (int pass = 0; pass < 2; ++pass) {
+        for (int y = 0; y <= BOTTOM; y += 20 + static_cast<int>(rng() % 90)) {
+            path.push_back(y);
+        }
+        path.push_back(BOTTOM);
+        for (int y = BOTTOM; y >= 0; y -= 20 + static_cast<int>(rng() % 90)) {
+            path.push_back(y);
+        }
+        path.push_back(0);
+    }
+    for (int y : path) {
+        const auto win = helix::ui::compute_window(y, VIEW, ROW, ROWS, 0);
+        panel.show(static_cast<size_t>(win.first * COLS),
+                   static_cast<size_t>(std::min(FILES, win.last * COLS)));
+        // The lane decodes far slower than the main thread scrolls and runs
+        // completions: a decode is ~300ms, a scroll frame tens of ms.
+        if (rng() % 3 == 0) {
+            panel.decode_one();
+        }
+        if (rng() % 2) {
+            panel.complete_one();
+        }
+        // Stopping at either end lets the lane catch up.
+        if (y == 0 || y == BOTTOM) {
+            for (int k = 0; k < 40; ++k) {
+                panel.decode_one();
+                panel.complete_one();
+            }
+        }
+    }
+    while (!panel.lane.empty() || !panel.done.empty()) {
+        panel.decode_one();
+        panel.complete_one();
+    }
+}
+
 } // namespace
 
 TEST_CASE("a long card scroll never asks the slot pool for a slot it does not have",
           "[card_thumbnail_plan][slots]") {
-    constexpr int COLS = 4, ROW = 215, VIEW = 425, FILES = 50;
-    constexpr int ROWS = (FILES + COLS - 1) / COLS;
-    const int bottom = ROWS * ROW - VIEW;
-
     for (unsigned seed = 1; seed <= 20; ++seed) {
-        std::mt19937 rng(seed);
         Panel panel(FILES, 12);
-        // Down to the bottom and back, twice, in uneven steps, with decodes and
-        // completions landing between steps at random.
-        std::vector<int> path;
-        for (int pass = 0; pass < 2; ++pass) {
-            for (int y = 0; y <= bottom; y += 20 + static_cast<int>(rng() % 90)) {
-                path.push_back(y);
-            }
-            path.push_back(bottom);
-            for (int y = bottom; y >= 0; y -= 20 + static_cast<int>(rng() % 90)) {
-                path.push_back(y);
-            }
-            path.push_back(0);
-        }
-        for (int y : path) {
-            const auto win = helix::ui::compute_window(y, VIEW, ROW, ROWS, 0);
-            panel.show(static_cast<size_t>(win.first * COLS),
-                       static_cast<size_t>(std::min(FILES, win.last * COLS)));
-            // The lane decodes far slower than the main thread scrolls and
-            // runs completions: a decode is ~300ms, a scroll frame tens of ms.
-            if (rng() % 3 == 0) {
-                panel.decode_one();
-            }
-            if (rng() % 2) {
-                panel.complete_one();
-            }
-            // Stopping at either end lets the lane catch up.
-            if (y == 0 || y == bottom) {
-                for (int k = 0; k < 40; ++k) {
-                    panel.decode_one();
-                    panel.complete_one();
-                }
-            }
-        }
-        while (!panel.lane.empty() || !panel.done.empty()) {
-            panel.decode_one();
-            panel.complete_one();
-        }
+        scroll(panel, seed);
         INFO("seed " << seed);
         CHECK(panel.acquire_failures == 0);
         // Every window card ends up with its picture.
@@ -223,4 +246,29 @@ TEST_CASE("a long card scroll never asks the slot pool for a slot it does not ha
             CHECK(panel.files[i].thumb);
         }
     }
+}
+
+TEST_CASE("cards that scroll away cancel their queued fetches, so a drag decodes only what stays",
+          "[card_thumbnail_plan][slots]") {
+    int decodes = 0, wasted = 0, decodes_uncancelled = 0, wasted_uncancelled = 0;
+    for (unsigned seed = 1; seed <= 20; ++seed) {
+        Panel panel(FILES, 12);
+        scroll(panel, seed);
+        decodes += panel.decodes;
+        wasted += panel.wasted;
+
+        Panel uncancelled(FILES, 12);
+        uncancelled.cancel_dropped = false;
+        scroll(uncancelled, seed);
+        decodes_uncancelled += uncancelled.decodes;
+        wasted_uncancelled += uncancelled.wasted;
+    }
+    INFO("decodes " << decodes << " (wasted " << wasted << "), without cancelling "
+                    << decodes_uncancelled << " (wasted " << wasted_uncancelled << ")");
+    // Without cancelling, most of a drag's decodes are for cards already gone.
+    REQUIRE(wasted_uncancelled > decodes_uncancelled / 2);
+    // Cancelled, only a card dropped between its decode and its completion is
+    // (here 80 of 1012; uncancelled, 1257 of 2189).
+    CHECK(wasted * 10 <= decodes);
+    CHECK(decodes < decodes_uncancelled);
 }

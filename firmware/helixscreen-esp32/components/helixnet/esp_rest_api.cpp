@@ -155,7 +155,7 @@ MoonrakerFileTransferAPI::~MoonrakerFileTransferAPI() = default;
 void MoonrakerFileTransferAPI::download_file_partial(const std::string& root,
                                                      const std::string& path, size_t max_bytes,
                                                      StringCallback on_success,
-                                                     ErrorCallback on_error) {
+                                                     ErrorCallback on_error, CancelFlag cancelled) {
     on_success = helix::http_epoch::guard_reply(on_success, on_error, "download_file_partial");
     if (moonraker_internal::reject_invalid_path(path, "download_file_partial", on_error))
         return;
@@ -181,7 +181,8 @@ void MoonrakerFileTransferAPI::download_file_partial(const std::string& root,
         [on_error](const std::string& message) {
             moonraker_internal::report_error(on_error, MoonrakerErrorType::UNKNOWN,
                                              "download_file_partial", message);
-        });
+        },
+        std::move(cancelled));
 
     if (!queued) {
         moonraker_internal::report_error(on_error, MoonrakerErrorType::QUEUE_FULL,
