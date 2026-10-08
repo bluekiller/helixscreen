@@ -60,6 +60,56 @@ TEST_CASE("compute_window: any non-empty list yields a non-empty window",
     }
 }
 
+TEST_CASE("compute_window over row tops agrees with the fixed stride", "[virtual_list][window]") {
+    for (int total : {1, 2, 7, 100}) {
+        for (int scroll : {-50, 0, 1, 49, 50, 333, 4770, 100000}) {
+            for (int stride : {1, 44, 57}) {
+                for (int overscan : {0, 2}) {
+                    // Past the end the fixed stride keeps counting rows that do not
+                    // exist; row tops stop at the last one.
+                    if (scroll >= total * stride)
+                        continue;
+                    std::vector<int> tops;
+                    for (int i = 0; i <= total; i++)
+                        tops.push_back(i * stride);
+                    const VirtualWindow a = compute_window(scroll, 240, stride, total, overscan);
+                    const VirtualWindow b = compute_window(scroll, 240, tops, overscan);
+                    INFO("total " << total << " scroll " << scroll << " stride " << stride);
+                    CHECK(b.first == a.first);
+                    CHECK(b.last == a.last);
+                    CHECK(b.leading_px == a.leading_px);
+                    CHECK(b.trailing_px == a.trailing_px);
+                }
+            }
+        }
+    }
+}
+
+TEST_CASE("compute_window over row tops follows each row's own height", "[virtual_list][window]") {
+    // Heights 40, 100, 40, 40, 200, 40.
+    const std::vector<int> tops = {0, 40, 140, 180, 220, 420, 460};
+
+    SECTION("a tall row alone fills the viewport") {
+        const VirtualWindow w = compute_window(250, 100, tops, 0);
+        CHECK(w.first == 4);
+        CHECK(w.last == 5);
+        CHECK(w.leading_px == 220);
+        CHECK(w.trailing_px == 40);
+    }
+    SECTION("short rows are counted by their own height") {
+        const VirtualWindow w = compute_window(150, 60, tops, 1);
+        CHECK(w.first == 1);
+        CHECK(w.last == 5);
+        CHECK(w.leading_px == 40);
+        CHECK(w.trailing_px == 40);
+    }
+    SECTION("no rows") {
+        const VirtualWindow w = compute_window(0, 100, std::vector<int>{0}, 2);
+        CHECK(w.first == 0);
+        CHECK(w.last == 0);
+    }
+}
+
 TEST_CASE("assign_pool_slots keeps slots whose item stays in the window", "[virtual_list][pool]") {
     using helix::ui::assign_pool_slots;
 
