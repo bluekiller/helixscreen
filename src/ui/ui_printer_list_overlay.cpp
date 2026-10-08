@@ -54,9 +54,9 @@ std::string find_printer_id_from_event(lv_event_t* e) {
 /// every stray child of the screen; queued behind it, whatever `next` opens (a switch
 /// confirmation, the add-printer modal) arrives after that sweep instead of being hidden by it.
 void close_list_then(const char* tag, std::function<void()> next) {
-    queue_update(tag, [tag, next = std::move(next)]() mutable {
+    queue_update(tag, [tag, next = std::move(next)]() mutable { // QUEUE_TAG_OK: caller's literal
         helix::nav::go_back();
-        queue_update(tag, std::move(next));
+        queue_update(tag, std::move(next)); // QUEUE_TAG_OK: caller's literal
     });
 }
 
