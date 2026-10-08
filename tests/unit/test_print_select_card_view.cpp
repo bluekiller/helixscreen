@@ -350,3 +350,38 @@ TEST_CASE_METHOD(LVGLUITestFixture,
     view.cleanup();
     lv_obj_delete(container);
 }
+
+TEST_CASE_METHOD(LVGLUITestFixture,
+                 "CardView: a thumbnail back from a placeholder at the same path is reloaded",
+                 "[ui][card_view][print_select]") {
+    lv_obj_t* container = lv_obj_create(test_screen());
+    lv_obj_set_size(container, 700, 400);
+    lv_obj_set_flex_flow(container, LV_FLEX_FLOW_ROW_WRAP);
+
+    PrintSelectCardView view;
+    REQUIRE(view.setup(container, [](size_t) {}, nullptr));
+    const CardDimensions dims{4, 2, 160, 200};
+    auto files = make_files(4);
+    const std::string thumb = fixture_path("thumb_filters_rgba.png");
+    files[1].thumbnail_path = thumb;
+    view.populate(files, dims);
+    lv_refr_now(nullptr);
+    lv_obj_t* card = card_for(container, 1);
+    REQUIRE(card != nullptr);
+    lv_obj_t* img = lv_obj_find_by_name(card, "thumbnail");
+    REQUIRE(img != nullptr);
+    REQUIRE(card_thumb_src(container, 1) == thumb);
+
+    // A re-sliced file can land at the same cache path with new dimensions, so
+    // the placeholder in between has to drop the old source.
+    files[1].thumbnail_path.clear();
+    view.refresh_content(files, dims);
+    CHECK(lv_image_get_src(img) == nullptr);
+
+    files[1].thumbnail_path = thumb;
+    view.refresh_content(files, dims);
+    CHECK(card_thumb_src(container, 1) == thumb);
+
+    view.cleanup();
+    lv_obj_delete(container);
+}

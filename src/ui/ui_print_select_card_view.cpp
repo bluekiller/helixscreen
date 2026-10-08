@@ -435,14 +435,13 @@ namespace {
 /// card's thumbnail, so an unchanged card would otherwise repaint.
 void set_thumbnail_src(lv_obj_t* img, const void* src) {
     const void* current = lv_image_get_src(img);
-    if (current && src && lv_image_src_get_type(current) == lv_image_src_get_type(src)) {
-        const bool same =
-            lv_image_src_get_type(src) == LV_IMAGE_SRC_FILE
-                ? std::strcmp(static_cast<const char*>(current), static_cast<const char*>(src)) == 0
-                : current == src;
-        if (same) {
-            return;
-        }
+    if (current == src) {
+        return;
+    }
+    if (current && src && lv_image_src_get_type(current) == LV_IMAGE_SRC_FILE &&
+        lv_image_src_get_type(src) == LV_IMAGE_SRC_FILE &&
+        std::strcmp(static_cast<const char*>(current), static_cast<const char*>(src)) == 0) {
+        return;
     }
     lv_image_set_src(img, src);
 }
@@ -477,8 +476,9 @@ void PrintSelectCardView::apply_thumbnail(lv_obj_t* card, CardWidgetData& data,
                 if (has_psram_thumb) {
                     // Keep the buffer alive in this pool slot for as long as
                     // the widget's `src` references it (see CardWidgetData
-                    // comment) — assigning here also drops the previous
-                    // slot's thumbnail, if any.
+                    // comment). The previous thumbnail outlives the switch,
+                    // since set_thumbnail_src reads the source it replaces.
+                    auto previous = std::move(data.esp_thumbnail);
                     data.esp_thumbnail = file.esp_thumbnail;
                     set_thumbnail_src(thumb_img, data.esp_thumbnail->dsc());
                 } else
@@ -495,6 +495,12 @@ void PrintSelectCardView::apply_thumbnail(lv_obj_t* card, CardWidgetData& data,
             }
             lv_subject_set_int(&data.thumbnail_state_subject, 0);
         } else {
+            // A re-sliced file can come back at the same cache path with new
+            // dimensions, so the next real thumbnail must load afresh.
+            lv_obj_t* thumb_img = lv_obj_find_by_name(card, "thumbnail");
+            if (thumb_img && lv_image_get_src(thumb_img)) {
+                lv_image_set_src(thumb_img, nullptr);
+            }
             lv_subject_set_int(&data.thumbnail_state_subject, 1);
         }
     }
