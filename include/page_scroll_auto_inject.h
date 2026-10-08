@@ -32,6 +32,10 @@ class PageScrollAutoInject {
     std::size_t managed_count() const {
         return controllers_.size();
     }
+    /// Re-walks triggered by a watched container overflowing after its walk.
+    std::size_t late_rewalk_count() const {
+        return late_rewalks_;
+    }
 
   private:
     PageScrollAutoInject() = default;
@@ -41,6 +45,7 @@ class PageScrollAutoInject {
     static void late_fill_cb(lv_event_t* e);
 
     bool rewalk_pending_ = false;
+    std::size_t late_rewalks_ = 0;
 
     std::unordered_map<lv_obj_t*, std::unique_ptr<PageScrollController>> controllers_;
 };

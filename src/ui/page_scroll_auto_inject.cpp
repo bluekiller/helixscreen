@@ -67,18 +67,30 @@ bool PageScrollAutoInject::may_overflow_later(lv_obj_t* obj) {
             lv_obj_get_style_flex_grow(obj, LV_PART_MAIN) > 0);
 }
 
-// LV_EVENT_LAYOUT_CHANGED fires once per layout pass of a dirty container, never
-// per frame. Attaching creates the gutter and changes padding, which must not
-// happen inside the layout pass, so the re-walk is deferred and coalesced.
+// LV_EVENT_LAYOUT_CHANGED fires on each layout pass of the container, which can be
+// every frame while it scrolls or animates, so the checks here stay cheap and the
+// tree walk runs only once the container actually overflows. Attaching creates the
+// gutter and changes padding, which must not happen inside the layout pass, so the
+// re-walk is deferred and coalesced.
 void PageScrollAutoInject::late_fill_cb(lv_event_t* e) {
     auto& self = instance();
-    if (self.rewalk_pending_ || !self.enabled() || !qualifies(lv_event_get_current_target_obj(e))) {
+    lv_obj_t* target = lv_event_get_current_target_obj(e);
+    if (self.rewalk_pending_ || !self.enabled() || !qualifies(target)) {
         return;
+    }
+    // LVGL lays out hidden subtrees but the walk skips them, so a hidden list would
+    // re-walk on every pass without ever being claimed. on_root_shown() claims it
+    // when its panel is shown.
+    for (lv_obj_t* o = target; o != nullptr; o = lv_obj_get_parent(o)) {
+        if (lv_obj_has_flag(o, LV_OBJ_FLAG_HIDDEN)) {
+            return;
+        }
     }
     self.rewalk_pending_ = true;
     helix::ui::queue_update("PageScroll::late_fill", [] {
         auto& inj = instance();
         inj.rewalk_pending_ = false;
+        ++inj.late_rewalks_;
         inj.on_root_shown(lv_screen_active());
         inj.on_root_shown(lv_layer_top());
     });
@@ -123,8 +135,9 @@ void PageScrollAutoInject::walk_and_attach(lv_obj_t* obj, bool ancestor_managed)
         }
     }
     if (may_overflow_later(obj)) {
-        // One registration per unclaimed container. A claimed one never gets a
-        // controller, so watching it would only re-walk the tree for nothing.
+        // One registration per unclaimed container. A container under a managed
+        // ancestor stays unmanaged while that ancestor is managed, so watching it
+        // would only re-walk the tree for nothing; a managed one needs no watch.
         lv_obj_remove_event_cb(obj, late_fill_cb);
         if (!claimed) {
             lv_obj_add_event_cb(obj, late_fill_cb, LV_EVENT_LAYOUT_CHANGED, nullptr);
