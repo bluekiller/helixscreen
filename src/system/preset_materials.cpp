@@ -10,6 +10,7 @@
 #include "static_subject_registry.h"
 #include "subject_debug_registry.h"
 #include "subject_managed_panel.h"
+#include "text_io.h"
 
 #include <spdlog/spdlog.h>
 
@@ -77,6 +78,11 @@ std::string display_label(int slot) {
         // e.g. "Bambu PLA" — brand + generic type are kept in lockstep by
         // MaterialSettingsManager::set_preset_filament()/reassign.
         return branded->brand + " " + material;
+    }
+    // ABS and ASA share a nozzle range and compat group, so the generic ABS
+    // button stands for both. name() stays "ABS": it keys temps and compat.
+    if (helix::text_io::to_lower(material) == "abs") {
+        return "ABS/ASA";
     }
     return material;
 }

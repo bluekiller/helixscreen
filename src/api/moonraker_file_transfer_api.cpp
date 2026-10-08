@@ -15,6 +15,7 @@
 #include "moonraker_api_internal.h"
 #include "spdlog/spdlog.h"
 #include "text_io.h"
+#include "thumbnail_rules.h"
 
 #include <algorithm>
 #include <filesystem>
@@ -301,31 +302,40 @@ void MoonrakerFileTransferAPI::download_thumbnail(const std::string& thumbnail_p
     // Thumbnails are small (tens of KB) and fetched in bursts when the file
     // browser scrolls. Run them on the fast lane so uploads/downloads on the
     // slow lane don't block the UI.
-    helix::http::HttpExecutor::fast().submit(
-        [url, thumbnail_path, cache_path, on_success, on_error]() {
-            auto resp = requests::get(url.c_str());
+    helix::http::HttpExecutor::fast().submit([url, thumbnail_path, cache_path, on_success,
+                                              on_error]() {
+        auto resp = requests::get(url.c_str());
 
-            if (!handle_http_response(resp, "download_thumbnail", on_error)) {
-                return;
-            }
+        if (!handle_http_response(resp, "download_thumbnail", on_error)) {
+            return;
+        }
 
-            // Replace, never rewrite: a reader of the cached file sees the old
-            // image or the new one, not a partial download.
-            if (!helix::text_io::write_file_atomic(cache_path, resp->body)) {
-                spdlog::error("[Moonraker API] Failed to write cache file: {}", cache_path);
-                report_error(on_error, MoonrakerErrorType::UNKNOWN, "download_thumbnail",
-                             "Failed to write cache file: " + cache_path);
-                return;
-            }
+        // The cache names this file .png and LVGL picks its decoder by that
+        // name, so a JPEG thumbnail is re-encoded and anything else refused.
+        const std::vector<uint8_t> png = helix::ensure_png({resp->body.begin(), resp->body.end()});
+        if (png.empty()) {
+            report_error(on_error, MoonrakerErrorType::VALIDATION_ERROR, "download_thumbnail",
+                         "Not a PNG or decodable JPEG thumbnail: " + thumbnail_path);
+            return;
+        }
 
-            spdlog::trace("[Moonraker API] Cached thumbnail {} bytes -> {}", resp->body.size(),
-                          cache_path);
-            helix::MemoryMonitor::log_now("moonraker_thumb_downloaded");
+        // Replace, never rewrite: a reader of the cached file sees the old
+        // image or the new one, not a partial download.
+        if (!helix::text_io::write_file_atomic(
+                cache_path, {reinterpret_cast<const char*>(png.data()), png.size()})) {
+            spdlog::error("[Moonraker API] Failed to write cache file: {}", cache_path);
+            report_error(on_error, MoonrakerErrorType::UNKNOWN, "download_thumbnail",
+                         "Failed to write cache file: " + cache_path);
+            return;
+        }
 
-            if (on_success) {
-                on_success(cache_path);
-            }
-        });
+        spdlog::trace("[Moonraker API] Cached thumbnail {} bytes -> {}", png.size(), cache_path);
+        helix::MemoryMonitor::log_now("moonraker_thumb_downloaded");
+
+        if (on_success) {
+            on_success(cache_path);
+        }
+    });
 }
 
 void MoonrakerFileTransferAPI::upload_file(const std::string& root, const std::string& path,

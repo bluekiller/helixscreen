@@ -474,6 +474,17 @@ class NavigationManager {
     void close_overlay(lv_obj_t* overlay_panel);
 
     /**
+     * @brief Run @p build, which blocks the UI thread to create an overlay, under
+     * the "Loading..." pill a slow panel switch paints
+     *
+     * On the limited tiers only: a standard-tier build finishes inside a frame. The
+     * pill is painted before @p build starts and lifted from the UpdateQueue, after
+     * the push and on_activate() that @p build queued have run. A pill already up
+     * for a panel switch covers the build instead.
+     */
+    void build_under_loading_pill(const std::function<void()>& build);
+
+    /**
      * @brief Check if a panel is in the overlay stack
      *
      * Used to determine if a specific panel (like PrintStatusPanel) is currently

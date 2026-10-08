@@ -219,7 +219,7 @@ TEST_CASE_METHOD(SwitchFlowFixture, "Switch flow: a failed save stays on the cur
 
 TEST_CASE_METHOD(SwitchFlowFixture, "Switch flow: adding a new address creates it and switches",
                  "[multi-printer][switch_flow]") {
-    flow_.add_printer("10.0.0.9", 7125);
+    CHECK(flow_.add_printer("10.0.0.9", 7125));
 
     const std::string id = cfg_->get_active_printer_id();
     CHECK(id != "alpha");
@@ -236,7 +236,7 @@ TEST_CASE_METHOD(SwitchFlowFixture, "Switch flow: adding a known address switche
     data["printers"]["beta"]["moonraker_host"] = "10.0.0.2";
     data["printers"]["beta"]["moonraker_port"] = 7125;
 
-    flow_.add_printer("10.0.0.2", 7125);
+    CHECK(flow_.add_printer("10.0.0.2", 7125));
 
     CHECK(cfg_->get_printer_ids().size() == 2);
     CHECK(cfg_->get_active_printer_id() == "beta");
@@ -248,7 +248,7 @@ TEST_CASE_METHOD(SwitchFlowFixture,
                  "[multi-printer][switch_flow]") {
     helix::ConfigTestAccess::read_only_mode(*cfg_) = true;
 
-    flow_.add_printer("10.0.0.9", 7125);
+    CHECK_FALSE(flow_.add_printer("10.0.0.9", 7125));
 
     CHECK(cfg_->get_printer_ids().size() == 3);
     CHECK(cfg_->get_active_printer_id() == "alpha");

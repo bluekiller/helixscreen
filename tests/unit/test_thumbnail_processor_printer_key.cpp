@@ -40,7 +40,7 @@ TEST_CASE_METHOD(HelixTestFixture,
     proc->set_cache_dir(dir.string());
 
     helix::http_epoch::set_base_url("http://10.0.0.1:7125", true);
-    const std::string key_at_submit = ThumbnailCache::compute_hash("benchy.png");
+    const std::string key_at_submit = helix::thumbnail_hash("benchy.png");
 
     // Occupy both workers so the job waits in the queue while the printer changes.
     std::promise<void> release;
@@ -56,7 +56,7 @@ TEST_CASE_METHOD(HelixTestFixture,
         png, "benchy.png", target, [&](const std::string& path) { output_path = path; }, nullptr);
 
     helix::http_epoch::set_base_url("http://10.0.0.2:7125", true);
-    REQUIRE(ThumbnailCache::compute_hash("benchy.png") != key_at_submit);
+    REQUIRE(helix::thumbnail_hash("benchy.png") != key_at_submit);
     release.set_value();
     proc->wait_for_completion();
     helix::ui::UpdateQueueTestAccess::drain_all(helix::ui::UpdateQueue::instance());

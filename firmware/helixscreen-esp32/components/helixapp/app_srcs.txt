@@ -120,6 +120,7 @@ src/print/print_start_navigation.cpp
 src/print/thumbnail_cache.cpp
 src/print/thumbnail_downscale.cpp
 src/print/thumbnail_png_stream.cpp
+src/print/thumbnail_rules.cpp
 src/print/thumbnail_slot_pool.cpp
 src/print/thumbnail_target.cpp
 src/printer/active_material_provider.cpp

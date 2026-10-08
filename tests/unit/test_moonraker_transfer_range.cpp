@@ -22,6 +22,7 @@
 
 #include "moonraker_client_mock.h"
 #include "moonraker_file_transfer_api.h"
+#include "thumbnail_rules.h"
 
 #include <algorithm>
 #include <arpa/inet.h>
@@ -358,9 +359,15 @@ TEST_CASE("transfer callbacks run on the executor, not the caller", "[api][trans
 // A thumbnail lands by rename, so a reader that opened the cache file before
 // the download keeps reading the complete old image instead of a file being
 // truncated and rewritten under it.
+static std::string read_fixture(const char* path) {
+    std::ifstream f(path, std::ios::binary);
+    return {std::istreambuf_iterator<char>(f), std::istreambuf_iterator<char>()};
+}
+
 TEST_CASE("thumbnail download replaces the cache file instead of rewriting it",
           "[api][transfer][thumbnail]") {
-    const std::string payload = make_payload(PAYLOAD_SIZE);
+    const std::string payload = read_fixture("assets/images/benchy_thumbnail_white.png");
+    REQUIRE(payload.size() > 1024);
     RangeResponder server(/*honour_range=*/false, payload);
     TransferHarness harness(server.base_url());
 
@@ -387,6 +394,44 @@ TEST_CASE("thumbnail download replaces the cache file instead of rewriting it",
     std::string landed((std::istreambuf_iterator<char>(fresh)), std::istreambuf_iterator<char>());
     CHECK((landed == payload));
     CHECK_FALSE(std::filesystem::exists(cache_path + ".tmp"));
+
+    std::filesystem::remove_all(dir);
+}
+
+// The cache names the file .png and LVGL picks its decoder by that name, so
+// what lands there is PNG whatever the server sent, or nothing.
+TEST_CASE("thumbnail download stores PNG bytes whatever the server's format",
+          "[api][transfer][thumbnail][rules]") {
+    char dir_tmpl[] = "/tmp/helix_thumb_fmt_XXXXXX";
+    REQUIRE(::mkdtemp(dir_tmpl) != nullptr);
+    const std::string dir = dir_tmpl;
+    const std::string cache_path = dir + "/thumb.png";
+
+    SECTION("a JPEG is re-encoded") {
+        RangeResponder server(
+            false, read_fixture("assets/test_timelapse/benchy_timelapse_20260310.thumb.jpg"));
+        TransferHarness harness(server.base_url());
+        const auto out = await([&](auto ok, auto err) {
+            harness.api->download_thumbnail(".thumbs/a.jpg", cache_path, ok, err);
+        });
+        REQUIRE(out.ok);
+        CHECK(helix::sniff_image_format(read_fixture(cache_path.c_str())) ==
+              helix::ImageFormat::Png);
+    }
+
+    SECTION("anything else fails and leaves the cache file alone") {
+        {
+            std::ofstream old(cache_path, std::ios::binary);
+            old << "previous thumbnail";
+        }
+        RangeResponder server(false, make_payload(PAYLOAD_SIZE));
+        TransferHarness harness(server.base_url());
+        const auto out = await([&](auto ok, auto err) {
+            harness.api->download_thumbnail(".thumbs/a.png", cache_path, ok, err);
+        });
+        CHECK_FALSE(out.ok);
+        CHECK(read_fixture(cache_path.c_str()) == "previous thumbnail");
+    }
 
     std::filesystem::remove_all(dir);
 }

@@ -137,6 +137,9 @@ class FilamentCatalog {
     /// A missing or blank file is no overlay yet, not a corrupt one.
     static bool overlay_file_is_corrupt(const std::string& path);
 
+    /// Where the shipped filaments.json may live, in search order. The first
+    /// entry resolves under asset_root(), the only one the firmware can reach.
+    static std::vector<std::string> builtin_candidate_paths();
     /// The first shipped asset on the search path that exists, or "".
     static std::string builtin_asset_path();
     /// The first user overlay on the search path that exists, or "".

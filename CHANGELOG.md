@@ -5,6 +5,205 @@ All notable changes to HelixScreen will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0-beta.6] - 2026-10-07
+
+<!-- whatsnew
+The sixth beta of 1.1.
+
+- Works with Happy Hare 4.0, including multi-unit setups
+- Pick objects to skip before a print starts
+- New Filament Buffer widget and Buffer Status screen
+- K-Touch: add printers and switch between them live, steadier on weak Wi-Fi
+- Faster Home screen
+- Set heater targets from the thermistor widget
+- Phone-style number pad
+-->
+
+The sixth beta of 1.1. The biggest piece is Happy Hare 4.0 support: multi-unit rigs, the
+renamed settings and the per-unit hardware rules all work now, and clog detection settings
+finally reach the printer on every Happy Hare release. You can also pick objects to skip
+from the file details before a print starts, and the filament buffer gets its own home
+widget and status screen. On the BTT K-Touch you can add printers and switch between them
+without a restart, and a long run of connection fixes keeps it on Moonraker over a weak
+Wi-Fi link. The rest is a faster Home screen, heater and graph improvements, buzzer sound
+cleanup and an installer logo.
+
+**Upgrading from beta.5?**
+
+- **The number pad is now phone-style** (1-2-3 on top). Settings > Touch & Input > Number
+  Pad Layout switches it back to Calculator.
+- **The filament buffer left the Clog Detection widget.** That widget now shows the clog
+  detector alone; add the new Filament Buffer widget to see the buffer.
+- **Buzzers no longer play music.** Printers with a buzzer still play every UI tone, but the
+  Test Tracker and other music controls are hidden unless the printer has a sound card.
+
+### Added
+
+**Filament systems**
+
+- **Happy Hare 4.0 support** (#1479) - HelixScreen reads Happy Hare 4's new config layout, so
+  tip method, heater limits and speed defaults load and the device actions no longer sit on
+  "Loading configuration". Multi-unit rigs show each unit with its own gate count, name,
+  topology and heaters, and commands carry the `UNIT=` Happy Hare 4 requires. Actions and
+  settings go to a unit that actually has the servo, selector, encoder or buffer they need,
+  and ones no unit supports are disabled. Bypass shows only when a unit has one, each gate's
+  entry sensor and eSpooler state read correctly, and settings sliders send Happy Hare 4's
+  renamed parameters. Happy Hare 3 is unchanged.
+- **Filament Buffer home widget** - an upright buffer slider with the reading beside it,
+  coloured by how far it is from target. At 2x1 the last minute scrolls out of the slider
+  and the lean is said in words (Running tight, Running loose, Balanced). Works with Happy
+  Hare sync feedback, AFC and OpenAMS pressure sensors.
+- **Buffer Status screen** - tapping the widget, the loaded-spool card or the path diagram
+  opens a live view of the buffer feeding the toolhead: a tall slider, the reading and
+  target, the last minute, and the filament system's own details.
+- **The loaded-spool card and the path diagram show the buffer** - a small slider beside
+  the material on the card, and the buffer box on the path diagram recolours live.
+
+**Printing**
+
+- **Skip objects before a print starts** - the file details screen has the same skip button
+  as the print status screen. Pick objects from the list, the map or the 3D render, and they
+  are excluded as soon as Moonraker confirms the start. Picking every object refuses the
+  start, and queuing the file instead of printing drops the picks and says so. Needs
+  `[exclude_object]` on the printer.
+
+**Home screen**
+
+- **Set a heater target from the thermistor widget** - tapping a tile bound to a
+  heater_generic or temperature_fan opens the temperature keypad, and the tile shows current
+  and target. The keypad limit is the heater's own max_temp.
+- **Filament dryer and other generic heaters on the temperature graph** - heater_generic
+  objects other than the chamber are graphed, with history, on the graph screen and the home
+  graph widget.
+
+**BTT K-Touch (alpha)**
+
+- **Add printers and switch between them** - Add Printer and the printer switcher work on the
+  K-Touch, and a switch reconnects live instead of restarting the board. If the board is too
+  short on memory to switch safely it restarts into the chosen printer instead. A newly found
+  printer is named from Mainsail, Fluidd or its hostname.
+
+**Settings**
+
+- **Number pad layout** - Settings > Touch & Input > Number Pad Layout picks Phone (default)
+  or Calculator. The phone layout puts a confirm key in the pad on whole-number fields, and
+  the unit now sits inside the display.
+- **PWM buzzer on any Linux board** - a passive buzzer on a hardware PWM pin works on a Pi or
+  any other board by setting `sound.pwm_channel` in settings.json, or `HELIX_PWM_SOUND` to
+  override it.
+- **Add Printer can save a printer that is off** - if Test has not passed, Save asks
+  "Can't reach this printer. Save anyway?" instead of being disabled.
+
+**Installer**
+
+- **The installer shows the HelixScreen logo** - as a real image in kitty, iTerm2 and sixel
+  terminals, and as block art everywhere else. chafa is no longer needed.
+
+### Fixed
+
+**Filament systems**
+
+- **Happy Hare clog detection settings now work** - the clog detection mode and length never
+  reached the printer on any Happy Hare release, because the parameter names were wrong. Each
+  release now gets the names it accepts, and the clog settings dialog pre-fills the configured
+  length and sends it only when you change it.
+- **Happy Hare whole-machine heater start and stop** sends one command per heated unit, and a
+  partly failed dry stops the units it started.
+- **Switching printers clears the old filament system** - after changing host or switching
+  away from an AFC, Happy Hare or other filament system printer, its lanes, the
+  Multi-Filament card and the home widgets no longer stay on screen.
+- **The loaded-spool card fits on small screens** - the colour bar narrows and the meter labels
+  hide below the medium size, so the material name keeps its line at 480x320.
+
+**Printing**
+
+- **Pre-print progress for silent PRINT_START macros** - a macro that prints no status (a
+  Voron V0, for example) now shows homing and purging, counts the bed heat down from a real
+  estimate, and learns its length for next time. Macros that clean the nozzle before meshing
+  keep their leveling time.
+- **QIDI .3mf prints keep their thumbnail** on the print status screen instead of showing an
+  error toast, including Q2 plates and names in any case.
+- **The objects button on the print status screen** appears and hides as the printer's
+  `[exclude_object]` support is discovered or changes.
+- **Print Files no longer reloads every 5 seconds** when a file name appears twice in the list,
+  and those cards no longer show a blank name.
+
+**Printer switching and Change Host**
+
+- **Leaving a printer that is printing asks first**, and deleting the connected printer while
+  it prints switches without asking twice.
+- **A switch shows the new printer's state** - the previous printer's job, message,
+  temperatures and history are cleared, a file or thumbnail download from the old printer
+  never lands on the new one, and a same-named file on each printer gets its own thumbnail.
+- **The connection-failed prompt waits while the printer list is open**, so a tap meant for
+  a printer no longer lands on Change Address, and it is dropped once you pick a printer.
+- **Printer names stay with their printer** - a name that resolves late goes to the printer
+  it was asked for, never recreates a deleted printer, and a lost connection no longer saves
+  the hostname as the name.
+- **The printer list's connection dot** shows only on the connected printer, in its live
+  colour, and the switch toast says Switched to rather than Connected to.
+- **Change Host fixes** - leaving the dialog after Test reconnects the saved printer, editing
+  the address clears the old status message, a blank address is refused before Save anyway,
+  and adding a printer that already exists switches to it instead of duplicating it.
+- **A printer's saved default Home layout** is read back instead of rebuilt after a switch.
+
+**Screens**
+
+- **Temperature graph legend has its own row**, so a trace near the top of the scale no
+  longer runs under the legend text.
+- **Generic heaters are named as heaters** (Chamber Heater, Filament Dryer Heater), and a
+  chamber heater is no longer graphed twice when the chamber sensor is not reporting.
+- **The thermistor tile shows --°C** for a sensor the printer does not report, instead of 0°C.
+- **temperature_fan targets above 120°C** are allowed up to the fan's configured max_temp.
+- **The Dry Filament button** on the bed card is a centred outline button, and outline
+  buttons lose the stray shadow.
+- **The Motion button on the Controls screen** uses light text on its dark fill.
+- **Print status library buttons** shrink to fit a short card instead of overlapping.
+- **The 2x1 Filament Buffer tile** keeps its padding at 480x320.
+
+**Installer and updates**
+
+- **Mainsail and Fluidd offer the right update channel** - the app keeps the HelixScreen
+  update_manager channel in moonraker.conf in step with its own, so a beta install is no
+  longer offered a "downgrade" to stable. Moonraker restarts after the change unless a print
+  is running, and two screens sharing one Moonraker do not touch each other's entry.
+- **A beta install restored from an old config backup stays on the beta channel.**
+- **The first self-update after a fresh install** no longer restarts twice.
+
+**Sound**
+
+- **A PWM buzzer is never left sounding** after the app exits or crashes, and quiet volume
+  settings no longer mute every tone.
+- **Switching away from an AD5M** stops the old printer's M300 beeper.
+
+**BTT K-Touch (alpha)**
+
+- **Stays connected on weak Wi-Fi** - the board keeps Wi-Fi awake instead of in power save,
+  print history loads ten jobs at a time and waits until the printer is discovered, a slow
+  large reply has 20 seconds between pieces instead of being cut off, and a link only counts
+  as dead when it goes fully silent. Together these stop the reconnect every 15-45 seconds
+  seen around -75 dBm.
+- **Fewer restart loops** - a stalled connection or discovery reconnects on its own, automatic
+  restarts are capped until the board has been connected for ten minutes, and the screen
+  never freezes waiting on a stuck connection during a switch.
+- **Thumbnails behave on a weak link** - a stalled download gives up and is tried once more,
+  a card that scrolls away cancels its download, loading a thumbnail no longer glitches the
+  screen, and scrolling back reuses recent thumbnails instead of downloading them again.
+- **Opening Print Files no longer glitches the screen** - the first open of the file list
+  draws without the flicker it used to show while the list loaded.
+- **Macros and bed geometry reach the screen** after discovery.
+
+### Changed
+
+- **The Home screen rebuilds much faster** - the print status card builds its printing views
+  only during a print, and switching between printers whose layouts hold the same widgets
+  re-seats the tiles instead of rebuilding Home.
+- **Scrolling redraws less** - lists redraw only the rows that scrolled in, and on the K-Touch
+  a scroll moves what is already drawn and renders only the new strip (about three times less
+  work per frame).
+- **The Macros screen opens faster.**
+- **The Clog Detection widget** shows the clog detector alone; the buffer has its own widget.
+
 ## [1.1.0-beta.5] - 2026-10-07
 
 <!-- whatsnew
@@ -8463,6 +8662,7 @@ Initial tagged release. Foundation for all subsequent development.
 - Automated GitHub Actions release pipeline
 - One-liner installation script with platform auto-detection
 
+[1.1.0-beta.6]: https://github.com/prestonbrown/helixscreen/compare/v1.1.0-beta.5...v1.1.0-beta.6
 [1.1.0-beta.5]: https://github.com/prestonbrown/helixscreen/compare/v1.1.0-beta.4...v1.1.0-beta.5
 [1.1.0-beta.4]: https://github.com/prestonbrown/helixscreen/compare/v1.1.0-beta.3...v1.1.0-beta.4
 [1.1.0-beta.3]: https://github.com/prestonbrown/helixscreen/compare/v1.1.0-beta.2...v1.1.0-beta.3

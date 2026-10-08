@@ -88,6 +88,10 @@ bool is_on_top(lv_obj_t* panel);
 /// True when @p panel is anywhere in the overlay stack.
 bool is_in_stack(lv_obj_t* panel);
 
+/// Build an overlay under the "Loading..." pill on the limited tiers. See
+/// NavigationManager::build_under_loading_pill().
+void build_under_loading_pill(const std::function<void()>& build);
+
 /// True from push_overlay(@p panel) until its queued push runs.
 bool is_push_pending(lv_obj_t* panel);
 

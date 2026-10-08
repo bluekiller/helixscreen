@@ -4,6 +4,7 @@
 // The material-type table: shipped rows come from assets/filaments.json's
 // `types`, and the user overlay's `types` patches or extends them.
 
+#include "data_root_resolver.h"
 #include "filament_catalog.h"
 #include "filament_database.h"
 #include "helix_test_fixture.h"
@@ -281,4 +282,24 @@ TEST_CASE_METHOD(TypesFixture, "a truncated overlay file is corrupt",
     auto overlay = write("user.json", R"({"types": [ )");
     CHECK(FilamentCatalog::overlay_file_is_corrupt(overlay));
     CHECK_FALSE(FilamentCatalog::overlay_file_is_corrupt((dir / "absent.json").string()));
+}
+
+TEST_CASE_METHOD(TypesFixture, "the shipped table resolves through the asset root",
+                 "[filament][types][asset_root]") {
+    // Firmware has no CWD: the table is only reachable under asset_root().
+    fs::create_directories(dir / "assets");
+    const std::string asset =
+        write("assets/filaments.json",
+              R"({"types": [{"name": "ZZROOTMAT", "nozzle_min": 200, "nozzle_max": 210}]})");
+    struct RootGuard {
+        std::string saved = helix::asset_root();
+        ~RootGuard() {
+            helix::set_asset_root(saved);
+        }
+    } guard;
+    helix::set_asset_root(dir.string());
+
+    CHECK(FilamentCatalog::builtin_asset_path() == asset);
+    filament::reload_materials();
+    CHECK(filament::find_material("ZZROOTMAT"));
 }

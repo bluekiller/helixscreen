@@ -338,18 +338,6 @@ class ThumbnailProcessor {
     ~ThumbnailProcessor();
 
     /**
-     * @brief Generate cache filename for a source/target combination
-     *
-     * Format: {cache_key}_{w}x{h}_{format}.bin
-     * Example: a1b2c3d4_160x160_ARGB8888.bin
-     *
-     * @param cache_key ThumbnailCache::compute_hash() of the source, taken when the work is
-     *        requested: it names the printer, which can change before a queued job runs.
-     */
-    std::string generate_cache_filename(const std::string& cache_key,
-                                        const ThumbnailTarget& target) const;
-
-    /**
      * @brief Core processing implementation
      *
      * 1. Decode PNG with stb_image

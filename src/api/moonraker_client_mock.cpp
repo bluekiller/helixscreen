@@ -1092,6 +1092,9 @@ void MoonrakerClientMock::populate_capabilities() {
     mock_objects.push_back("gcode_macro G28");           // Home all
     mock_objects.push_back("gcode_macro M600");          // Filament change
     mock_objects.push_back("gcode_macro _SYSTEM_MACRO"); // System macro (hidden by default)
+    for (const auto& name : helix::sim::mock_padded_macro_names()) {
+        mock_objects.push_back("gcode_macro " + name);
+    }
 
     // Add LED-related macros (auto-detected by printer_discovery via LED keywords)
     mock_objects.push_back("gcode_macro LIGHTS_ON");

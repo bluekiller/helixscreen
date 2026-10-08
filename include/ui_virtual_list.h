@@ -43,6 +43,31 @@ inline VirtualWindow compute_window(int scroll_y, int viewport_h, int row_stride
     return w;
 }
 
+/// compute_window for rows of differing heights. `row_tops` holds total_rows + 1 entries:
+/// row i spans [row_tops[i], row_tops[i + 1]) with its gap included, and row_tops.back() is
+/// the whole list's height. Same guarantees as the fixed-stride form.
+inline VirtualWindow compute_window(int scroll_y, int viewport_h, const std::vector<int>& row_tops,
+                                    int overscan) {
+    const int total_rows = static_cast<int>(row_tops.size()) - 1;
+    if (total_rows <= 0) {
+        return {};
+    }
+    scroll_y = std::max(0, scroll_y);
+    const int bottom = scroll_y + std::max(0, viewport_h);
+    const auto rows_end = row_tops.begin() + total_rows;
+    // Rows whose top is at or above a y: the row containing y is the last of them.
+    auto rows_starting_by = [&](int y) {
+        return static_cast<int>(std::upper_bound(row_tops.begin(), rows_end, y) - row_tops.begin());
+    };
+
+    VirtualWindow w;
+    w.first = std::min(std::max(0, rows_starting_by(scroll_y) - 1 - overscan), total_rows - 1);
+    w.last = std::min(total_rows, rows_starting_by(bottom) + overscan);
+    w.leading_px = row_tops[static_cast<size_t>(w.first)];
+    w.trailing_px = row_tops.back() - row_tops[static_cast<size_t>(w.last)];
+    return w;
+}
+
 /// Apply `w`'s spacer heights, touching LVGL only when a height changed (`last_*` cache the
 /// previous values), and keep the leading spacer first and the trailing spacer last among
 /// the container's children.
