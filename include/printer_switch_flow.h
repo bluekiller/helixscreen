@@ -87,11 +87,10 @@ class PrinterSwitchFlow {
     /// A restart is running; a second switch or add is a no-op until it ends.
     bool m_soft_restart_in_progress = false;
 
-    /// A "the printer is printing" confirmation is on screen.
-    bool m_confirm_pending = false;
+    /// The last "the printer is printing" confirmation shown; may already be closed.
     lv_obj_t* m_confirm_dialog = nullptr;
 
-    /// Whether the confirmation is still up. Clears the flag when its dialog is gone or hidden.
+    /// Whether that confirmation is still on screen. A hidden one is closed and forgotten.
     bool confirm_pending();
 
     std::string m_wizard_previous_printer_id;
