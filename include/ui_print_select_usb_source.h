@@ -4,6 +4,7 @@
 #pragma once
 
 #include "single_flight_walk.h"
+#include "thumbnail_processor.h"
 #include "usb_backend.h"
 
 #include <atomic>
@@ -39,12 +40,12 @@ struct UsbScan {
 /**
  * @brief Walk @p drives for G-code and cache each file's header thumbnail
  *
- * Blocking disk I/O, for a worker thread. @p cancelled is polled before each
- * drive and each file; once it returns true the walk stops and returns what
- * it has.
+ * Blocking disk I/O and decodes, for a worker thread. Each thumbnail is
+ * pre-scaled to @p card_target. @p cancelled is polled before each drive and
+ * each file; once it returns true the walk stops and returns what it has.
  */
 UsbScan scan_usb_drives(UsbBackend& backend, const std::vector<UsbDrive>& drives,
-                        const std::function<bool()>& cancelled);
+                        const ThumbnailTarget& card_target, const std::function<bool()>& cancelled);
 
 /**
  * @file ui_print_select_usb_source.h

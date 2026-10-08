@@ -25,6 +25,7 @@ namespace helix::ui {
 // Reads the stick: a directory walk plus a header read per file, slow enough
 // on a large stick to stall a frame, so it never runs on the UI thread.
 UsbScan scan_usb_drives(UsbBackend& backend, const std::vector<UsbDrive>& drives,
+                        const ThumbnailTarget& card_target,
                         const std::function<bool()>& cancelled) {
     UsbScan scan;
     // Every drive contributes to one flat list: a file's path already carries
@@ -53,7 +54,9 @@ UsbScan scan_usb_drives(UsbBackend& backend, const std::vector<UsbDrive>& drives
         std::string cache_path;
         auto best = helix::gcode::get_best_thumbnail(file.path);
         if (!best.png_data.empty()) {
-            cache_path = get_thumbnail_cache().save_raw_png("usb:" + file.path, best.png_data);
+            cache_path = get_thumbnail_cache().save_prescaled(
+                ThumbnailSource::Usb, file.path, best.png_data, card_target,
+                static_cast<time_t>(file.modified_time));
         }
         scan.thumbnails.push_back(std::move(cache_path));
     }
@@ -288,9 +291,11 @@ void PrintSelectUsbSource::refresh_files() {
     // The fast lane, one walk at a time: it holds at most one of the four
     // workers, while the slow lane's single worker would queue the listing
     // behind any large G-code transfer.
-    walk_.run([this, backend, drives = std::move(drives)](
+    // Read on the UI thread: the target comes off the display.
+    const ThumbnailTarget card_target = ThumbnailProcessor::get_target_for_display();
+    walk_.run([this, backend, drives = std::move(drives), card_target](
                   const helix::SingleFlightWalk::Cancelled& cancelled) -> std::function<void()> {
-        auto scan = scan_usb_drives(*backend, drives, cancelled);
+        auto scan = scan_usb_drives(*backend, drives, card_target, cancelled);
         return [this, scan = std::move(scan)]() mutable {
             usb_files_ = std::move(scan.files);
             if (on_files_ready_) {

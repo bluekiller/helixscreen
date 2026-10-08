@@ -946,14 +946,11 @@ std::string PrintStatusWidget::get_last_print_thumbnail_path() const {
     const bool measured = print_card_thumb_ && lv_obj_is_valid(print_card_thumb_);
     const int target_w = measured ? lv_obj_get_width(print_card_thumb_) : 0;
     const int target_h = measured ? lv_obj_get_height(print_card_thumb_) : 0;
-    if (const ThumbnailInfo* best = select_thumbnail(job.thumbnails, target_w, target_h)) {
-        spdlog::debug("[PrintStatusWidget] Widget {}x{}, selected thumbnail {}x{} ({})", target_w,
-                      target_h, best->width, best->height, best->relative_path);
-        return helix::job_thumbnail_path(job, best->relative_path);
-    }
-
-    // Fallback: use pre-selected largest thumbnail
-    return helix::job_thumbnail_path(job, job.thumbnail_path);
+    std::string path = helix::select_and_resolve_thumbnail(
+        job.thumbnails, helix::gcode_dir_of(job.filename), target_w, target_h);
+    spdlog::debug("[PrintStatusWidget] Widget {}x{}, selected thumbnail '{}'", target_w, target_h,
+                  path);
+    return path;
 }
 
 time_t PrintStatusWidget::get_last_print_source_modified() const {

@@ -828,7 +828,7 @@ PrintHistoryJob thumb_job(const char* filename, bool exists, const char* thumb, 
     PrintHistoryJob job;
     job.filename = filename;
     job.exists = exists;
-    job.thumbnail_path = thumb;
+    job.thumbnails = {{thumb, 300, 300}};
     job.modified = modified;
     return job;
 }

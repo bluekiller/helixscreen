@@ -565,7 +565,7 @@ void run_http_hil_probe(MoonrakerManager* mgr) {
             api->files().get_file_metadata(
                 filename,
                 [api, filename](const FileMetadata& meta) {
-                    const ThumbnailInfo* thumb = meta.get_best_thumbnail(160, 160);
+                    const ThumbnailInfo* thumb = select_thumbnail(meta.thumbnails, 160, 160);
                     if (!thumb) {
                         ESP_LOGW(TAG, "[http_hil] %s has no thumbnails — nothing to fetch",
                                  filename.c_str());
