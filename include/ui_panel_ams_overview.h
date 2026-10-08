@@ -99,6 +99,9 @@ class AmsOverviewPanel : public PanelBase {
     /// buffer; the widget tree stays for the next open.
     void on_closed();
 
+    /// The close callback every open registers: runs on_closed() on the instance.
+    static void run_close();
+
     /// A hidden cached tree is dropped instead of rebuilt; a shown one is left.
     bool rebuild() override;
 

@@ -142,6 +142,9 @@ class AmsPanel : public PanelBase {
     /// widget tree stays, so the next open shows it without a rebuild.
     void on_closed();
 
+    /// The close callback every open registers: runs on_closed() on the instance.
+    static void run_close();
+
     /// A hidden cached tree is dropped instead of rebuilt: the next open builds
     /// it from the re-registered component. A shown panel is left alone.
     bool rebuild() override;

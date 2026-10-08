@@ -581,9 +581,17 @@ void AmsPanel::on_deactivating(DeactivateReason) {
     spdlog::debug("[{}] Deactivated", get_name());
 }
 
+void AmsPanel::run_close() {
+    if (auto* p = get_existing_ams_panel()) {
+        p->on_closed();
+    }
+}
+
 void AmsPanel::on_closed() {
     // A close callback can run after a reopen has already pushed the panel again.
+    // Its own callback was consumed by that run, so arm the next close again.
     if (panel_ && (helix::nav::is_in_stack(panel_) || helix::nav::is_push_pending(panel_))) {
+        helix::nav::on_close(panel_, &AmsPanel::run_close);
         return;
     }
     open_ = false;

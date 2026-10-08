@@ -287,9 +287,17 @@ void AmsOverviewPanel::on_activate() {
     }
 }
 
+void AmsOverviewPanel::run_close() {
+    if (auto* p = helix::lazy_global_if_exists<AmsOverviewPanel>()) {
+        p->on_closed();
+    }
+}
+
 void AmsOverviewPanel::on_closed() {
     // A close callback can run after a reopen has already pushed the panel again.
+    // Its own callback was consumed by that run, so arm the next close again.
     if (panel_ && (helix::nav::is_in_stack(panel_) || helix::nav::is_push_pending(panel_))) {
+        helix::nav::on_close(panel_, &AmsOverviewPanel::run_close);
         return;
     }
     open_ = false;
@@ -1482,11 +1490,7 @@ void open_ams_overview_panel(int units) {
         spdlog::info("[AMS] Multi-unit setup ({} units) - showing overview", units);
         auto& overview = get_global_ams_overview_panel();
         if (lv_obj_t* panel = overview.get_panel()) {
-            push_ams_overlay(panel, &overview, []() {
-                if (auto* p = helix::lazy_global_if_exists<AmsOverviewPanel>()) {
-                    p->on_closed();
-                }
-            });
+            push_ams_overlay(panel, &overview, &AmsOverviewPanel::run_close);
         }
     });
 }
@@ -1500,11 +1504,7 @@ void helix::ui::open_ams_detail_panel() {
         spdlog::info("[AMS] Single-unit setup - showing detail panel directly");
         auto& detail = get_global_ams_panel();
         if (lv_obj_t* panel = detail.get_panel()) {
-            push_ams_overlay(panel, &detail, []() {
-                if (auto* p = get_existing_ams_panel()) {
-                    p->on_closed();
-                }
-            });
+            push_ams_overlay(panel, &detail, &AmsPanel::run_close);
         }
     });
 }

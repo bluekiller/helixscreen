@@ -10,6 +10,7 @@
  * count change and a printer switch each still reach the cached tree.
  */
 
+#include "ui_ams_sidebar.h"
 #include "ui_ams_slot.h"
 #include "ui_filament_path_canvas.h"
 #include "ui_nav_manager.h"
@@ -358,4 +359,44 @@ TEST_CASE_METHOD(AmsKeepAliveFixture, "AMS: critical memory pressure leaves an o
     drain();
     CHECK(panel_obj() != nullptr);
     CHECK(helix::nav::is_showing(panel_obj()));
+}
+
+TEST_CASE_METHOD(AmsKeepAliveFixture, "AmsPanel: reopening keeps one operation stepper",
+                 "[ams][keep_alive]") {
+    auto steppers = [&] {
+        lv_obj_t* box = lv_obj_find_by_name(panel_obj(), "progress_stepper_container");
+        REQUIRE(box != nullptr);
+        return lv_obj_get_child_count(box);
+    };
+    auto start_load = [&] {
+        auto* sidebar = AmsPanelTestAccess::sidebar(*get_existing_ams_panel());
+        REQUIRE(sidebar != nullptr);
+        sidebar->start_operation(StepOperationType::LOAD_FRESH, 0);
+        process_lvgl(30);
+    };
+    open();
+    start_load();
+    REQUIRE(steppers() == 1);
+    for (int i = 0; i < 2; ++i) {
+        close();
+        open();
+        start_load();
+        CHECK(steppers() == 1);
+    }
+}
+
+TEST_CASE_METHOD(AmsKeepAliveFixture, "AmsPanel: a stale close callback re-arms the next close",
+                 "[ams][keep_alive]") {
+    open();
+    AmsPanel* panel = get_existing_ams_panel();
+    REQUIRE(panel != nullptr);
+
+    // A close callback from a slide-out that a reopen overtook: it is consumed
+    // when it runs, and runs while the panel is showing again.
+    helix::nav::clear_on_close(panel_obj());
+    AmsPanel::run_close();
+    REQUIRE(AmsPanelTestAccess::is_open(*panel));
+
+    close();
+    CHECK_FALSE(AmsPanelTestAccess::is_open(*panel));
 }

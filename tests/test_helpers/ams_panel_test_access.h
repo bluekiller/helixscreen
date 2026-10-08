@@ -16,6 +16,9 @@ class AmsPanelTestAccess {
     static bool has_sidebar(const AmsPanel& p) {
         return p.sidebar_ != nullptr;
     }
+    static helix::ui::AmsOperationSidebar* sidebar(AmsPanel& p) {
+        return p.sidebar_.get();
+    }
     static lv_obj_t* path_canvas(const AmsPanel& p) {
         return p.path_canvas_;
     }
