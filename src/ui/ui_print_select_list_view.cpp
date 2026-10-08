@@ -5,6 +5,7 @@
 
 #include "ui_filename_utils.h"
 #include "ui_panel_print_select.h" // For PrintFileData
+#include "ui_subject_registry.h"
 #include "ui_virtual_list.h"
 
 #include "display_settings_manager.h"
@@ -13,6 +14,7 @@
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
+#include <cstring>
 
 using helix::gcode::strip_gcode_extension;
 
@@ -235,64 +237,34 @@ void PrintSelectListView::configure_row(lv_obj_t* row, size_t pool_index, size_t
     std::string display_name =
         file.is_dir ? file.filename + "/" : strip_gcode_extension(file.filename);
 
-    // Update labels via subjects
-    lv_subject_copy_string(&data->filename_subject, display_name.c_str());
-    lv_subject_copy_string(&data->size_subject, file.size_str.c_str());
-    lv_subject_copy_string(&data->modified_subject, file.modified_str.c_str());
-    lv_subject_copy_string(&data->time_subject, file.print_time_str.c_str());
+    // Update labels via subjects. A metadata refresh re-applies every row, so
+    // unchanged text and indicators must not redraw it.
+    copy_string_if_changed(&data->filename_subject, display_name.c_str());
+    copy_string_if_changed(&data->size_subject, file.size_str.c_str());
+    copy_string_if_changed(&data->modified_subject, file.modified_str.c_str());
+    copy_string_if_changed(&data->time_subject, file.print_time_str.c_str());
 
-    // Update status display based on history_status
-    // Hide all status indicators first
-    if (data->status_printing_icon) {
-        lv_obj_add_flag(data->status_printing_icon, LV_OBJ_FLAG_HIDDEN);
-    }
-    if (data->status_success_container) {
-        lv_obj_add_flag(data->status_success_container, LV_OBJ_FLAG_HIDDEN);
-    }
-    if (data->status_failed_icon) {
-        lv_obj_add_flag(data->status_failed_icon, LV_OBJ_FLAG_HIDDEN);
-    }
-    if (data->status_cancelled_icon) {
-        lv_obj_add_flag(data->status_cancelled_icon, LV_OBJ_FLAG_HIDDEN);
-    }
-
-    // Show appropriate status indicator (directories have no history)
-    if (!file.is_dir) {
-        switch (file.history_status) {
-        case FileHistoryStatus::CURRENTLY_PRINTING:
-            if (data->status_printing_icon) {
-                lv_obj_remove_flag(data->status_printing_icon, LV_OBJ_FLAG_HIDDEN);
-            }
-            break;
-
-        case FileHistoryStatus::COMPLETED:
-            if (data->status_success_container && data->status_success_count) {
-                // Format count (e.g., "3" for 3 successful prints)
-                char count_buf[8];
-                snprintf(count_buf, sizeof(count_buf), "%d", file.success_count);
-                lv_label_set_text(data->status_success_count, count_buf);
-                lv_obj_remove_flag(data->status_success_container, LV_OBJ_FLAG_HIDDEN);
-            }
-            break;
-
-        case FileHistoryStatus::FAILED:
-            if (data->status_failed_icon) {
-                lv_obj_remove_flag(data->status_failed_icon, LV_OBJ_FLAG_HIDDEN);
-            }
-            break;
-
-        case FileHistoryStatus::CANCELLED:
-            if (data->status_cancelled_icon) {
-                lv_obj_remove_flag(data->status_cancelled_icon, LV_OBJ_FLAG_HIDDEN);
-            }
-            break;
-
-        case FileHistoryStatus::NEVER_PRINTED:
-        default:
-            // All indicators already hidden
-            break;
+    // One status indicator for the file's history; directories have none.
+    const FileHistoryStatus status =
+        file.is_dir ? FileHistoryStatus::NEVER_PRINTED : file.history_status;
+    const auto show = [](lv_obj_t* obj, bool shown) {
+        if (obj) {
+            lv_obj_set_flag(obj, LV_OBJ_FLAG_HIDDEN, !shown);
+        }
+    };
+    show(data->status_printing_icon, status == FileHistoryStatus::CURRENTLY_PRINTING);
+    show(data->status_failed_icon, status == FileHistoryStatus::FAILED);
+    show(data->status_cancelled_icon, status == FileHistoryStatus::CANCELLED);
+    const bool completed = status == FileHistoryStatus::COMPLETED && data->status_success_count;
+    if (completed) {
+        // Count of successful prints, e.g. "3"
+        char count_buf[8];
+        snprintf(count_buf, sizeof(count_buf), "%d", file.success_count);
+        if (std::strcmp(lv_label_get_text(data->status_success_count), count_buf) != 0) {
+            lv_label_set_text(data->status_success_count, count_buf);
         }
     }
+    show(data->status_success_container, completed);
 
     // Store file index for click handler
     lv_obj_set_user_data(row, reinterpret_cast<void*>(file_index));
