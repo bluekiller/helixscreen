@@ -8,15 +8,15 @@
  * `PrinterCompositeVisibilityState::update_visibility()` computes:
  *
  *   has_any_preprint_options =
- *       (plugin_installed && (bed_mesh || qgl || z_tilt || nozzle_clean || purge_line))
+ *       (plugin_installed && macro_option_count > 0)
  *       || timelapse
  *       || framework_option_count > 0
  *
  * `print_file_detail.xml` binds this single subject to hide the entire PRINT
- * OPTIONS card when no row would render. The five per-op `can_show_*` subjects
- * that used to back this expression were retired (no consumers) — this file is
- * the replacement coverage. It exercises the aggregate end-to-end through
- * `PrinterState`, which is the only path that actually drives the inputs.
+ * OPTIONS card when no row would render. Hardware alone never shows it: a
+ * printer with bed_mesh/QGL whose PRINT_START offers no skip parameter has no
+ * row to draw. It exercises the aggregate end-to-end through `PrinterState`,
+ * which is the only path that actually drives the inputs.
  */
 
 #include "ui_update_queue.h"
@@ -86,39 +86,44 @@ TEST_CASE("has_any_preprint_options: empty inputs → 0",
     REQUIRE(read_aggregate(state) == 0);
 }
 
-TEST_CASE("has_any_preprint_options: plugin gate works for plugin-only caps",
+TEST_CASE("has_any_preprint_options: leveling hardware alone shows no card",
           "[printer_state][composite_visibility][aggregate]") {
+    // A Voron with the plugin, bed_mesh and QGL, whose PRINT_START runs both
+    // unconditionally: nothing could skip either, so there is no row to show.
     lv_init_safe();
     PrinterState& state = fresh_state();
 
-    SECTION("plugin=false + all plugin-gated caps present → 0 (gated off)") {
+    state.set_helix_plugin_installed(true);
+    state.set_hardware(hardware_with(true, true, true, true, false));
+    REQUIRE(lv_subject_get_int(state.capabilities_state().subject(Capability::HasBedMesh)) == 1);
+
+    REQUIRE(read_aggregate(state) == 0);
+}
+
+TEST_CASE("has_any_preprint_options: macro rows show the card only with the plugin",
+          "[printer_state][composite_visibility][aggregate]") {
+    lv_init_safe();
+    PrinterState& state = fresh_state();
+    state.set_hardware(hardware_with(true, true, false, false, false));
+
+    SECTION("plugin=true + a skippable macro op → 1") {
+        state.set_helix_plugin_installed(true);
+        state.set_macro_option_count(1);
+        REQUIRE(read_aggregate(state) == 1);
+    }
+
+    SECTION("plugin=false + a skippable macro op → 0 (its skip needs the plugin)") {
         state.set_helix_plugin_installed(false);
-        state.set_hardware(hardware_with(true, true, true, true, false));
+        state.set_macro_option_count(1);
         REQUIRE(read_aggregate(state) == 0);
     }
 
-    SECTION("plugin=true + no caps → 0 (nothing to gate-on)") {
+    SECTION("the count dropping to zero hides the card again") {
         state.set_helix_plugin_installed(true);
-        state.set_hardware(hardware_with(false, false, false, false, false));
+        state.set_macro_option_count(2);
+        REQUIRE(read_aggregate(state) == 1);
+        state.set_macro_option_count(0);
         REQUIRE(read_aggregate(state) == 0);
-    }
-
-    SECTION("plugin=true + bed_mesh only → 1") {
-        state.set_helix_plugin_installed(true);
-        state.set_hardware(hardware_with(true, false, false, false, false));
-        REQUIRE(read_aggregate(state) == 1);
-    }
-
-    SECTION("plugin=true + qgl only → 1 (any one cap is enough)") {
-        state.set_helix_plugin_installed(true);
-        state.set_hardware(hardware_with(false, true, false, false, false));
-        REQUIRE(read_aggregate(state) == 1);
-    }
-
-    SECTION("plugin=true + nozzle_clean only → 1 (macro-detected cap)") {
-        state.set_helix_plugin_installed(true);
-        state.set_hardware(hardware_with(false, false, false, true, false));
-        REQUIRE(read_aggregate(state) == 1);
     }
 }
 
@@ -205,34 +210,6 @@ TEST_CASE("timelapse pre-print label is English text, not a semantic i18n key",
     const PrePrintOption* tl = find_timelapse_option(state);
     REQUIRE(tl != nullptr);
     REQUIRE(tl->label_key == "Timelapse");
-}
-
-TEST_CASE("has_any_preprint_options: simplified expression equivalent to old per-op OR",
-          "[printer_state][composite_visibility][aggregate][equivalence]") {
-    // The old code computed five (plugin && has_X) products and ORed them
-    // together. The new code factors the plugin out: plugin && (any has_X).
-    // Pick a few mixed states to verify the factored form lands on the same
-    // value the legacy form would have produced.
-    lv_init_safe();
-    PrinterState& state = fresh_state();
-
-    SECTION("plugin=true, mixed caps (bed_mesh+z_tilt) → 1") {
-        state.set_helix_plugin_installed(true);
-        state.set_hardware(hardware_with(true, false, true, false, false));
-        REQUIRE(read_aggregate(state) == 1);
-    }
-
-    SECTION("plugin=false, mixed caps + timelapse → 1 (only timelapse contributes)") {
-        state.set_helix_plugin_installed(false);
-        state.set_hardware(hardware_with(true, true, true, true, true));
-        REQUIRE(read_aggregate(state) == 1);
-    }
-
-    SECTION("plugin=true, all caps off → 0") {
-        state.set_helix_plugin_installed(true);
-        state.set_hardware(hardware_with(false, false, false, false, false));
-        REQUIRE(read_aggregate(state) == 0);
-    }
 }
 
 // ---------------------------------------------------------------------------

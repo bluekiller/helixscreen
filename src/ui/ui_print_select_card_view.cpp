@@ -6,6 +6,7 @@
 #include "ui_filename_utils.h"
 #include "ui_gradient_canvas.h"
 #include "ui_panel_print_select.h" // For PrintFileData, CardDimensions
+#include "ui_subject_registry.h"
 #include "ui_virtual_list.h"
 
 #include "helix_fs.h"
@@ -17,6 +18,7 @@
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
+#include <cstring>
 
 using helix::gcode::strip_gcode_extension;
 
@@ -426,6 +428,26 @@ void PrintSelectCardView::release_esp_thumbnail(lv_obj_t* card, CardWidgetData& 
 }
 #endif
 
+namespace {
+
+/// Points `img` at `src` unless it already shows it. lv_image_set_src redraws the
+/// image even for the source it has, and a metadata refresh re-applies every
+/// card's thumbnail, so an unchanged card would otherwise repaint.
+void set_thumbnail_src(lv_obj_t* img, const void* src) {
+    const void* current = lv_image_get_src(img);
+    if (current == src) {
+        return;
+    }
+    if (current && src && lv_image_src_get_type(current) == LV_IMAGE_SRC_FILE &&
+        lv_image_src_get_type(src) == LV_IMAGE_SRC_FILE &&
+        std::strcmp(static_cast<const char*>(current), static_cast<const char*>(src)) == 0) {
+        return;
+    }
+    lv_image_set_src(img, src);
+}
+
+} // namespace
+
 void PrintSelectCardView::apply_thumbnail(lv_obj_t* card, CardWidgetData& data,
                                           const PrintFileData& file) {
     // Update thumbnail state (observers handle visibility declaratively)
@@ -454,14 +476,15 @@ void PrintSelectCardView::apply_thumbnail(lv_obj_t* card, CardWidgetData& data,
                 if (has_psram_thumb) {
                     // Keep the buffer alive in this pool slot for as long as
                     // the widget's `src` references it (see CardWidgetData
-                    // comment) — assigning here also drops the previous
-                    // slot's thumbnail, if any.
+                    // comment). The previous thumbnail outlives the switch,
+                    // since set_thumbnail_src reads the source it replaces.
+                    auto previous = std::move(data.esp_thumbnail);
                     data.esp_thumbnail = file.esp_thumbnail;
-                    lv_image_set_src(thumb_img, data.esp_thumbnail->dsc());
+                    set_thumbnail_src(thumb_img, data.esp_thumbnail->dsc());
                 } else
 #endif
                 {
-                    lv_image_set_src(thumb_img, file.thumbnail_path.c_str());
+                    set_thumbnail_src(thumb_img, file.thumbnail_path.c_str());
                 }
                 // Size widget to match pre-scaled .bin target so LVGL uses 1:1 blit
                 // instead of the scaled transform path (avoids per-frame bilinear scaling).
@@ -472,6 +495,12 @@ void PrintSelectCardView::apply_thumbnail(lv_obj_t* card, CardWidgetData& data,
             }
             lv_subject_set_int(&data.thumbnail_state_subject, 0);
         } else {
+            // A re-sliced file can come back at the same cache path with new
+            // dimensions, so the next real thumbnail must load afresh.
+            lv_obj_t* thumb_img = lv_obj_find_by_name(card, "thumbnail");
+            if (thumb_img && lv_image_get_src(thumb_img)) {
+                lv_image_set_src(thumb_img, nullptr);
+            }
             lv_subject_set_int(&data.thumbnail_state_subject, 1);
         }
     }
@@ -515,9 +544,10 @@ void PrintSelectCardView::configure_card(lv_obj_t* card, size_t pool_index, size
     }
 
     // Update subjects (declarative pattern - bindings react automatically)
-    lv_subject_copy_string(&data->filename_subject, display_name.c_str());
-    lv_subject_copy_string(&data->time_subject, file.print_time_str.c_str());
-    lv_subject_copy_string(&data->filament_subject, file.filament_str.c_str());
+    // A metadata refresh re-applies every card; unchanged text must not redraw.
+    copy_string_if_changed(&data->filename_subject, display_name.c_str());
+    copy_string_if_changed(&data->time_subject, file.print_time_str.c_str());
+    copy_string_if_changed(&data->filament_subject, file.filament_str.c_str());
     lv_subject_set_int(&data->folder_type_subject, folder_type);
 
     apply_thumbnail(card, *data, file);

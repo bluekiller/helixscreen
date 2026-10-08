@@ -199,6 +199,7 @@ uninstall() {
 
 # Wait for Moonraker to become available after restart
 wait_for_moonraker() {
+    [ "$NO_RESTART" = "true" ] && return 0
     max_attempts=30
     attempt=0
     moonraker_url="${MOONRAKER_URL:-http://localhost:7125}"
@@ -220,6 +221,12 @@ wait_for_moonraker() {
 
 # Restart Moonraker service
 restart_moonraker() {
+    # A caller under systemd's NoNewPrivileges (the HelixScreen service) cannot
+    # sudo, so it passes --no-restart and asks Moonraker to restart itself.
+    if [ "$NO_RESTART" = "true" ]; then
+        info "Leaving the Moonraker restart to the caller"
+        return 0
+    fi
     info "Restarting Moonraker..."
     if command -v systemctl > /dev/null 2>&1 && systemctl list-units --type=service 2>/dev/null | grep -q moonraker; then
         sudo systemctl restart moonraker || warn "Failed to restart Moonraker via systemctl"
@@ -437,6 +444,8 @@ show_help() {
     printf '\n'
     printf '%s\n' "Options:"
     printf '%s\n' "  --auto, -a              Full auto-install (updates config, restarts Moonraker)"
+    printf '%s\n' "  --no-restart            Before --auto/--uninstall-auto: skip the Moonraker restart;"
+    printf '%s\n' "                          the caller restarts it (e.g. via Moonraker's server.restart)"
     printf '%s\n' "  --uninstall, -u         Remove the plugin symlink and strip PRINT_START"
     printf '%s\n' "                          instrumentation, if any (interactive)"
     printf '%s\n' "  --uninstall-auto        Full auto-uninstall: removes the symlink and config"
@@ -463,8 +472,13 @@ show_help() {
 }
 
 # Parse arguments
+NO_RESTART=false
 while [ $# -gt 0 ]; do
     case "$1" in
+        --no-restart)
+            NO_RESTART=true
+            shift
+            ;;
         --auto|-a)
             AUTO_MODE=true
             shift

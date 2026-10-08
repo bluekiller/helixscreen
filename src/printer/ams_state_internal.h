@@ -6,6 +6,8 @@
 
 #pragma once
 
+#include "ui_subject_registry.h"
+
 #include "ams_types.h"
 #include "lvgl/lvgl.h"
 
@@ -27,13 +29,7 @@ void report_off_main(const char* caller);
 /// checks it before touching AmsState.
 bool shutting_down();
 
-/// Write @p text into a string subject only when it differs, so observers are
-/// not notified of a value they already have.
-inline void copy_string_if_changed(lv_subject_t* subject, const char* text) {
-    if (std::strcmp(lv_subject_get_string(subject), text) != 0) {
-        lv_subject_copy_string(subject, text);
-    }
-}
+using helix::ui::copy_string_if_changed;
 
 /// The error state a lane bar's status line draws from: the same derivation
 /// both current consumers (AMS overview mini bars, mini status) compute from

@@ -4033,6 +4033,45 @@ TEST_CASE_METHOD(HelixTestFixture,
         REQUIRE(manager.displayed_options().options.empty());
     }
 
+    SECTION("the card follows whether the macro gave any row") {
+        printer_state.set_printer_type_sync("Voron 2.4");
+        printer_state.set_helix_plugin_installed(true);
+        auto aggregate = [&] {
+            UpdateQueueTestAccess::drain(UpdateQueue::instance());
+            return lv_subject_get_int(
+                printer_state.composite_visibility_state().get_has_any_preprint_options_subject());
+        };
+
+        manager.set_macro_analysis(analysis_with_qgl("SKIP_QGL", ParameterSemantic::OPT_OUT));
+        REQUIRE(manager.displayed_options().options.size() == 1);
+        REQUIRE(aggregate() == 1);
+
+        // QGL found but run unconditionally: no skip param, so no row and no card.
+        PrintStartAnalysis unskippable = analysis_with_qgl("SKIP_QGL", ParameterSemantic::OPT_OUT);
+        unskippable.operations[0].has_skip_param = false;
+        unskippable.operations[0].skip_param_name.clear();
+        manager.set_macro_analysis(unskippable);
+        REQUIRE(manager.displayed_options().options.empty());
+        REQUIRE(aggregate() == 0);
+    }
+
+    SECTION("a re-analysis drops the macro rows from the card until it lands") {
+        printer_state.set_printer_type_sync("Voron 2.4");
+        printer_state.set_helix_plugin_installed(true);
+        auto aggregate = [&] {
+            UpdateQueueTestAccess::drain(UpdateQueue::instance());
+            return lv_subject_get_int(
+                printer_state.composite_visibility_state().get_has_any_preprint_options_subject());
+        };
+
+        manager.set_macro_analysis(analysis_with_qgl("SKIP_QGL", ParameterSemantic::OPT_OUT));
+        REQUIRE(aggregate() == 1);
+
+        PrintPreparationManagerTestAccess::refresh_macro_analysis(manager);
+        REQUIRE(manager.displayed_options().options.empty());
+        REQUIRE(aggregate() == 0);
+    }
+
     SECTION("an empty analysis gives no rows") {
         printer_state.set_printer_type_sync("Voron 2.4");
         PrintStartAnalysis analysis;

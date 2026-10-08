@@ -415,6 +415,10 @@ class MoonrakerManager {
     /// silent-window inference (one guard per axis subject; the callback
     /// reads all three coherently).
     ObserverGuard m_print_position_observers[3];
+    /// Extruder velocity and filament-system action, sampled for a purge
+    /// that holds the toolhead still.
+    ObserverGuard m_print_extruder_velocity_observer;
+    ObserverGuard m_print_ams_action_observer;
     // Pre-print completion observers. The hand-off to the printing phase is
     // gated on the REAL first layer (print_stats.info.current_layer >= 1) — see
     // should_complete_preprint(). The layer observer is the primary signal; the

@@ -2483,6 +2483,7 @@
   <translation tag="Restart Klipper without rebooting" zh="无需重启主机即可重启 Klipper"/>
   <translation tag="Restart Klipper?" zh="重启 Klipper？"/>
   <translation tag="Restart Moonraker" zh="重启 Moonraker"/>
+  <translation tag="Restart Moonraker to finish the plugin change" zh="重启 Moonraker 以完成插件更改"/>
   <translation tag="Restart Now" zh="立即重启"/>
   <translation tag="Restart Required" zh="需要重启"/>
   <translation tag="Restart failed: not connected" zh="重启失败: 未连接"/>

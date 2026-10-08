@@ -621,6 +621,15 @@ class PrinterState {
     void set_helix_plugin_installed(bool installed);
 
     /**
+     * @brief Set how many PRINT OPTIONS rows the PRINT_START analysis adds
+     *
+     * Those rows come from macro operations with a skip parameter, on a
+     * printer whose database entry declares no options; each one needs the
+     * plugin to deliver its skip. Main thread only.
+     */
+    void set_macro_option_count(size_t count);
+
+    /**
      * @brief Set printer kinematics type and update has_individual_xyz_homing and
      *        bed_moves subjects.
      *
@@ -869,6 +878,7 @@ class PrinterState {
 
     /// Auto-detected bed_moves value from kinematics (before user override)
     bool auto_detected_bed_moves_ = false;
+    size_t macro_option_count_ = 0; ///< See set_macro_option_count()
 
     /// Klipper pause_resume.is_paused: true when the print is paused via PAUSE gcode
     bool is_paused_ = false;

@@ -2483,6 +2483,7 @@
   <translation tag="Restart Klipper without rebooting" it="Riavvia Klipper senza riavviare l&apos;host"/>
   <translation tag="Restart Klipper?" it="Riavviare Klipper?"/>
   <translation tag="Restart Moonraker" it="Riavvia Moonraker"/>
+  <translation tag="Restart Moonraker to finish the plugin change" it="Riavvia Moonraker per completare la modifica del plugin"/>
   <translation tag="Restart Now" it="Riavvia ora"/>
   <translation tag="Restart Required" it="Riavvio richiesto"/>
   <translation tag="Restart failed: not connected" it="Riavvio fallito: non connesso"/>

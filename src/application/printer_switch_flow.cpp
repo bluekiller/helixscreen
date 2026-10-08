@@ -61,8 +61,30 @@ bool active_printer_is_printing() {
 PrinterSwitchFlow::PrinterSwitchFlow(Config*& config, AsyncLifetimeGuard& async, Restart restart)
     : m_config(config), m_async(async), m_restart(std::move(restart)) {}
 
+bool PrinterSwitchFlow::confirm_pending() {
+    if (!m_confirm_dialog) {
+        return false;
+    }
+    // Read from the dialog itself, not a flag its callbacks clear: a dismissal reaches the
+    // caller a tick late, after a newer confirmation may already be up, and some closes never
+    // reach the callbacks at all.
+    auto& stack = ModalStack::instance();
+    lv_obj_t* backdrop = stack.backdrop_for(m_confirm_dialog);
+    if (backdrop && !stack.is_exiting(backdrop)) {
+        if (!lv_obj_has_flag(backdrop, LV_OBJ_FLAG_HIDDEN)) {
+            return true;
+        }
+        // Hidden but still stacked, it would keep ModalStack non-empty and hold back
+        // everything that waits for no modal to be open.
+        spdlog::warn("[PrinterSwitchFlow] The switch confirmation was hidden; closing it");
+        Modal::hide(m_confirm_dialog);
+    }
+    m_confirm_dialog = nullptr;
+    return false;
+}
+
 bool PrinterSwitchFlow::request_switch(const std::string& printer_id) {
-    if (m_soft_restart_in_progress || m_confirm_pending) {
+    if (m_soft_restart_in_progress || confirm_pending()) {
         spdlog::warn("[PrinterSwitchFlow] Ignoring switch to '{}': a switch is already running",
                      printer_id);
         return false;
@@ -79,18 +101,15 @@ bool PrinterSwitchFlow::request_switch(const std::string& printer_id) {
         return switch_printer(printer_id);
     }
 
-    m_confirm_pending = true;
     const std::string message = fmt::format(
         fmt::runtime(lv_tr("{} is still printing. The print keeps running after you switch.")),
         m_config->get_active_printer_name());
     ui::ConfirmOptions options;
-    options.on_cancel = [this] { m_confirm_pending = false; };
-    options.on_dismiss = [this] { m_confirm_pending = false; };
     options.owner_token = m_async.token();
-    ui::modal_confirm(
+    m_confirm_dialog = ui::modal_confirm(
         lv_tr("Switch Printer"), message.c_str(), ModalSeverity::Warning, lv_tr("Switch Printer"),
         [this, printer_id] {
-            m_confirm_pending = false;
+            m_confirm_dialog = nullptr;
             // Out of the dialog's click handler: the restart tears down the
             // screen the dialog sits on.
             m_async.defer("PrinterSwitchFlow::confirmed_switch",
@@ -101,7 +120,7 @@ bool PrinterSwitchFlow::request_switch(const std::string& printer_id) {
 }
 
 bool PrinterSwitchFlow::switch_printer(const std::string& printer_id) {
-    if (m_confirm_pending) {
+    if (confirm_pending()) {
         spdlog::warn(
             "[PrinterSwitchFlow] Ignoring switch_printer while a switch is being confirmed");
         return false;

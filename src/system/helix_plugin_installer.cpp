@@ -157,7 +157,8 @@ HelixPluginInstaller::SyncInstallResult HelixPluginInstaller::install_local_sync
     }
 
     state_.store(PluginInstallState::INSTALLING);
-    spdlog::info("[PluginInstaller] Starting local installation: {} --auto", script_path);
+    spdlog::info("[PluginInstaller] Starting local installation: {} --no-restart --auto",
+                 script_path);
 
     // fork/exec instead of popen(): sh receives the script as a path argument,
     // not a command string, so nothing inside script_path is interpreted.
@@ -174,7 +175,9 @@ HelixPluginInstaller::SyncInstallResult HelixPluginInstaller::install_local_sync
     }
 
     if (pid == 0) {
-        execl("/bin/sh", "sh", script_path.c_str(), "--auto", nullptr);
+        // --no-restart: NoNewPrivileges keeps the script from sudo; the
+        // caller restarts Moonraker over its API instead.
+        execl("/bin/sh", "sh", script_path.c_str(), "--no-restart", "--auto", nullptr);
         _exit(127);
     }
 
@@ -228,8 +231,9 @@ void HelixPluginInstaller::uninstall_local(UninstallCallback callback) {
     }
 
     state_.store(PluginInstallState::INSTALLING);
-    spdlog::info("[PluginInstaller] Starting local uninstallation: {} --uninstall-auto",
-                 script_path);
+    spdlog::info(
+        "[PluginInstaller] Starting local uninstallation: {} --no-restart --uninstall-auto",
+        script_path);
 
     // fork/exec instead of popen(): sh receives the script as a path argument,
     // not a command string, so nothing inside script_path is interpreted.
@@ -249,7 +253,7 @@ void HelixPluginInstaller::uninstall_local(UninstallCallback callback) {
     }
 
     if (pid == 0) {
-        execl("/bin/sh", "sh", script_path.c_str(), "--uninstall-auto", nullptr);
+        execl("/bin/sh", "sh", script_path.c_str(), "--no-restart", "--uninstall-auto", nullptr);
         _exit(127);
     }
 

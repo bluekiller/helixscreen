@@ -273,6 +273,7 @@ class PrinterStateTestAccess {
         // --- PrinterState's own members ---------------------------------------
         PrinterProfileStateTestAccess::clear_data(ps.profile_state_);
         ps.auto_detected_bed_moves_ = false;
+        ps.macro_option_count_ = 0;
         ps.is_paused_ = false;
         ps.last_kinematics_.clear();
         ps.capability_overrides_ = CapabilityOverrides();
