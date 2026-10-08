@@ -109,6 +109,20 @@ Pad the mock's file listing to N entries by cycling the built-in names, so list-
 
 Padded entries reuse the built-in filenames in rotation, so they carry the same thumbnails and metadata; the point is the count, not the variety. Pair with `HELIX_MOCK_RANGE_IGNORE` and `HELIX_MOCK_REMOTE_THUMBS` to make each entry's metadata fetch a whole-file download, the #1706 shape at full scale.
 
+### `HELIX_MOCK_MACRO_COUNT`
+
+Add N macros (`MOCK_MACRO_000` onward) to the mock printer, every third with a description long enough to wrap, so the Macros panel's virtual list runs against a long list of rows of mixed height.
+
+| Property | Value |
+|----------|-------|
+| **Values** | positive integer |
+| **Default** | unset (the built-in mock macros only) |
+| **File** | `src/api/moonraker_client_mock_objects.cpp` (`helix::sim::mock_padded_macro_names`) |
+
+```bash
+HELIX_MOCK_MACRO_COUNT=130 ./build/bin/helix-screen --test -vv
+```
+
 ### `HELIX_MOCK_METADATA_404`
 
 Make `server.files.metadata` and `server.files.metascan` fail with a 404, as Moonraker forks without the metadata component do.
