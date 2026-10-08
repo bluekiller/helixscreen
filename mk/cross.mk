@@ -3114,7 +3114,7 @@ release-pi: $(INSTALLER_BUNDLES) | build/pi/bin/helix-screen build/pi/bin/helix-
 	$(call release-package,pi)
 
 # Package Pi 32-bit release (same structure as 64-bit Pi)
-release-pi32: $(INSTALLER_BUNDLES) | build/pi32/bin/helix-screen build/pi32/bin/helix-splash build/pi32-fbdev/bin/helix-screen
+release-pi32: $(INSTALLER_BUNDLES) | build/pi32/bin/helix-screen build/pi32/bin/helix-splash build/pi32-fbdev/bin/helix-screen build/pi32/bin/helix-screen-egl
 	$(call release-package,pi32)
 
 # Package AD5M release

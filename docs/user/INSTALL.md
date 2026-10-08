@@ -434,7 +434,7 @@ If you experience any display issues with rotation, you can also force the frame
 
 ### Display Backends: DRM vs Framebuffer
 
-By default, HelixScreen uses the DRM/KMS backend when available. DRM presents each frame with a vsynced page flip instead of a plain memory copy, which avoids tearing. GPU-enabled builds also accelerate rendering and rotation. On boards where DRM is not supported, HelixScreen falls back to the framebuffer (`fbdev` backend), which copies each frame directly with no vsync.
+By default, HelixScreen uses the DRM/KMS backend when available. DRM presents each frame with a vsynced page flip instead of a plain memory copy, which avoids tearing. GPU-enabled builds also accelerate display presentation and rotation. On boards where DRM is not supported, HelixScreen falls back to the framebuffer (`fbdev` backend), which copies each frame directly with no vsync.
 
 **When rotation is configured**, HelixScreen may automatically switch to the fbdev backend if the display hardware doesn't support hardware rotation. This is normal and provides flicker-free rotation.
 
