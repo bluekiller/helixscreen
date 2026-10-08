@@ -98,9 +98,6 @@ PrintHistoryJob helix::parse_history_job(const nlohmann::json& job_json) {
                     job.thumbnails.push_back(info);
                 }
             }
-            if (const ThumbnailInfo* largest = select_thumbnail(job.thumbnails, 0, 0)) {
-                job.thumbnail_path = largest->relative_path;
-            }
         }
 
         // UUID and file size for precise history matching

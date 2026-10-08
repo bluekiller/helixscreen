@@ -17,6 +17,7 @@
 #include "screws_tilt_parser.h"
 #include "sensor_state.h"
 #include "text_io.h"
+#include "thumbnail_rules.h"
 #include "timelapse_state.h"
 
 #include <spdlog/spdlog.h>
@@ -787,28 +788,37 @@ void MoonrakerFileTransferAPIMock::download_thumbnail(const std::string& thumbna
         return;
     }
 
-    (void)on_error; // Unused below - mock falls back to placeholder on failure
-
     namespace fs = std::filesystem;
 
     // First check: if thumbnail_path is already a local file that exists, use it directly
     // This handles paths like "build/thumbnail_cache/filename.png" from mock metadata
+    // Written as PNG bytes whatever the source format, as the real download does.
     if (fs::exists(thumbnail_path)) {
-        try {
-            // Copy to cache path (unless they're the same)
-            if (thumbnail_path != cache_path) {
-                fs::copy_file(thumbnail_path, cache_path, fs::copy_options::overwrite_existing);
-            }
+        const auto raw = helix::text_io::read_file(thumbnail_path);
+        const std::vector<uint8_t> png =
+            raw ? helix::ensure_png({raw->begin(), raw->end()}) : std::vector<uint8_t>{};
+        if (!png.empty() &&
+            helix::text_io::write_file_atomic(
+                cache_path, {reinterpret_cast<const char*>(png.data()), png.size()})) {
             spdlog::info("[MoonrakerAPIMock] Using local thumbnail {} -> {}", thumbnail_path,
                          cache_path);
             if (on_success) {
                 on_success("A:" + cache_path);
             }
             return;
-        } catch (const fs::filesystem_error& e) {
-            spdlog::warn("[MoonrakerAPIMock] Failed to copy local thumbnail: {}", e.what());
-            // Fall through to other methods
         }
+        if (raw && png.empty()) {
+            // The real download refuses a format it cannot store as PNG.
+            if (on_error) {
+                MoonrakerError err;
+                err.type = MoonrakerErrorType::VALIDATION_ERROR;
+                err.message = "Not a PNG or decodable JPEG thumbnail: " + thumbnail_path;
+                on_error(err);
+            }
+            return;
+        }
+        spdlog::warn("[MoonrakerAPIMock] Failed to copy local thumbnail {} as PNG", thumbnail_path);
+        // Fall through to other methods
     }
 
     // Moonraker thumbnail paths look like: ".thumbnails/filename-NNxNN.png"

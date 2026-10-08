@@ -1451,7 +1451,6 @@ PrintHistoryJob history_job(const std::string& filename, double start_time) {
     thumb.width = 300;
     thumb.height = 300;
     job.thumbnails.push_back(thumb);
-    job.thumbnail_path = thumb.relative_path;
     return job;
 }
 
@@ -1486,7 +1485,8 @@ TEST_CASE_METHOD(HistoryManagerTestFixture,
     CHECK(job.exists);
     CHECK(job.modified == 42.0);
     // Joined against the original's directory, never the staging one.
-    CHECK(helix::job_thumbnail_path(job, job.thumbnail_path) == "parts/.thumbs/benchy-300x300.png");
+    CHECK(helix::select_and_resolve_thumbnail(job.thumbnails, helix::gcode_dir_of(job.filename), 0,
+                                              0) == "parts/.thumbs/benchy-300x300.png");
     CHECK(manager_->get_newest_existing_job() == &job);
     CHECK(manager_->get_filename_stats().count("benchy.gcode") == 1);
     CHECK(notified >= 1);
@@ -1510,7 +1510,6 @@ TEST_CASE_METHOD(HistoryManagerTestFixture,
         CHECK(job.filename == "parts/gone.gcode");
         CHECK_FALSE(job.exists);
         CHECK(job.thumbnails.empty());
-        CHECK(job.thumbnail_path.empty());
     }
     CHECK(manager_->get_newest_existing_job() == nullptr);
 
@@ -1537,7 +1536,8 @@ TEST_CASE_METHOD(HistoryManagerTestFixture,
     const PrintHistoryJob& job = manager_->get_jobs().front();
     CHECK(job.filename == "parts/benchy.gcode");
     CHECK(job.exists);
-    CHECK(job.thumbnail_path == ".thumbs/benchy-300x300.png");
+    REQUIRE(job.thumbnails.size() == 1);
+    CHECK(job.thumbnails[0].relative_path == ".thumbs/benchy-300x300.png");
 }
 
 TEST_CASE_METHOD(HistoryManagerTestFixture,

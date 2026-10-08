@@ -926,6 +926,8 @@ void MoonrakerDiscoverySequence::continue_discovery_objects(uint64_t seq) {
                                     std::lock_guard<std::mutex> lock(hardware_mutex_);
                                     hardware_.set_host_restarting_macros(std::move(restarting));
                                     hardware_.set_host_halting_macros(std::move(halting));
+                                    hardware_.set_led_driving_macros(
+                                        helix::analyze_led_driving_macros(settings));
                                     hardware_.parse_sensor_toggle_command(settings);
                                 }
 

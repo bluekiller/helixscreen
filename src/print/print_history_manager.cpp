@@ -489,8 +489,6 @@ void PrintHistoryManager::apply_original(PrintHistoryJob& job, const OriginalFil
     job.exists = original.exists;
     job.modified = original.modified;
     job.thumbnails = original.thumbnails;
-    const ThumbnailInfo* largest = select_thumbnail(job.thumbnails, 0, 0);
-    job.thumbnail_path = largest ? largest->relative_path : std::string{};
 }
 
 void PrintHistoryManager::adopt_original(PrintHistoryJob& job) {

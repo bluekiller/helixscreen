@@ -111,6 +111,7 @@ class LedSettingsOverlay : public OverlayBase {
     SubjectManager subjects_;
     lv_subject_t auto_state_enabled_subject_{};
     lv_subject_t led_on_at_start_subject_{};
+    lv_subject_t print_macros_drive_leds_subject_{};
     std::vector<std::string> action_type_options_; // Maps dropdown index to action type string
     int editing_macro_index_ = -1;                 // -1 = no macro device being edited
 };
