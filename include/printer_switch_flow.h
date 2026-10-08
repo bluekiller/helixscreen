@@ -6,6 +6,7 @@
 #include "async_lifetime_guard.h"
 
 #include <functional>
+#include <lvgl.h>
 #include <string>
 
 class ApplicationTestAccess; // NAMESPACE_OK: test accessor, declared at global scope
@@ -86,8 +87,11 @@ class PrinterSwitchFlow {
     /// A restart is running; a second switch or add is a no-op until it ends.
     bool m_soft_restart_in_progress = false;
 
-    /// A "the printer is printing" confirmation is on screen.
-    bool m_confirm_pending = false;
+    /// The last "the printer is printing" confirmation shown; may already be closed.
+    lv_obj_t* m_confirm_dialog = nullptr;
+
+    /// Whether that confirmation is still on screen. A hidden one is closed and forgotten.
+    bool confirm_pending();
 
     std::string m_wizard_previous_printer_id;
     std::string m_connected_printer_id;

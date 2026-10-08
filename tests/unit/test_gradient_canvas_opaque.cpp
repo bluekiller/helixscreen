@@ -2,6 +2,8 @@
 #include "ui_gradient_canvas.h"
 
 #include "../lvgl_test_fixture.h"
+#include "helix-xml/src/xml/lv_xml.h"
+#include "lvgl/src/draw/lv_draw_buf_private.h" // handler fields: no public setters
 
 #include "../catch_amalgamated.hpp"
 
@@ -127,4 +129,27 @@ TEST_CASE_METHOD(LVGLTestFixture, "gradient canvas: renders into an RGB565 buffe
     CHECK(int(bl.blue) == 248);
 
     lv_draw_buf_destroy(buf);
+}
+
+TEST_CASE_METHOD(LVGLTestFixture,
+                 "gradient canvas: a resize the heap cannot fit leaves no freed buffer as the src",
+                 "[gradient_canvas]") {
+    ui_gradient_canvas_register();
+    lv_obj_t* img =
+        static_cast<lv_obj_t*>(lv_xml_create(test_screen(), "ui_gradient_canvas", nullptr));
+    REQUIRE(img != nullptr);
+    const void* old_src = lv_image_get_src(img);
+    REQUIRE(old_src != nullptr);
+
+    lv_draw_buf_handlers_t* handlers = lv_draw_buf_get_handlers();
+    auto* const orig_malloc = handlers->buf_malloc_cb;
+    handlers->buf_malloc_cb = [](size_t, lv_color_format_t) -> void* { return nullptr; };
+    lv_obj_set_size(img, 400, 300);
+    lv_obj_update_layout(img);
+    handlers->buf_malloc_cb = orig_malloc;
+
+    // The old buffer is gone; an image still naming it reads freed memory on the next draw.
+    CHECK(lv_image_get_src(img) != old_src);
+    process_lvgl(30);
+    lv_obj_delete(img);
 }
