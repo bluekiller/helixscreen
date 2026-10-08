@@ -9,7 +9,6 @@
 #include "filament_database.h"
 #include "json_utils.h"
 #include "lvgl/src/others/translation/lv_translation.h"
-#include "text_io.h"
 #include "ui/ui_widget_helpers.h"
 
 #include <spdlog/spdlog.h>
@@ -24,24 +23,11 @@ using helix::printer::FilamentCatalog;
 
 namespace {
 
-// Built-in catalog search paths, mirroring filament_catalog.cpp's private
-// BUILTIN_PATHS. Used only to answer "is this id shipped?" for the secondary
-// button label (Delete vs Restore Defaults); the resolved values themselves
-// come from FilamentCatalog::load_full().
-const char* BUILTIN_PATHS[] = {"assets/filaments.json", "../assets/filaments.json",
-                               "/opt/helixscreen/assets/filaments.json"};
-
-std::string first_existing_builtin() {
-    for (const char* p : BUILTIN_PATHS) {
-        if (helix::text_io::open_file(p, "rb"))
-            return p;
-    }
-    return "";
-}
-
-/// True if @p id is present in the shipped (built-in-only) catalog.
+/// True if @p id is present in the shipped (built-in-only) catalog. Decides the
+/// secondary button label (Delete vs Restore Defaults); the resolved values
+/// themselves come from FilamentCatalog::load_full().
 bool id_in_builtin(const std::string& id) {
-    const std::string path = first_existing_builtin();
+    const std::string path = FilamentCatalog::builtin_asset_path();
     if (path.empty())
         return false;
     FilamentCatalog builtin = FilamentCatalog::load_from_file(path, /*codes_only=*/false, "");
