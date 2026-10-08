@@ -96,12 +96,14 @@ class AmsErrorModalFixture : public XMLTestFixture {
         auto* obj = static_cast<lv_obj_t*>(lv_xml_create(test_screen(), "ams_panel", nullptr));
         REQUIRE(obj != nullptr);
         panel.setup(obj, test_screen());
+        panel.on_activate(); // shown, the way a push shows it
         lv_obj_update_layout(test_screen());
         pump(50);
         return obj;
     }
 
     void teardown_panel(AmsPanel& panel, lv_obj_t* obj) {
+        panel.on_deactivate(DeactivateReason::NavigateAway);
         panel.clear_panel_reference();
         lv_obj_delete(obj);
         pump(20);
@@ -334,9 +336,11 @@ TEST_CASE_METHOD(AmsErrorModalFixture,
     // running, the action tick shows the dialog and the print tick follows
     // immediately — the -1 sentinel is what stops that first tick from being
     // read as an edge into PRINTING and tearing the dialog straight back down.
-    install_backend();
+    auto* backend = install_backend();
     set_print_state(helix::PrintJobState::PRINTING);
-    AmsState::instance().set_action(AmsAction::ERROR);
+    // Faulted in the backend itself, so the sync an open runs keeps it faulted.
+    backend->simulate_error(AmsResult::FILAMENT_JAM);
+    AmsState::instance().sync_from_backend();
 
     AmsPanel panel(state(), &api());
     lv_obj_t* obj = build_panel(panel);

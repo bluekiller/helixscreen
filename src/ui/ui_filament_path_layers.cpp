@@ -220,6 +220,7 @@ void layered_mark_dirty(lv_obj_t* obj) {
 void layered_release_buffer(FilamentPathData* data) {
     LayerState& ls = data->layers;
     ls.refresh_timer.cancel();
+    ls.alloc_retry_timer.cancel();
     if (ls.overlay_canvas)
         lv_canvas_set_draw_buf(ls.overlay_canvas, empty_canvas_buf());
     layered_destroy_buffers(data);

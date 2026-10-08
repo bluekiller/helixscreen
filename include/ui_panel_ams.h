@@ -54,7 +54,13 @@
  * @see AmsState for subject definitions
  * @see AmsBackend for backend operations
  */
+namespace helix {
+class AmsPanelTestAccess;
+}
+
 class AmsPanel : public PanelBase {
+    friend class helix::AmsPanelTestAccess;
+
   public:
     /**
      * @brief Construct AMS panel with dependencies
@@ -132,15 +138,18 @@ class AmsPanel : public PanelBase {
      */
     void clear_panel_reference();
 
-    /// Free what only an on-screen panel needs (the path canvas buffer). The
+    /// The overlay was closed. Stops and frees what only an open panel needs; the
     /// widget tree stays, so the next open shows it without a rebuild.
-    void release_offscreen_memory();
+    void on_closed();
 
     /// A hidden cached tree is dropped instead of rebuilt: the next open builds
     /// it from the re-registered component. A shown panel is left alone.
     bool rebuild() override;
 
   private:
+    /// Heat glow and the loading-error dialog for an AMS action.
+    void apply_action(int action_int, int prev_action);
+
     // === Slot Management ===
 
     static constexpr int MAX_VISIBLE_SLOTS =
@@ -195,7 +204,7 @@ class AmsPanel : public PanelBase {
     ObserverGuard bypass_active_observer_; ///< Active ring follows bypass engage/disengage
     bool backend_rebuild_pending_ = false; ///< Coalesces rapid backend count changes
     bool slot_creation_pending_ = false;   ///< Coalesces rapid slot count changes
-    bool active_ = false; ///< On screen; a hidden panel rebuilds its slots on the next open
+    bool open_ = false; ///< Pushed and not yet closed; a closed panel's observers wait
     bool path_update_pending_ = false; ///< Coalesces rapid path state changes
 
     // === Dynamic Slot State ===

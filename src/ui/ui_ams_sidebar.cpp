@@ -102,6 +102,14 @@ AmsOperationSidebar::AmsOperationSidebar(PrinterState& ps) : printer_state_(ps) 
     spdlog::debug("[AmsSidebar] Constructed");
 }
 
+std::unique_ptr<AmsOperationSidebar> AmsOperationSidebar::attach(PrinterState& ps,
+                                                                 lv_obj_t* panel) {
+    auto sidebar = std::make_unique<AmsOperationSidebar>(ps);
+    sidebar->setup(panel);
+    sidebar->init_observers();
+    return sidebar;
+}
+
 AmsOperationSidebar::~AmsOperationSidebar() {
     cleanup();
     spdlog::debug("[AmsSidebar] Destroyed");

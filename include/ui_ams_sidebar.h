@@ -48,6 +48,10 @@ namespace helix::ui {
 class AmsOperationSidebar {
   public:
     explicit AmsOperationSidebar(PrinterState& ps);
+
+    /// A sidebar set up on @p panel with its observers registered; what an AMS
+    /// panel attaches while it is open.
+    static std::unique_ptr<AmsOperationSidebar> attach(PrinterState& ps, lv_obj_t* panel);
     ~AmsOperationSidebar();
 
     // Non-copyable, non-movable

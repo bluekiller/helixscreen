@@ -188,7 +188,7 @@ void AmsPanel::init_subjects() {
     slots_version_observer_ = observe<int>(
         AmsState::instance().get_slots_version_subject(), this,
         [](AmsPanel* self, int) {
-            if (!self->subjects_initialized_ || !self->panel_)
+            if (!self->open_ || !self->subjects_initialized_ || !self->panel_)
                 return;
             spdlog::trace("[AmsPanel] Gates version changed - refreshing slots");
             self->refresh_slots();
@@ -201,44 +201,12 @@ void AmsPanel::init_subjects() {
         AmsState::instance().get_ams_action_subject(), this,
         [](AmsPanel* self, int action_int) {
             // Record the previous value before any early return so the
-            // ERROR-exit edge below stays accurate across ticks that bail out.
+            // ERROR-exit edge stays accurate across ticks that bail out.
             const int prev_action = self->prev_ams_action_;
             self->prev_ams_action_ = action_int;
-
-            if (!self->subjects_initialized_ || !self->panel_)
+            if (!self->open_)
                 return;
-            auto action = static_cast<AmsAction>(action_int);
-
-            // Path canvas heat glow (panel-specific)
-            if (self->path_canvas_) {
-                bool heating = (action == AmsAction::HEATING);
-                ui_filament_path_canvas_set_heat_active(self->path_canvas_, heating);
-            }
-
-            // Error modal (panel-specific)
-            if (action == AmsAction::ERROR) {
-                if (!self->error_modal_ || !self->error_modal_->is_visible()) {
-                    // Cooldown: don't re-show within 3s of user dismissal
-                    auto now = std::chrono::steady_clock::now();
-                    auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(
-                        now - self->error_modal_dismiss_time_);
-                    if (elapsed.count() >= 3) {
-                        self->show_loading_error_modal();
-                    }
-                }
-            } else {
-                // Error cleared — reset cooldown so next error shows immediately
-                self->error_modal_dismiss_time_ = {};
-
-                // The fault resolved without the dialog being touched (recovered
-                // from the console, another client, or a macro), so its
-                // Resume/Eject/Recover buttons no longer describe anything real
-                // (#1185). Edge only: prev_ams_action_ starts at -1, which never
-                // equals ERROR, so the observer's first tick can't trigger this.
-                if (prev_action == static_cast<int>(AmsAction::ERROR)) {
-                    self->dismiss_error_modal_silently("AMS action left ERROR");
-                }
-            }
+            self->apply_action(action_int, prev_action);
         },
         AmsState::instance().get_subjects_lifetime());
 
@@ -289,7 +257,7 @@ void AmsPanel::init_subjects() {
     current_slot_observer_ = observe<int>(
         AmsState::instance().get_current_slot_subject(), this,
         [](AmsPanel* self, int slot) {
-            if (!self->subjects_initialized_ || !self->panel_)
+            if (!self->open_ || !self->subjects_initialized_ || !self->panel_)
                 return;
             spdlog::debug("[AmsPanel] Current slot changed: {}", slot);
             self->update_current_slot_highlight(slot);
@@ -323,14 +291,13 @@ void AmsPanel::init_subjects() {
     slot_count_observer_ = observe<int>(
         AmsState::instance().get_slot_count_subject(), this,
         [](AmsPanel* self, int) {
-            // A hidden panel picks the new count up in on_activate().
-            if (!self->panel_ || !self->active_)
+            if (!self->open_ || !self->panel_)
                 return;
             if (!self->slot_creation_pending_) {
                 self->slot_creation_pending_ = true;
                 self->object_lifetime_.defer("AmsPanel::create_slots", [self]() {
                     self->slot_creation_pending_ = false;
-                    if (!self->active_) {
+                    if (!self->open_) {
                         return;
                     }
                     // Read when the rebuild runs, not when it was queued: this
@@ -352,7 +319,7 @@ void AmsPanel::init_subjects() {
     // Path state observers for filament path visualization.
     // Deferred via object_lifetime_ to avoid modifying widgets during LVGL layout refresh (#563).
     auto path_handler = [](AmsPanel* self, int) {
-        if (!self->subjects_initialized_ || !self->panel_)
+        if (!self->open_ || !self->subjects_initialized_ || !self->panel_)
             return;
         if (!self->path_update_pending_) {
             self->path_update_pending_ = true;
@@ -469,16 +436,55 @@ void AmsPanel::setup(lv_obj_t* panel, lv_obj_t* parent_screen) {
     setup_endless_arrows();
 
     // Setup shared sidebar component
-    sidebar_ = std::make_unique<helix::ui::AmsOperationSidebar>(printer_state_);
-    sidebar_->setup(panel_);
-    sidebar_->init_observers();
+    sidebar_ = helix::ui::AmsOperationSidebar::attach(printer_state_, panel_);
 
     spdlog::debug("[{}] Setup complete!", get_name());
 }
 
+void AmsPanel::apply_action(int action_int, int prev_action) {
+    if (!subjects_initialized_ || !panel_)
+        return;
+    auto action = static_cast<AmsAction>(action_int);
+
+    // Path canvas heat glow (panel-specific)
+    if (path_canvas_) {
+        bool heating = (action == AmsAction::HEATING);
+        ui_filament_path_canvas_set_heat_active(path_canvas_, heating);
+    }
+
+    // Error modal (panel-specific)
+    if (action == AmsAction::ERROR) {
+        if (!error_modal_ || !error_modal_->is_visible()) {
+            // Cooldown: don't re-show within 3s of user dismissal
+            auto now = std::chrono::steady_clock::now();
+            auto elapsed =
+                std::chrono::duration_cast<std::chrono::seconds>(now - error_modal_dismiss_time_);
+            if (elapsed.count() >= 3) {
+                show_loading_error_modal();
+            }
+        }
+    } else {
+        // Error cleared — reset cooldown so next error shows immediately
+        error_modal_dismiss_time_ = {};
+
+        // The fault resolved without the dialog being touched (recovered
+        // from the console, another client, or a macro), so its
+        // Resume/Eject/Recover buttons no longer describe anything real
+        // (#1185). Edge only: a prev_action of -1 never equals ERROR, so a
+        // first look at the state can't trigger this.
+        if (prev_action == static_cast<int>(AmsAction::ERROR)) {
+            dismiss_error_modal_silently("AMS action left ERROR");
+        }
+    }
+}
+
 void AmsPanel::on_activate() {
     spdlog::debug("[{}] Activated - syncing from backend", get_name());
-    active_ = true;
+    const bool opening = !open_;
+    open_ = true;
+    if (!sidebar_) {
+        sidebar_ = helix::ui::AmsOperationSidebar::attach(printer_state_, panel_);
+    }
 
     // Sync state when panel becomes visible
     AmsState::instance().sync_from_backend();
@@ -511,6 +517,15 @@ void AmsPanel::on_activate() {
     // Sync sidebar step progress and preheat feedback from current state
     if (sidebar_) {
         sidebar_->sync_from_state();
+    }
+
+    // What the closed panel's observers skipped. The rest of this function
+    // already resyncs from the backend.
+    if (opening) {
+        const int slot = lv_subject_get_int(AmsState::instance().get_current_slot_subject());
+        update_current_slot_highlight(slot);
+        update_path_canvas_from_backend();
+        apply_action(lv_subject_get_int(AmsState::instance().get_ams_action_subject()), -1);
     }
 
     // Sync Spoolman active spool with currently loaded slot
@@ -553,7 +568,6 @@ void AmsPanel::sync_spoolman_active_spool() {
 }
 
 void AmsPanel::on_deactivating(DeactivateReason) {
-    active_ = false;
     if (holds_poll_ref_) {
         SpoolmanManager::instance().stop_spoolman_polling();
         holds_poll_ref_ = false;
@@ -567,7 +581,18 @@ void AmsPanel::on_deactivating(DeactivateReason) {
     spdlog::debug("[{}] Deactivated", get_name());
 }
 
-void AmsPanel::release_offscreen_memory() {
+void AmsPanel::on_closed() {
+    // A close callback can run after a reopen has already pushed the panel again.
+    if (panel_ && (helix::nav::is_in_stack(panel_) || helix::nav::is_push_pending(panel_))) {
+        return;
+    }
+    open_ = false;
+    // What only an open panel runs: the sidebar's operation handlers and stall
+    // watchdog, the error and context menus, and the path canvas buffer.
+    sidebar_.reset();
+    error_modal_.reset();
+    context_menu_.reset();
+    selector_menu_.reset();
     if (path_canvas_) {
         helix::ui::filament_path_canvas_release_buffer(path_canvas_);
     }
@@ -584,6 +609,7 @@ bool AmsPanel::rebuild() {
 void AmsPanel::clear_panel_reference() {
     // Mark subjects uninitialized FIRST — observer callbacks check this and bail out
     subjects_initialized_ = false;
+    open_ = false;
 
     // Reset extracted UI modules (they handle their own RAII cleanup)
     sidebar_.reset();
@@ -798,7 +824,7 @@ void AmsPanel::setup_slot_path_observers(int slot_count) {
     // the full path setup (which re-reads every slot's live segment + color and
     // repaints when any of them changed) on the next deferred tick.
     auto on_slot_path_change = [](AmsPanel* self, int) {
-        if (!self->subjects_initialized_ || !self->panel_)
+        if (!self->open_ || !self->subjects_initialized_ || !self->panel_)
             return;
         spdlog::debug("[AmsPanel] Per-slot path subject fired — scheduling path redraw");
         if (!self->path_update_pending_) {
@@ -1500,15 +1526,11 @@ AmsPanel& get_global_ams_panel() {
             lv_obj_add_flag(s_ams_panel_obj, LV_OBJ_FLAG_HIDDEN); // Hidden by default
 
             // Kept alive between opens: building it is most of an open's cost on
-            // slow hardware. Closing frees only the path canvas buffer; memory
-            // pressure, a theme change, a printer switch and the unit-count flip in
-            // navigate_to_ams_panel() drop the tree.
-            helix::nav::register_overlay(s_ams_panel_obj, &panel, true);
-            helix::nav::on_close(s_ams_panel_obj, []() {
-                if (auto* p = get_existing_ams_panel()) {
-                    p->release_offscreen_memory();
-                }
-            });
+            // slow hardware. Closing runs AmsPanel::on_closed(); memory pressure, a
+            // theme change, a hot reload, a printer switch and the unit-count flip
+            // drop the tree. open_ams_detail_panel() registers the overlay and its
+            // close callback on every open.
+            helix::nav::register_overlay(s_ams_panel_obj, &panel);
 
             spdlog::info("[AMS Panel] Lazy-created panel UI");
         } else {

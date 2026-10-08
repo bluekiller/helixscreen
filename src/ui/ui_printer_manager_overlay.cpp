@@ -12,6 +12,7 @@
 #include "ui_overlay_retraction_settings.h"
 #include "ui_overlay_timelapse_settings.h"
 #include "ui_panel_ams.h"
+#include "ui_panel_ams_overview.h"
 #include "ui_panel_bed_mesh.h"
 #include "ui_panel_input_shaper.h"
 #include "ui_panel_power.h"
@@ -173,20 +174,7 @@ void on_chip_screws_tilt_clicked(lv_event_t*) {
 void on_chip_ams_clicked(lv_event_t*) {
     spdlog::debug("[Printer Manager] AMS chip clicked");
 
-    auto& ams_panel = get_global_ams_panel();
-    if (!ams_panel.are_subjects_initialized()) {
-        ams_panel.init_subjects();
-    }
-    lv_obj_t* panel_obj = ams_panel.get_panel();
-    if (panel_obj) {
-        // Re-register before push: get_global_ams_panel() only registers in its
-        // lazy-creation block, and navbar switches clear overlay_instances_, so a
-        // cached panel loses its registration and on_deactivate() never fires on
-        // dismiss — leaving the filament-path animation drawing into a torn-down
-        // panel. Idempotent.
-        helix::nav::register_overlay(panel_obj, &ams_panel);
-        helix::nav::push_overlay(panel_obj);
-    }
+    helix::ui::open_ams_detail_panel();
 }
 
 void on_chip_power_clicked(lv_event_t*) {

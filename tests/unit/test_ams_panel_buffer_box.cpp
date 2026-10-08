@@ -53,6 +53,7 @@ TEST_CASE_METHOD(XMLTestFixture, "AmsPanel buffer box follows the reading while 
         static_cast<lv_obj_t*>(lv_xml_create(test_screen(), "ams_panel", nullptr));
     REQUIRE(panel_obj != nullptr);
     panel.setup(panel_obj, test_screen());
+    panel.on_activate(); // shown, the way a push shows it
     lv_obj_update_layout(test_screen());
     process_lvgl(50);
 
@@ -72,6 +73,7 @@ TEST_CASE_METHOD(XMLTestFixture, "AmsPanel buffer box follows the reading while 
         CHECK(ui::filament_path_canvas_buffer_fault_state(canvas) == -1);
     }
 
+    panel.on_deactivate(DeactivateReason::NavigateAway);
     panel.clear_panel_reference();
     lv_obj_delete(panel_obj);
     process_lvgl(10);
