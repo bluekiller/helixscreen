@@ -61,14 +61,14 @@ bool active_printer_is_printing() {
 PrinterSwitchFlow::PrinterSwitchFlow(Config*& config, AsyncLifetimeGuard& async, Restart restart)
     : m_config(config), m_async(async), m_restart(std::move(restart)) {}
 
-void PrinterSwitchFlow::request_switch(const std::string& printer_id) {
+bool PrinterSwitchFlow::request_switch(const std::string& printer_id) {
     if (m_soft_restart_in_progress || m_confirm_pending) {
         spdlog::warn("[PrinterSwitchFlow] Ignoring switch to '{}': a switch is already running",
                      printer_id);
-        return;
+        return false;
     }
     if (printer_id == m_connected_printer_id) {
-        return;
+        return false;
     }
     // A connected printer that is no longer in the list was removed, and its removal was
     // already confirmed; nothing is left to ask about.
@@ -76,8 +76,7 @@ void PrinterSwitchFlow::request_switch(const std::string& printer_id) {
     const bool connected_removed =
         std::find(ids.begin(), ids.end(), m_connected_printer_id) == ids.end();
     if (connected_removed || !active_printer_is_printing()) {
-        switch_printer(printer_id);
-        return;
+        return switch_printer(printer_id);
     }
 
     m_confirm_pending = true;
@@ -98,17 +97,18 @@ void PrinterSwitchFlow::request_switch(const std::string& printer_id) {
                           [this, printer_id] { switch_printer(printer_id); });
         },
         options);
+    return false;
 }
 
-void PrinterSwitchFlow::switch_printer(const std::string& printer_id) {
+bool PrinterSwitchFlow::switch_printer(const std::string& printer_id) {
     if (m_confirm_pending) {
         spdlog::warn(
             "[PrinterSwitchFlow] Ignoring switch_printer while a switch is being confirmed");
-        return;
+        return false;
     }
     if (m_soft_restart_in_progress) {
         spdlog::warn("[PrinterSwitchFlow] Ignoring switch_printer during active soft restart");
-        return;
+        return false;
     }
     SoftRestartLatch soft_restart(m_soft_restart_in_progress);
 
@@ -117,13 +117,13 @@ void PrinterSwitchFlow::switch_printer(const std::string& printer_id) {
     const std::string previous_id = m_config->get_active_printer_id();
     if (!m_config->set_active_printer(printer_id)) {
         spdlog::error("[PrinterSwitchFlow] Failed to switch — unknown printer '{}'", printer_id);
-        return;
+        return false;
     }
     // A switch the config does not remember would come back as the old printer after a
     // restart, so an unsaved switch does not happen.
     if (!save_or_report()) {
         m_config->set_active_printer(previous_id);
-        return;
+        return false;
     }
 
     // Per-printer state lives at /printers/<active>/… and is reached via Config::df().
@@ -144,6 +144,7 @@ void PrinterSwitchFlow::switch_printer(const std::string& printer_id) {
     ToastManager::instance().show(ToastSeverity::INFO, toast_msg.c_str());
 
     spdlog::info("[PrinterSwitchFlow] Switched to printer '{}'", printer_id);
+    return true;
 }
 
 void PrinterSwitchFlow::add_printer_via_wizard() {
@@ -233,12 +234,11 @@ void PrinterSwitchFlow::cancel_add_printer_wizard() {
     });
 }
 
-void PrinterSwitchFlow::add_printer(const std::string& host, int port) {
+bool PrinterSwitchFlow::add_printer(const std::string& host, int port) {
     const std::string existing = m_config->find_printer_by_host(host, port);
     if (!existing.empty()) {
         spdlog::info("[PrinterSwitchFlow] {}:{} is already printer '{}'", host, port, existing);
-        request_switch(existing);
-        return;
+        return request_switch(existing);
     }
 
     const std::string id = m_config->next_printer_id();
@@ -246,9 +246,9 @@ void PrinterSwitchFlow::add_printer(const std::string& host, int port) {
     spdlog::info("[PrinterSwitchFlow] Added printer '{}' at {}:{}", id, host, port);
     // Kept in the list unsaved rather than dropped, and not switched to.
     if (!save_or_report()) {
-        return;
+        return false;
     }
-    request_switch(id);
+    return request_switch(id);
 }
 
 bool PrinterSwitchFlow::save_or_report() {
