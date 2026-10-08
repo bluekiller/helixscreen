@@ -2483,6 +2483,7 @@
   <translation tag="Restart Klipper without rebooting" ru="Перезапуск Klipper без перезагрузки"/>
   <translation tag="Restart Klipper?" ru="Перезапустить Klipper?"/>
   <translation tag="Restart Moonraker" ru="Перезапустить Moonraker"/>
+  <translation tag="Restart Moonraker to finish the plugin change" ru="Перезапустите Moonraker, чтобы завершить изменение плагина"/>
   <translation tag="Restart Now" ru="Перезапустить сейчас"/>
   <translation tag="Restart Required" ru="Требуется перезапуск"/>
   <translation tag="Restart failed: not connected" ru="Перезапуск не удался: нет подключения"/>

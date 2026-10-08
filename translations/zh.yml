@@ -2572,6 +2572,7 @@ translations:
   Restart Klipper without rebooting: 无需重启主机即可重启 Klipper
   Restart Klipper?: '重启 Klipper？'
   Restart Moonraker: 重启 Moonraker
+  Restart Moonraker to finish the plugin change: 重启 Moonraker 以完成插件更改
   Restart Now: 立即重启
   Restart Required: 需要重启
   'Restart failed: not connected': '重启失败: 未连接'
