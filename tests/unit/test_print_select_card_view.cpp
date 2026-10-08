@@ -14,10 +14,13 @@
 #include "ui_virtual_list.h"
 
 #include "../lvgl_ui_test_fixture.h"
+#include "lvgl/src/display/lv_display_private.h" // inv_areas
+#include "lvgl/src/misc/lv_area_private.h"       // lv_area_is_in
 
 #include <filesystem>
 #include <fstream>
 #include <string>
+#include <vector>
 
 #include "../catch_amalgamated.hpp"
 
@@ -278,6 +281,70 @@ TEST_CASE_METHOD(LVGLUITestFixture,
             ++expect;
         }
         CHECK(expect == std::min(60, w.last * dims.num_columns));
+    }
+
+    view.cleanup();
+    lv_obj_delete(container);
+}
+
+namespace {
+
+/// Every area the display has queued to redraw.
+std::vector<lv_area_t> invalid_areas() {
+    lv_display_t* disp = lv_display_get_default();
+    return {disp->inv_areas, disp->inv_areas + disp->inv_p};
+}
+
+/// The shown card for `file_index`.
+lv_obj_t* card_for(lv_obj_t* container, size_t file_index) {
+    for (uint32_t i = 0; i < lv_obj_get_child_count(container); ++i) {
+        lv_obj_t* card = lv_obj_get_child(container, static_cast<int32_t>(i));
+        if (!lv_obj_has_flag(card, LV_OBJ_FLAG_HIDDEN) &&
+            reinterpret_cast<size_t>(lv_obj_get_user_data(card)) == file_index) {
+            return card;
+        }
+    }
+    return nullptr;
+}
+
+} // namespace
+
+TEST_CASE_METHOD(LVGLUITestFixture,
+                 "CardView: a metadata refresh repaints only the cards whose data changed",
+                 "[ui][card_view][print_select]") {
+    lv_obj_t* container = lv_obj_create(test_screen());
+    lv_obj_set_size(container, 700, 400);
+    lv_obj_set_flex_flow(container, LV_FLEX_FLOW_ROW_WRAP);
+
+    PrintSelectCardView view;
+    REQUIRE(view.setup(container, [](size_t) {}, nullptr));
+    const CardDimensions dims{4, 2, 160, 200};
+    auto files = make_files(20);
+    const std::string thumb = fixture_path("thumb_filters_rgba.png");
+    for (size_t i = 0; i < 6; ++i) {
+        files[i].thumbnail_path = thumb;
+        files[i].print_time_str = "1h";
+        files[i].filament_str = "10 g";
+    }
+    view.populate(files, dims);
+    lv_refr_now(nullptr);
+    REQUIRE(invalid_areas().empty());
+
+    // The same data again: nothing on screen changes, so nothing is redrawn.
+    view.refresh_content(files, dims);
+    CHECK(invalid_areas().empty());
+
+    // One file's metadata changes: only its card is redrawn.
+    files[3].print_time_str = "2h";
+    view.refresh_content(files, dims);
+    lv_obj_t* card = card_for(container, 3);
+    REQUIRE(card != nullptr);
+    lv_area_t card_area;
+    lv_obj_get_coords(card, &card_area);
+    const auto areas = invalid_areas();
+    REQUIRE_FALSE(areas.empty());
+    for (const lv_area_t& a : areas) {
+        CHECK(lv_area_is_in(&a, &card_area, 0));
     }
 
     view.cleanup();
