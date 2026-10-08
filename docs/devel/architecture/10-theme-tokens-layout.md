@@ -14,7 +14,7 @@ Counts, recounted 2026-09-23 (method included so you can re-run it):
 | Variant dirs with files | 3 | `find ui_xml -maxdepth 1 -type d`: `micro/` (5 files), `portrait/` (2 files), `micro_portrait/` (1 file) |
 | globals.xml | 963 lines | `wc -l ui_xml/globals.xml` — tiered consts + illustration colors, no semantic palette |
 | Top-level XML files the token scanner reads | 237 | `ls ui_xml/*.xml \| wc -l` — globals.xml plus 236 more, alphabetical last-wins |
-| Hardcoded-color lint baseline | 33 | `HEX_BASELINE` in [`scripts/quality-checks.sh`](../../../scripts/quality-checks.sh) (ratchets down only) |
+| Hardcoded-color lint baseline | 33 | `HEX_BASELINE` in [`scripts/qc/design_tokens.sh`](../../../scripts/qc/design_tokens.sh) (ratchets down only) |
 
 ```mermaid
 flowchart TB

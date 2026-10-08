@@ -76,18 +76,18 @@ stub_make() {
 # A predicate nobody consults is a file.
 
 @test "quality-checks.sh consults the predicate" {
-    contains "check_test_binary_current.sh" "$(cat scripts/quality-checks.sh)"
+    contains "check_test_binary_current.sh" "$(cat scripts/qc/hidden_tests.sh)"
 }
 
 @test "quality-checks.sh no longer gates the hidden set on a bare make -q" {
     local block
-    block=$(awk '/^qc_hidden_tests\(\)/{f=1} f&&/^}/{print;exit} f' scripts/quality-checks.sh)
+    block=$(awk '/^qc_hidden_tests\(\)/{f=1} f&&/^}/{print;exit} f' scripts/qc/hidden_tests.sh)
     lacks "make -q _PARALLEL_GUARD=1 build/bin/helix-tests" "$block"
 }
 
 @test "the hidden block runs the binary rather than a building make target" {
     local block
-    block=$(awk '/^qc_hidden_tests\(\)/{f=1} f&&/^}/{print;exit} f' scripts/quality-checks.sh)
+    block=$(awk '/^qc_hidden_tests\(\)/{f=1} f&&/^}/{print;exit} f' scripts/qc/hidden_tests.sh)
     contains 'build/bin/helix-tests "[.]"' "$block"
     lacks "if make test-hidden" "$block"
 }

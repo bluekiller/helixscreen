@@ -576,7 +576,7 @@ edit_an_applied_patch() {
 # measures one branch's patches/ against another branch's lib/.
 
 @test "qc_patch_drift defers when the caller says lib/ is borrowed" {
-    eval "$(sed -n "/^qc_patch_drift() {/,/^}/p" scripts/quality-checks.sh)"
+    . scripts/qc/patch_drift.sh
     section_time() { :; }
     HELIX_QC_SKIP_PATCH_DRIFT=1 run qc_patch_drift
     [ "$status" -eq 0 ]
@@ -584,7 +584,7 @@ edit_an_applied_patch() {
 }
 
 @test "qc_patch_drift runs the real gate when nothing defers it" {
-    eval "$(sed -n "/^qc_patch_drift() {/,/^}/p" scripts/quality-checks.sh)"
+    . scripts/qc/patch_drift.sh
     section_time() { :; }
     run qc_patch_drift
     ! echo "$output" | grep -q "deferred to the tree that owns lib/"
@@ -611,12 +611,12 @@ edit_an_applied_patch() {
 # tree that has a database.
 
 @test "qc_clang_divergence_deferred is set by the env flag" {
-    eval "$(sed -n "/^qc_clang_divergence_deferred() {/,/^}/p" scripts/quality-checks.sh)"
+    . scripts/qc/decl_ui.sh
     HELIX_QC_SKIP_CLANG_DIVERGENCE=1 qc_clang_divergence_deferred
 }
 
 @test "qc_clang_divergence_deferred is false without the flag" {
-    eval "$(sed -n "/^qc_clang_divergence_deferred() {/,/^}/p" scripts/quality-checks.sh)"
+    . scripts/qc/decl_ui.sh
     unset HELIX_QC_SKIP_CLANG_DIVERGENCE
     ! qc_clang_divergence_deferred
 }
@@ -624,7 +624,7 @@ edit_an_applied_patch() {
 @test "the clang section consults the predicate before running the gate" {
     # The deferral arm must come first, or an unbuilt isolated tree still fails.
     local sec
-    sec=$(awk '/Checking clang\/GCC divergence/,/check_clang_diagnostics.py not found/' scripts/quality-checks.sh)
+    sec=$(awk '/Checking clang\/GCC divergence/,/check_clang_diagnostics.py not found/' scripts/qc/decl_ui.sh)
     contains "if qc_clang_divergence_deferred; then" "$sec"
     contains 'elif [ "$STAGED_ONLY" = false ]' "$sec"
 }

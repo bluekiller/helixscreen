@@ -184,7 +184,7 @@ MAIN_EOF
 }
 
 @test "gate is wired into quality-checks.sh" {
-    run grep -q "check_installer_step_reachability.py" scripts/quality-checks.sh
+    run grep -q "check_installer_step_reachability.py" scripts/qc/installer_reachability.sh
     [ "$status" -eq 0 ]
 }
 

@@ -130,7 +130,7 @@ EOF
 # --- Wiring: the gate must actually be reachable ---------------------------
 
 @test "gate is wired into quality-checks.sh" {
-    run grep -q "check_android_asset_staging.py" scripts/quality-checks.sh
+    run grep -q "check_android_asset_staging.py" scripts/qc/design_pixels.sh
     [ "$status" -eq 0 ]
 }
 

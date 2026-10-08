@@ -300,7 +300,7 @@ tree_count() {
     # in CI), so a dirty local working tree — another session's WIP — cannot
     # false-fail this the way a whole-WT scan would.
     baseline=$(grep -oE 'check_hardcoded_pixels\.py --max-allowed [0-9]+' \
-                 scripts/quality-checks.sh | grep -oE '[0-9]+$')
+                 scripts/qc/design_pixels.sh | grep -oE '[0-9]+$')
     [ -n "$baseline" ]
     run python3 "$GATE" --staged-only --max-allowed "$baseline" --summary
     [ "$status" -eq 0 ]

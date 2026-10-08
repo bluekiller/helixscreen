@@ -51,7 +51,7 @@ TEST_CASE_METHOD(LVGLTestFixture,
 
     // Overlap is only real once the reader is running; a loaded machine can
     // otherwise finish the whole writer loop before the thread is scheduled.
-    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(60);
     while (lookups.load() == 0 && std::chrono::steady_clock::now() < deadline)
         std::this_thread::yield();
     const bool reader_started = lookups.load() > 0;

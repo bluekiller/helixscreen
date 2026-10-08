@@ -437,7 +437,9 @@ internals). Each test refreshes them with `init_subjects(true)`.
 
 ## Lint gates
 
-Gates live in `scripts/check_*.py` and run from `scripts/quality-checks.sh`. Every gate gets a
+Gates live in `scripts/check_*.py` and run from `scripts/quality-checks.sh`, each through its own
+`scripts/qc/<gate>.sh` named in the driver's `QC_ALL`. A test that drives a gate sources
+`scripts/qc/_lib.sh` and then that file; `qc_trigger <gate>` (helpers.bash) reads its trigger. Every gate gets a
 **meta-test** in `tests/shell/test_*_gate.bats` pinning both halves of its contract: the shape
 it must catch, and the idioms it must stay quiet about. A gate that fires on legitimate code
 gets switched off, so the silent cases matter as much as the loud ones.

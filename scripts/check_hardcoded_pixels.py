@@ -65,7 +65,7 @@ WHAT IS NOT FLAGGED
     Mirrors the existing DECLARATIVE_OK / TIMER_DTOR_OK convention.
 
 This is a RATCHET, not a wall. Hundreds of sites predate it. The number may go
-DOWN — convert a site, then lower the baseline in scripts/quality-checks.sh —
+DOWN — convert a site, then lower the baseline in scripts/qc/design_pixels.sh —
 but it must never go up.
 
 Usage:

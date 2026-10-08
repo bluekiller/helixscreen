@@ -4,6 +4,7 @@
 #include "ui_update_queue.h"
 
 #include "../../include/temp_graph_controller.h"
+#include "../../include/temp_graph_internal.h"
 #include "../../include/ui_temp_graph.h"
 #include "../test_helpers/temp_graph_controller_test_access.h"
 #include "../ui_test_utils.h"
@@ -78,14 +79,14 @@ TEST_CASE_METHOD(TempGraphControllerFixture, "Controller with series specs retur
     REQUIRE(controller->is_valid());
 
     // series_id_for should return valid (>= 0) IDs for added series
-    int extruder_id = controller->series_id_for("extruder");
-    int bed_id = controller->series_id_for("heater_bed");
-    REQUIRE(extruder_id >= 0);
-    REQUIRE(bed_id >= 0);
+    SeriesId extruder_id = controller->series_id_for("extruder");
+    SeriesId bed_id = controller->series_id_for("heater_bed");
+    REQUIRE(extruder_id != SeriesId::None);
+    REQUIRE(bed_id != SeriesId::None);
     REQUIRE(extruder_id != bed_id);
 
     // Nonexistent series returns -1
-    REQUIRE(controller->series_id_for("nonexistent_sensor") == -1);
+    REQUIRE(controller->series_id_for("nonexistent_sensor") == SeriesId::None);
 }
 
 TEST_CASE_METHOD(TempGraphControllerFixture, "Controller pause and resume do not crash",
@@ -132,15 +133,15 @@ TEST_CASE_METHOD(TempGraphControllerFixture,
 
     auto controller = std::make_unique<TempGraphController>(screen, cfg);
     REQUIRE(controller->is_valid());
-    REQUIRE(controller->series_id_for("extruder") >= 0);
+    REQUIRE(controller->series_id_for("extruder") != SeriesId::None);
 
     // Rebuild should recreate graph and series without crash
     REQUIRE_NOTHROW(controller->rebuild());
 
     REQUIRE(controller->is_valid());
     REQUIRE(controller->graph() != nullptr);
-    REQUIRE(controller->series_id_for("extruder") >= 0);
-    REQUIRE(controller->series_id_for("heater_bed") >= 0);
+    REQUIRE(controller->series_id_for("extruder") != SeriesId::None);
+    REQUIRE(controller->series_id_for("heater_bed") != SeriesId::None);
 }
 
 TEST_CASE_METHOD(TempGraphControllerFixture, "Controller with custom scale params does not crash",
@@ -196,8 +197,8 @@ TEST_CASE_METHOD(TempGraphControllerFixture,
     REQUIRE(controller->is_valid());
 
     // Verify series ID was assigned
-    int chamber_id = controller->series_id_for("heater_generic chamber");
-    REQUIRE(chamber_id >= 0);
+    SeriesId chamber_id = controller->series_id_for("heater_generic chamber");
+    REQUIRE(chamber_id != SeriesId::None);
 
     // Pump the observer callbacks through UpdateQueue
     auto& queue = helix::ui::UpdateQueue::instance();
@@ -243,8 +244,8 @@ TEST_CASE_METHOD(TempGraphControllerFixture,
     auto controller = std::make_unique<TempGraphController>(screen, cfg);
     REQUIRE(controller->is_valid());
 
-    int chamber_id = controller->series_id_for("temperature_fan chamber");
-    REQUIRE(chamber_id >= 0);
+    SeriesId chamber_id = controller->series_id_for("temperature_fan chamber");
+    REQUIRE(chamber_id != SeriesId::None);
 
     // Pump observer callbacks
     auto& queue = helix::ui::UpdateQueue::instance();
@@ -299,12 +300,14 @@ TEST_CASE_METHOD(TempGraphControllerFixture,
     auto* graph = controller->graph();
     lv_obj_t* chart = ui_temp_graph_get_chart(graph);
     auto first_point = [&](const char* name) {
-        int id = controller->series_id_for(name);
-        REQUIRE(id >= 0);
-        return lv_chart_get_series_y_array(chart, graph->series_meta[id].chart_series)[0];
+        SeriesId id = controller->series_id_for(name);
+        REQUIRE(id != SeriesId::None);
+        return lv_chart_get_series_y_array(
+            chart, helix::temp_graph_internal::find_meta_by_id(graph, id)->chart_series)[0];
     };
     auto target_of = [&](const char* name) {
-        return graph->series_meta[controller->series_id_for(name)].target_temp;
+        return helix::temp_graph_internal::find_meta_by_id(graph, controller->series_id_for(name))
+            ->target_temp;
     };
 
     CHECK(first_point("heater_generic filament_dryer") == 485);
@@ -383,7 +386,7 @@ TEST_CASE_METHOD(TempGraphControllerFixture,
     };
     auto controller = std::make_unique<TempGraphController>(screen, cfg);
     REQUIRE(controller->is_valid());
-    REQUIRE(controller->series_id_for("extruder") >= 0);
+    REQUIRE(controller->series_id_for("extruder") != SeriesId::None);
 
     // Drain queued observer callbacks. The extruder subject defaults to 0, and
     // the live observer drops non-positive readings, so the chart stays empty.
@@ -587,7 +590,7 @@ TEST_CASE_METHOD(TempGraphControllerFixture,
     };
     auto controller = std::make_unique<TempGraphController>(screen, cfg);
     REQUIRE(controller->is_valid());
-    REQUIRE(controller->series_id_for("extruder1") >= 0);
+    REQUIRE(controller->series_id_for("extruder1") != SeriesId::None);
 
     // When: discovery lands and extruder1 reports a temperature
     ps.temperature_state().init_extruders({"extruder", "extruder1"});
@@ -631,7 +634,9 @@ TEST_CASE_METHOD(TempGraphControllerFixture,
 
     // Nozzle is the first series: read its newest sample and ring position.
     auto* g = controller->graph();
-    auto* nozzle = g->series_meta[controller->series_id_for("extruder")].chart_series;
+    auto* nozzle =
+        helix::temp_graph_internal::find_meta_by_id(g, controller->series_id_for("extruder"))
+            ->chart_series;
     auto newest = [&] {
         const uint32_t pc = lv_chart_get_point_count(g->chart);
         const uint32_t sp = lv_chart_get_x_start_point(g->chart, nozzle);
