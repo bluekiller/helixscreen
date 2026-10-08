@@ -52,14 +52,14 @@ cleanup_mock_bindir() {
     rm -rf "$1"
 }
 
-# Extract select_binary and everything it calls from the launcher, so the
-# harness exercises the real code. A helper left out here does not fail the
-# harness: the shell reports "not found", returns 127, and the caller reads
-# that as an ordinary false — which looks exactly like a selection decision.
-extract_select_binary() {
+# Extract the named functions from the launcher, so a harness exercises the
+# real code. Name everything the function under test calls: a helper left out
+# does not fail the harness, the shell reports "not found", returns 127, and the
+# caller reads that as an ordinary false — which looks exactly like a decision.
+extract_launcher_functions() {
     local launcher="${PROJECT_ROOT}/scripts/helix-launcher.sh"
     local fn
-    for fn in log libs_resolve probe_egl select_binary; do
+    for fn in "$@"; do
         sed -n "/^${fn}()/,/^}/p" "$launcher"
     done
 }
@@ -72,7 +72,7 @@ create_test_harness() {
 #!/bin/sh
 # Extract select_binary from launcher
 HARNESS_EOF
-    extract_select_binary >> "$harness"
+    extract_launcher_functions log libs_resolve probe_egl select_binary >> "$harness"
     echo 'select_binary "$1"' >> "$harness"
     chmod +x "$harness"
     echo "$harness"
@@ -407,6 +407,74 @@ EOF
     cleanup_mock_bindir "$bindir"
 }
 
+# Create a harness that prints the backend the launcher hands the app
+create_backend_harness() {
+    local bindir="$1"
+    local harness="$bindir/_backend_harness.sh"
+    echo '#!/bin/sh' > "$harness"
+    extract_launcher_functions app_display_backend >> "$harness"
+    # shellcheck disable=SC2016 # the harness expands its own arguments
+    echo 'app_display_backend "$1" "$2"' >> "$harness"
+    chmod +x "$harness"
+    echo "$harness"
+}
+
+# Test: a forced EGL rung reaches the app as drm, the backend it presents through
+test_env_forced_egl_tells_app_drm() {
+    print_test "HELIX_DISPLAY_BACKEND=egl → app is told drm"
+    local bindir
+    bindir=$(setup_mock_bindir)
+
+    local harness
+    harness=$(create_backend_harness "$bindir")
+    local result
+    result=$(HELIX_DISPLAY_BACKEND=egl sh "$harness" "$bindir/helix-screen-egl" \
+        "$bindir/helix-screen-fbdev")
+
+    assert "[ '$result' = 'drm' ]" "EGL binary told drm, not egl"
+
+    cleanup_mock_bindir "$bindir"
+}
+
+# Test: a forced EGL rung with no EGL binary leaves the app to auto-detect
+test_env_forced_egl_missing_leaves_auto() {
+    print_test "HELIX_DISPLAY_BACKEND=egl, no EGL binary → app auto-detects"
+    local bindir
+    bindir=$(setup_mock_bindir)
+
+    local harness
+    harness=$(create_backend_harness "$bindir")
+    local result
+    result=$(HELIX_DISPLAY_BACKEND=egl sh "$harness" "$bindir/helix-screen" \
+        "$bindir/helix-screen-fbdev")
+
+    assert "[ -z '$result' ]" "No backend passed on for a single-binary install"
+
+    cleanup_mock_bindir "$bindir"
+}
+
+# Test: a forced EGL rung with no EGL binary on a dual-binary install tells the
+# app drm, the backend the selected primary presents through
+test_env_forced_egl_missing_dual_binary_tells_app_drm() {
+    print_test "HELIX_DISPLAY_BACKEND=egl, no EGL binary, fbdev installed → app is told drm"
+    local bindir
+    bindir=$(setup_mock_bindir)
+
+    echo '#!/bin/sh' > "$bindir/helix-screen"
+    echo '#!/bin/sh' > "$bindir/helix-screen-fbdev"
+    chmod +x "$bindir/helix-screen" "$bindir/helix-screen-fbdev"
+
+    local harness
+    harness=$(create_backend_harness "$bindir")
+    local result
+    result=$(HELIX_DISPLAY_BACKEND=egl sh "$harness" "$bindir/helix-screen" \
+        "$bindir/helix-screen-fbdev")
+
+    assert "[ '$result' = 'drm' ]" "Primary on a dual-binary install told drm"
+
+    cleanup_mock_bindir "$bindir"
+}
+
 # Run all tests
 main() {
     echo -e "${BOLD}${CYAN}Launcher Binary Selection Test Harness${RESET}"
@@ -424,6 +492,9 @@ main() {
     test_env_forced_egl
     test_env_forced_fbdev_beats_egl
     test_egl_missing_libs_skips_probe
+    test_env_forced_egl_tells_app_drm
+    test_env_forced_egl_missing_leaves_auto
+    test_env_forced_egl_missing_dual_binary_tells_app_drm
 
     # Print summary
     echo ""

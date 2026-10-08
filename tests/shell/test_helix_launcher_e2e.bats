@@ -104,16 +104,30 @@ fi
 ENVEOF
     chmod +x "$BATS_TEST_TMPDIR/env_setup.sh"
 
-    # Create a mock helix-screen that writes its args to a file for inspection
-    cat > "$MOCK_INSTALL/bin/helix-screen" << 'MOCKEOF'
+    install_recording_binary helix-screen
+}
+
+# Install a mock display binary that records its args and the display backend
+# it was started with, for test inspection
+install_recording_binary() {
+    cat > "$MOCK_INSTALL/bin/$1" << 'MOCKEOF'
 #!/bin/sh
-# Write all args to a file for test inspection
 for arg in "$@"; do
     echo "$arg"
 done > "$MOCK_INSTALL/helix_screen_args.txt"
+echo "$(basename "$0") ${HELIX_DISPLAY_BACKEND-<unset>}" > "$MOCK_INSTALL/helix_screen_backend.txt"
 exit 0
 MOCKEOF
-    chmod +x "$MOCK_INSTALL/bin/helix-screen"
+    chmod +x "$MOCK_INSTALL/bin/$1"
+}
+
+# Run the real launcher from the mock install and print "<binary> <backend>":
+# the display binary it chose and the backend that binary was started with
+launcher_backend() {
+    cp "$LAUNCHER" "$MOCK_INSTALL/bin/helix-launcher.sh"
+    rm -f "$MOCK_INSTALL/helix_screen_backend.txt"
+    MOCK_INSTALL="$MOCK_INSTALL" sh "$MOCK_INSTALL/bin/helix-launcher.sh" >/dev/null 2>&1 || true
+    cat "$MOCK_INSTALL/helix_screen_backend.txt"
 }
 
 # Helper: run the env setup snippet and print a variable's value
@@ -134,13 +148,43 @@ run_env_setup() {
     grep -q 'helixscreen.env' "$LAUNCHER"
 }
 
-@test "helix-launcher.sh contains fbdev default logic" {
-    grep -q 'HELIX_DISPLAY_BACKEND=fbdev' "$LAUNCHER"
+# =============================================================================
+# End-to-end: the display backend the chosen binary is started with
+# =============================================================================
+
+@test "e2e: a forced EGL rung starts helix-screen-egl with drm" {
+    install_recording_binary helix-screen-egl
+    export HELIX_DISPLAY_BACKEND=egl
+
+    run launcher_backend
+    [ "$output" = "helix-screen-egl drm" ]
 }
 
-@test "helix-launcher.sh does not override existing HELIX_DISPLAY_BACKEND" {
-    # The conditional must check if already set
-    grep -q 'if \[ -z "\${HELIX_DISPLAY_BACKEND:-}"' "$LAUNCHER"
+@test "e2e: a primary whose libraries do not resolve starts helix-screen-fbdev with fbdev" {
+    install_recording_binary helix-screen-fbdev
+    mock_command_script "ldd" 'echo "	libdrm.so.2 => not found"'
+    unset HELIX_DISPLAY_BACKEND
+
+    run launcher_backend
+    [ "$output" = "helix-screen-fbdev fbdev" ]
+}
+
+@test "e2e: a dual-binary install starts the primary with drm" {
+    install_recording_binary helix-screen-fbdev
+    mock_command_script "ldd" 'exit 0'
+    unset HELIX_DISPLAY_BACKEND
+
+    run launcher_backend
+    [ "$output" = "helix-screen drm" ]
+}
+
+@test "e2e: a backend the user set reaches the app unchanged" {
+    # No fbdev binary to select, so the launcher runs the primary; the user's
+    # value is still the one the app gets
+    export HELIX_DISPLAY_BACKEND=fbdev
+
+    run launcher_backend
+    [ "$output" = "helix-screen fbdev" ]
 }
 
 # =============================================================================
