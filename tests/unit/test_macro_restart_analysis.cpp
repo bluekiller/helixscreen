@@ -409,6 +409,8 @@ TEST_CASE("An end macro using plain SET_LED counts; a non-print macro does not",
     end_hw.set_led_driving_macros(analyze_led_driving_macros(
         macro_section("end_print", "    TURN_OFF_HEATERS\n    SET_LED LED=chamber WHITE=0\n")));
     CHECK(end_hw.print_macros_drive_leds());
+    end_hw.clear();
+    CHECK_FALSE(end_hw.print_macros_drive_leds());
 
     PrinterDiscovery other_hw;
     other_hw.set_led_driving_macros(analyze_led_driving_macros(merge({
