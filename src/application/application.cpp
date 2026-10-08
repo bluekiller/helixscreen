@@ -597,6 +597,10 @@ int Application::run(int argc, char** argv) {
         return 1;
     }
 
+    // init_display() forces the backlight to 100% so the panel is visible before
+    // any setting is loaded; the saved brightness exists only from here on.
+    m_display->ensure_display_on();
+
     get_printer_state().set_active_printer_name(m_config->get_active_printer_name());
 
     // Phase 9b: Initialize Moonraker (creates client + API)
