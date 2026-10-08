@@ -15,9 +15,11 @@
 #include "ui_update_queue.h"
 #include "ui_utils.h"
 
+#include "app_globals.h"
 #include "led/led_auto_state.h"
 #include "led/led_controller.h"
 #include "lvgl/src/others/translation/lv_translation.h"
+#include "printer_state.h"
 #include "theme_manager.h"
 #include "ui/ui_widget_helpers.h"
 
@@ -38,6 +40,8 @@ LedSettingsOverlay::~LedSettingsOverlay() {
 void LedSettingsOverlay::init_subjects() {
     UI_MANAGED_SUBJECT_INT(auto_state_enabled_subject_, 0, "led_auto_state_enabled", subjects_);
     UI_MANAGED_SUBJECT_INT(led_on_at_start_subject_, 0, "led_on_at_start_enabled", subjects_);
+    UI_MANAGED_SUBJECT_INT(print_macros_drive_leds_subject_, 0, "led_print_macros_drive_leds",
+                           subjects_);
 }
 
 namespace {
@@ -113,6 +117,8 @@ void LedSettingsOverlay::init_auto_state_toggle() {
     // The toggle row binds this subject, and the rows container hides on it
     lv_subject_set_int(&auto_state_enabled_subject_,
                        helix::led::LedAutoState::instance().is_enabled() ? 1 : 0);
+    lv_subject_set_int(&print_macros_drive_leds_subject_,
+                       get_printer_state().get_discovery().print_macros_drive_leds() ? 1 : 0);
 }
 
 void LedSettingsOverlay::populate_macro_devices() {

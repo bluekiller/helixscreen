@@ -604,6 +604,26 @@ class PrinterDiscovery {
         return host_halting_macros_;
     }
 
+    /// Macros that set LEDs, directly or through another macro, from
+    /// helix::analyze_led_driving_macros(); stored uppercased like macros_.
+    void set_led_driving_macros(std::unordered_set<std::string> macros) {
+        led_driving_macros_ = std::move(macros);
+    }
+
+    /// Whether the print start or end macro sets LEDs itself. Those fire at the
+    /// same state changes LedAutoState reacts to, so the two override each other.
+    [[nodiscard]] bool print_macros_drive_leds() const {
+        static constexpr const char* NAMES[] = {"PRINT_START",  "START_PRINT", "_PRINT_START",
+                                                "_START_PRINT", "PRINT_END",   "END_PRINT",
+                                                "_PRINT_END",   "_END_PRINT"};
+        for (const char* name : NAMES) {
+            if (led_driving_macros_.count(name) > 0) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     [[nodiscard]] std::string nozzle_clean_macro() const {
         return nozzle_clean_macro_;
     }
@@ -860,6 +880,7 @@ class PrinterDiscovery {
     std::unordered_map<std::string, std::string> macro_config_names_;
     std::unordered_set<std::string> host_restarting_macros_; ///< Macros that reach a host restart
     std::unordered_set<std::string> host_halting_macros_;    ///< Macros that reach a host halt
+    std::unordered_set<std::string> led_driving_macros_;     ///< Macros that set LEDs
     std::string sensor_toggle_command_; ///< Empty = the SET_FILAMENT_SENSOR builtin
     std::unordered_set<std::string> helix_macros_;
     std::string nozzle_clean_macro_;

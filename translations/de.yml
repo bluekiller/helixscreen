@@ -3830,6 +3830,7 @@ translations:
   You have unsaved changes. Discard them?: Sie haben ungespeicherte Änderungen. Verwerfen?
   Your completed prints will appear here: Ihre abgeschlossenen Drucke werden hier
     angezeigt
+  Your print start or end macro also sets LEDs. It and Automatic LED Control may override each other.: 'Ihr Druckstart- oder Druckende-Makro steuert ebenfalls LEDs. Es und die automatische LED-Steuerung können sich gegenseitig überschreiben.'
   Your printer at a glance: Ihr Drucker auf einen Blick
   Your printer has an automatic filament changer: Ihr Drucker hat einen automatischen
     Filamentwechsler
