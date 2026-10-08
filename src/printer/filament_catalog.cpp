@@ -35,10 +35,6 @@ std::string& user_overlay_dir_ref() {
 
 namespace {
 
-// Search paths for the built-in catalog (mirrors the old CFS loader).
-const std::vector<std::string> BUILTIN_PATHS = {"assets/filaments.json", "../assets/filaments.json",
-                                                "/opt/helixscreen/assets/filaments.json"};
-
 /// The user overlay sits in the user config dir with the app's other writable
 /// files, so the installer can link it out to printer_data. Resolved per call:
 /// HELIX_CONFIG_DIR is read at the time of use, like every writable_path().
@@ -244,7 +240,7 @@ FilamentCatalog::load_codes_cached(const std::string& scheme) {
 
 FilamentCatalog FilamentCatalog::load_codes(const std::string& scheme) {
     FilamentCatalog cat;
-    for (const auto& jp : read_products(BUILTIN_PATHS)) {
+    for (const auto& jp : read_products(builtin_candidate_paths())) {
         auto e = to_effective(jp);
         if (e.codes.find(scheme) != e.codes.end())
             cat.products_.push_back(std::move(e));
@@ -272,8 +268,14 @@ std::string first_existing(const std::vector<std::string>& paths) {
 
 } // namespace
 
+std::vector<std::string> FilamentCatalog::builtin_candidate_paths() {
+    return {helix::asset_path("assets/filaments.json"), "../assets/filaments.json",
+            "/opt/helixscreen/assets/filaments.json"};
+}
+
 FilamentCatalog FilamentCatalog::load_full() {
-    return load_with_overlay(first_existing(BUILTIN_PATHS), first_existing(user_paths()));
+    return load_with_overlay(first_existing(builtin_candidate_paths()),
+                             first_existing(user_paths()));
 }
 
 std::map<std::string, std::string> FilamentCatalog::load_user_orca_type_map() {
@@ -342,7 +344,7 @@ bool FilamentCatalog::overlay_file_is_corrupt(const std::string& path) {
 }
 
 std::string FilamentCatalog::builtin_asset_path() {
-    return first_existing(BUILTIN_PATHS);
+    return first_existing(builtin_candidate_paths());
 }
 
 std::string FilamentCatalog::user_overlay_path() {
