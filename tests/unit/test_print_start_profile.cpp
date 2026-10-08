@@ -1586,15 +1586,20 @@ TEST_CASE("PrintStartProfile: default profile carries only the heating and extru
     REQUIRE(nozzle.when[1].offset == -2.0);
 
     // Klipper refuses to extrude below min_extrude_temp, so filament moving
-    // forward means a hot nozzle laying down a purge or prime.
+    // forward while the head moves is a hot nozzle laying down a purge or
+    // prime line. Extrusion with the head still is a load push or a
+    // stationary purge, which the collector's purge-shape check judges.
     const auto& purge = rules[2];
     REQUIRE(purge.name == "purging");
     REQUIRE(purge.object == "motion_report");
     REQUIRE(purge.phase == PrintStartPhase::PURGING);
-    REQUIRE(purge.when.size() == 1);
+    REQUIRE(purge.when.size() == 2);
     REQUIRE(purge.when[0].field == "live_extruder_velocity");
     REQUIRE(purge.when[0].op == Op::GT);
     REQUIRE(purge.when[0].value == 0.0);
+    REQUIRE(purge.when[1].field == "live_velocity");
+    REQUIRE(purge.when[1].op == Op::GT);
+    REQUIRE(purge.when[1].value == 0.0);
     REQUIRE(purge.after_heat);
     REQUIRE_FALSE(nozzle.after_heat);
 
