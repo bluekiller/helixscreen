@@ -124,6 +124,7 @@ lv_area_t layered_compute_buf_area(lv_obj_t* obj, int32_t overhang) {
 void layered_render_overlay(lv_obj_t* obj, FilamentPathData* data) {
     if (!data->layers.overlay_canvas)
         return;
+    ++data->layers.render_count;
     lv_canvas_fill_bg(data->layers.overlay_canvas, lv_color_black(), LV_OPA_TRANSP);
 
     int32_t overhang = layered_overhang(lv_obj_get_height(obj));
@@ -150,6 +151,15 @@ void layered_refresh(lv_obj_t* obj) {
     auto* data = get_data(obj);
     if (!data || !data->layers.overlay_canvas)
         return;
+
+    // A widget nobody can see is painted when it is first drawn, at whatever
+    // size it has settled to by then, not at every size it passes through
+    // while hidden.
+    if (!lv_obj_is_visible(obj)) {
+        data->layers.refresh_deferred = true;
+        return;
+    }
+    data->layers.refresh_deferred = false;
 
     int32_t w = lv_obj_get_width(obj);
     int32_t h = lv_obj_get_height(obj);
@@ -205,6 +215,11 @@ void layered_mark_dirty(lv_obj_t* obj) {
             data->layers.refresh_timer.schedule_once([obj]() { layered_refresh(obj); });
     }
     lv_obj_invalidate(obj);
+}
+
+void layered_on_draw(lv_obj_t* obj, FilamentPathData* data) {
+    if (data->layers.refresh_deferred)
+        data->layers.refresh_timer.schedule_once([obj]() { layered_refresh(obj); });
 }
 
 // Create the canvas child, configure styles, schedule the first render. The

@@ -603,16 +603,17 @@ void ams_detail_setup_path_canvas(lv_obj_t* canvas, lv_obj_t* slot_grid, int uni
         ui_filament_path_canvas_set_extruder_tools(canvas, extruder_tools.data(), slot_count);
     }
 
-    // Set per-slot filament states (using local indices for unit-scoped views)
-    ui_filament_path_canvas_clear_slot_filaments(canvas);
+    // Set per-slot filament states (using local indices for unit-scoped views).
+    // Every slot is set, empty ones too, so an update that changes nothing
+    // repaints nothing.
     for (int i = 0; i < slot_count; ++i) {
         int global_idx = i + slot_offset;
         helix::PathSegment slot_seg = backend->get_slot_filament_segment(global_idx);
+        uint32_t color = 0x808080;
         if (slot_seg != helix::PathSegment::NONE) {
-            helix::SlotInfo si = backend->get_slot_info(global_idx);
-            ui_filament_path_canvas_set_slot_filament(canvas, i, static_cast<int>(slot_seg),
-                                                      si.color_rgb);
+            color = backend->get_slot_info(global_idx).color_rgb;
         }
+        ui_filament_path_canvas_set_slot_filament(canvas, i, static_cast<int>(slot_seg), color);
     }
 
     // The buffer box: AFC buffer health, Happy Hare sync feedback, or a
@@ -633,8 +634,6 @@ void ams_detail_setup_path_canvas(lv_obj_t* canvas, lv_obj_t* slot_grid, int uni
     if (show_bypass_spool) {
         ui_filament_path_canvas_set_bypass_color(canvas, ext_spool->color_rgb);
     }
-
-    ui_filament_path_canvas_refresh(canvas);
 
     spdlog::debug("[AmsDetail] Path canvas configured: slots={}, unit={}, hub_only={}", slot_count,
                   unit_index, hub_only);
