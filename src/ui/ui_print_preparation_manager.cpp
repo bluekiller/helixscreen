@@ -326,6 +326,7 @@ void PrintPreparationManager::analyze_print_start_macro() {
     // Skip if we already have a cached result
     if (macro_analysis_.has_value()) {
         spdlog::debug("[PrintPreparationManager] Using cached PRINT_START analysis");
+        publish_macro_option_count();
         if (on_macro_analysis_complete_) {
             on_macro_analysis_complete_(*macro_analysis_);
         }
@@ -375,6 +376,7 @@ void PrintPreparationManager::analyze_print_start_macro_internal() {
                               analysis.summary());
                 macro_analysis_ = analysis;
                 macro_analysis_in_progress_ = false;
+                publish_macro_option_count();
                 if (on_macro_analysis_complete_) {
                     on_macro_analysis_complete_(analysis);
                 }
@@ -434,6 +436,7 @@ void PrintPreparationManager::analyze_print_start_macro_internal() {
                 helix::PrintStartAnalysis not_found;
                 not_found.found = false;
                 macro_analysis_ = not_found;
+                publish_macro_option_count();
                 if (on_macro_analysis_complete_) {
                     on_macro_analysis_complete_(not_found);
                 }
@@ -490,6 +493,18 @@ CapabilityMatrix PrintPreparationManager::build_capability_matrix() const {
 
 void PrintPreparationManager::set_macro_analysis(const helix::PrintStartAnalysis& analysis) {
     macro_analysis_ = analysis;
+    publish_macro_option_count();
+}
+
+// The options card shows only when some row will render, and the rows this
+// analysis adds are invisible to PrinterState otherwise.
+void PrintPreparationManager::publish_macro_option_count() {
+    if (!printer_state_) {
+        return;
+    }
+    const size_t displayed = displayed_options().options.size();
+    const size_t declared = get_cached_options().options.size();
+    printer_state_->set_macro_option_count(displayed - declared);
 }
 
 void PrintPreparationManager::set_cached_scan_result(const gcode::ScanResult& scan,
