@@ -6,6 +6,7 @@
 #include "ui_temperature_utils.h"
 #include "ui_update_queue.h"
 
+#include "ams_state.h"
 #include "config.h"
 #include "format_utils.h"
 #include "json_utils.h"
@@ -14,6 +15,7 @@
 #include "printer_detector.h"
 #include "text_io.h"
 #include "thermal_rate_model.h"
+#include "unit_conversions.h"
 
 #include <spdlog/spdlog.h>
 
@@ -46,6 +48,11 @@ std::string trim_trailing_ellipsis(const std::string& s) {
 ///
 /// IDLE has no text of its own: the pre-print banner is hidden outside a print
 /// start, so nothing renders it.
+bool is_before_mesh(helix::PrintStartPhase phase) {
+    return phase != helix::PrintStartPhase::BED_MESH && phase != helix::PrintStartPhase::PURGING &&
+           phase != helix::PrintStartPhase::COMPLETE;
+}
+
 const char* phase_signal_message(helix::PrintStartPhase phase) {
     switch (phase) {
     case helix::PrintStartPhase::IDLE:
@@ -155,6 +162,7 @@ void PrintStartCollector::start() {
     {
         std::lock_guard<std::mutex> lock(state_mutex_);
         reset_run_locked();
+        leveling_points_ = state_.get_discovery().leveling_probe_points();
         // Snapshot stale subject values so fallbacks only trigger on real changes
         baseline_layer_ =
             lv_subject_get_int(state_.print_state().get_print_layer_current_subject());
@@ -297,6 +305,7 @@ void PrintStartCollector::start() {
                 auto* collector = static_cast<PrintStartCollector*>(lv_timer_get_user_data(timer));
                 if (collector) {
                     collector->update_eta_display();
+                    collector->check_purge_shape();
                     collector->check_fallback_completion();
                 }
             },
@@ -424,6 +433,8 @@ void PrintStartCollector::reset_run_locked() {
     // Position inference starts with a clean slate and a fresh sample clock
     position_classifier_.reset();
     last_position_activity_ = helix::PositionActivity::NONE;
+    leveling_descents_.reset();
+    purge_flow_.reset();
     position_clock_start_ = printing_state_start_;
 }
 
@@ -497,13 +508,27 @@ void PrintStartCollector::note_position_sample(float x_mm, float y_mm, float z_m
     if (!active_.load()) {
         return;
     }
-    helix::PositionActivity activity;
+    helix::PositionActivity activity = helix::PositionActivity::NONE;
     helix::PrintStartPhase phase;
+    std::optional<helix::PrintStartPhase> leveling;
+    bool classified = false;
+    check_purge_shape();
     {
         std::lock_guard<std::mutex> lock(state_mutex_);
-        if (!profile_ || !profile_->position_signals()) {
-            return;
+        phase = current_phase_;
+        if (!leveling_points_.empty() && is_before_mesh(phase)) {
+            leveling = leveling_descents_.note_position(leveling_points_, x_mm, y_mm, z_mm);
         }
+        classified = profile_ && profile_->position_signals();
+    }
+    if (leveling) {
+        apply_leveling_phase(*leveling);
+    }
+    if (!classified) {
+        return;
+    }
+    {
+        std::lock_guard<std::mutex> lock(state_mutex_);
         const auto now = helix::sim::SimulatedClock::now();
         const auto ms =
             std::chrono::duration_cast<std::chrono::milliseconds>(now - position_clock_start_)
@@ -527,9 +552,7 @@ void PrintStartCollector::note_position_sample(float x_mm, float y_mm, float z_m
     // firmware interleaves heating with rough-G28 centre probes, and the
     // bed-mesh flap may already have promoted the phase by corner-tour time
     // (the label is then moot, not wrong).
-    const bool before_mesh = phase != PrintStartPhase::BED_MESH &&
-                             phase != PrintStartPhase::PURGING &&
-                             phase != PrintStartPhase::COMPLETE;
+    const bool before_mesh = is_before_mesh(phase);
     switch (activity) {
     case helix::PositionActivity::CENTER_PROBE:
         if (before_mesh) {
@@ -553,6 +576,55 @@ void PrintStartCollector::note_position_sample(float x_mm, float y_mm, float z_m
     case helix::PositionActivity::NONE:
         break; // wipe already has its console marker; silence needs no label
     }
+}
+
+void PrintStartCollector::check_purge_shape() {
+    if (!active_.load()) {
+        return;
+    }
+    auto& motion = state_.motion_state();
+    const double x =
+        helix::units::from_centimm(lv_subject_get_int(motion.get_position_x_subject()));
+    const double y =
+        helix::units::from_centimm(lv_subject_get_int(motion.get_position_y_subject()));
+    const double z =
+        helix::units::from_centimm(lv_subject_get_int(motion.get_position_z_subject()));
+    const bool forward = lv_subject_get_int(motion.get_live_extruder_velocity_subject()) > 0;
+
+    helix::PurgeEvidence evidence;
+    auto& ams = AmsState::instance();
+    evidence.ams_present = ams.is_available();
+    if (evidence.ams_present) {
+        evidence.action =
+            static_cast<helix::AmsAction>(lv_subject_get_int(ams.get_ams_action_subject()));
+        evidence.filament_loaded = lv_subject_get_int(ams.get_filament_loaded_subject()) != 0;
+    }
+    evidence.heaters_at_target = at_target(frame_ext_temp_.load(std::memory_order_relaxed),
+                                           frame_ext_target_.load(std::memory_order_relaxed)) &&
+                                 at_target(frame_bed_temp_.load(std::memory_order_relaxed),
+                                           frame_bed_target_.load(std::memory_order_relaxed));
+
+    PrintStartPhase phase;
+    {
+        std::lock_guard<std::mutex> lock(state_mutex_);
+        phase = current_phase_;
+        const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                            helix::sim::SimulatedClock::now() - position_clock_start_)
+                            .count();
+        evidence.stationary_flow =
+            purge_flow_.note_sample(static_cast<uint64_t>(ms), forward, x, y, z);
+    }
+    if (phase == PrintStartPhase::PURGING || phase == PrintStartPhase::COMPLETE ||
+        !helix::is_purge(evidence)) {
+        return;
+    }
+    spdlog::info("[PrintStartCollector] stationary purge (action={} loaded={} flow={}) at "
+                 "x={:.1f} y={:.1f} z={:.1f}",
+                 static_cast<int>(evidence.action), evidence.filament_loaded,
+                 evidence.stationary_flow, x, y, z);
+    PrintStartProfile::MatchResult match{PrintStartPhase::PURGING,
+                                         phase_signal_message(PrintStartPhase::PURGING), 0};
+    apply_profile_match(match, /*marks_real_signal=*/false);
 }
 
 void PrintStartCollector::check_fallback_completion() {
@@ -1109,18 +1181,29 @@ void PrintStartCollector::on_gcode_response(const json& msg) {
     {
         bool in_mesh = false;
         bool in_leveling = false;
+        std::optional<PrintStartPhase> leveling;
         {
             std::lock_guard<std::mutex> lock(state_mutex_);
             in_mesh = (current_phase_ == PrintStartPhase::BED_MESH);
             // QGL and Z_TILT also fire "probe at X,Y is z=Z" lines via Klipper's
-            // shared probe routine. Voron 2.4 QGL probes 4 corner pads with
-            // `samples: 3` = 12 probe lines back-to-back, well over the
-            // pre-mesh entry threshold. Without this guard the collector
-            // would enter BED_MESH on the third QGL probe and count corner
-            // pads against the bed_mesh probe total, throwing the displayed
-            // "X / Y" count off by the number of leveling probes.
-            in_leveling = (current_phase_ == PrintStartPhase::QGL ||
-                           current_phase_ == PrintStartPhase::Z_TILT);
+            // shared probe routine; a Voron 2.4 QGL touches 4 corner pads with
+            // `samples: 3`. Those must neither enter BED_MESH nor count
+            // against its probe total. With the configured leveling points
+            // known, a probe at one of them is leveling and anything else is
+            // mesh, whatever the current phase. Without them, every probe
+            // line while QGL/Z_TILT is current is taken as leveling.
+            if (leveling_points_.empty()) {
+                in_leveling = (current_phase_ == PrintStartPhase::QGL ||
+                               current_phase_ == PrintStartPhase::Z_TILT);
+            } else if (is_before_mesh(current_phase_)) {
+                if (auto pos = helix::parse_probe_position(line)) {
+                    leveling = helix::leveling_phase_at(leveling_points_, pos->x, pos->y);
+                }
+            }
+        }
+        if (leveling) {
+            apply_leveling_phase(*leveling);
+            return; // leveling output, not mesh data or a profile pattern
         }
 
         bool is_probe_line =
@@ -1404,6 +1487,11 @@ void PrintStartCollector::apply_profile_match(const PrintStartProfile::MatchResu
         }
         spdlog::debug("[PrintStartCollector] Detected phase: {}", static_cast<int>(match.phase));
     }
+}
+
+void PrintStartCollector::apply_leveling_phase(helix::PrintStartPhase phase) {
+    PrintStartProfile::MatchResult match{phase, phase_signal_message(phase), 0};
+    apply_profile_match(match, /*marks_real_signal=*/false);
 }
 
 void PrintStartCollector::handle_phase_object_status(const json& status) {
