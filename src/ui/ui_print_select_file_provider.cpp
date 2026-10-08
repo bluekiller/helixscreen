@@ -59,7 +59,17 @@ void PrintSelectFileProvider::refresh_files(const std::string& current_path,
     // Build map of existing file data to preserve thumbnails/metadata
     std::unordered_map<std::string, PrintFileData> existing_data;
     for (const auto& file : existing_files) {
-        existing_data[file.filename] = file;
+        PrintFileData& kept = existing_data[file.filename];
+        kept = file;
+#if defined(HELIX_PLATFORM_ESP32)
+        // The panel's own entry carries its decoded image across the refresh. A
+        // copy held here would keep that image's PSRAM slot taken for as long as
+        // the listing request is in flight, past the card leaving the screen.
+        kept.esp_thumbnail.reset();
+        kept.esp_fetch_cancel.reset();
+        kept.esp_thumbnail_tried = false;
+        kept.esp_fetch_retried = false;
+#endif
     }
 
     auto* self = this;
