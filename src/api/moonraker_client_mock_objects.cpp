@@ -385,6 +385,9 @@ void register_object_handlers(std::unordered_map<std::string, MethodHandler>& re
                 // dragonbreath trio's max_temp 75 from HELIX_MOCK_OBJECTS.
                 const json chamber_sections = chamber_heater_configfile_sections(self);
                 status_obj["configfile"]["settings"].merge_patch(chamber_sections);
+                // Klipper lists every gcode_macro in settings too, with its gcode
+                // text; the macro call-graph analyzers read them from there.
+                status_obj["configfile"]["settings"].merge_patch(get_mock_gcode_macro_config());
                 status_obj["configfile"]["config"].merge_patch(chamber_sections);
                 for (const auto& [name, settings] : self->extra_config_settings().items()) {
                     status_obj["configfile"]["settings"][name] = settings;
@@ -921,6 +924,9 @@ void register_object_handlers(std::unordered_map<std::string, MethodHandler>& re
                 // max_temp 75 from HELIX_MOCK_OBJECTS.
                 const json chamber_sections = chamber_heater_configfile_sections(self);
                 status_obj["configfile"]["settings"].merge_patch(chamber_sections);
+                // Klipper lists every gcode_macro in settings too, with its gcode
+                // text; the macro call-graph analyzers read them from there.
+                status_obj["configfile"]["settings"].merge_patch(get_mock_gcode_macro_config());
                 status_obj["configfile"]["config"].merge_patch(chamber_sections);
                 for (const auto& [name, settings] : self->extra_config_settings().items()) {
                     status_obj["configfile"]["settings"][name] = settings;
