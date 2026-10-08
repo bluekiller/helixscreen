@@ -485,22 +485,32 @@ void ui_filament_path_canvas_set_slot_grid(lv_obj_t* obj, lv_obj_t* slot_grid) {
     if (!data)
         return;
 
-    data->slot_grid = slot_grid;
-
     // Pre-cache spool_container pointers to avoid per-frame lv_obj_find_by_name
-    std::memset(data->spool_containers, 0, sizeof(data->spool_containers));
+    lv_obj_t* containers[FilamentPathData::MAX_SLOTS] = {};
+    int child_count = 0;
     if (slot_grid) {
-        int child_count =
-            LV_MIN((int)lv_obj_get_child_count(slot_grid), FilamentPathData::MAX_SLOTS);
+        child_count = LV_MIN((int)lv_obj_get_child_count(slot_grid), FilamentPathData::MAX_SLOTS);
         for (int i = 0; i < child_count; i++) {
             lv_obj_t* slot = lv_obj_get_child(slot_grid, i);
             if (slot) {
-                data->spool_containers[i] = lv_obj_find_by_name(slot, "spool_container");
+                containers[i] = lv_obj_find_by_name(slot, "spool_container");
             }
         }
+    }
+
+    // The lanes are drawn from these slots' positions, so a different grid, or
+    // different slots in it, needs a repaint even when nothing else changed.
+    if (data->slot_grid == slot_grid &&
+        std::memcmp(data->spool_containers, containers, sizeof(containers)) == 0)
+        return;
+
+    data->slot_grid = slot_grid;
+    std::memcpy(data->spool_containers, containers, sizeof(containers));
+    if (slot_grid) {
         spdlog::debug("[FilamentPath] Cached {} spool_container pointers from slot_grid",
                       child_count);
     }
+    layered_mark_dirty(obj);
 }
 
 void ui_filament_path_canvas_set_active_slot(lv_obj_t* obj, int slot) {

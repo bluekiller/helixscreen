@@ -115,3 +115,76 @@ TEST_CASE_METHOD(LVGLTestFixture, "FilamentPath: a canvas shown with no state ch
     lv_obj_delete(box);
     process_lvgl(30);
 }
+
+TEST_CASE_METHOD(LVGLTestFixture,
+                 "FilamentPath: a state change while hidden paints once when shown",
+                 "[filament_path][render_once]") {
+    lv_obj_t* box = lv_obj_create(test_screen());
+    lv_obj_set_size(box, 600, 400);
+    lv_obj_add_flag(box, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_t* path = ui_filament_path_canvas_create(box);
+    REQUIRE(path != nullptr);
+    lv_obj_set_size(path, 470, 294);
+    lv_obj_update_layout(box);
+    process_lvgl(100);
+
+    auto* data = ui::fpath::get_data(path);
+    REQUIRE(data != nullptr);
+    ui_filament_path_canvas_set_filament_color(path, 0x12AB34);
+    ui_filament_path_canvas_set_slot_count(path, 6);
+    process_lvgl(100);
+    CHECK(data->layers.render_count == 0);
+
+    lv_obj_remove_flag(box, LV_OBJ_FLAG_HIDDEN);
+    lv_refr_now(nullptr);
+    process_lvgl(100);
+    CHECK(data->layers.render_count == 1);
+    CHECK(data->filament_color == 0x12AB34u);
+    CHECK(data->slot_count == 6);
+    CHECK_FALSE(data->layers.overlay_dirty);
+
+    lv_obj_delete(box);
+    process_lvgl(30);
+}
+
+TEST_CASE_METHOD(LVGLTestFixture, "FilamentPath: a different slot grid repaints the lanes",
+                 "[filament_path][render_once]") {
+    lv_obj_t* path = ui_filament_path_canvas_create(test_screen());
+    REQUIRE(path != nullptr);
+    lv_obj_set_size(path, 470, 294);
+    lv_obj_update_layout(path);
+    process_lvgl(100);
+    auto* data = ui::fpath::get_data(path);
+    REQUIRE(data != nullptr);
+
+    auto make_grid = [&](int slots) {
+        lv_obj_t* grid = lv_obj_create(test_screen());
+        for (int i = 0; i < slots; i++) {
+            lv_obj_t* slot = lv_obj_create(grid);
+            lv_obj_set_name(lv_obj_create(slot), "spool_container");
+        }
+        return grid;
+    };
+    lv_obj_t* grid_a = make_grid(4);
+    lv_obj_t* grid_b = make_grid(4);
+
+    ui_filament_path_canvas_set_slot_grid(path, grid_a);
+    process_lvgl(100);
+    const int after_a = data->layers.render_count;
+    REQUIRE(after_a >= 1);
+
+    // The same grid again is no change.
+    ui_filament_path_canvas_set_slot_grid(path, grid_a);
+    process_lvgl(100);
+    CHECK(data->layers.render_count == after_a);
+
+    // Another unit's grid, same slot count: the lanes start somewhere else.
+    ui_filament_path_canvas_set_slot_grid(path, grid_b);
+    process_lvgl(100);
+    CHECK(data->layers.render_count == after_a + 1);
+
+    lv_obj_delete(path);
+    lv_obj_delete(grid_a);
+    lv_obj_delete(grid_b);
+    process_lvgl(30);
+}

@@ -778,7 +778,7 @@ void AmsPanel::setup_slot_path_observers(int slot_count) {
 
     // Coalesced redraw handler (same pattern as path_segment_observer_): re-runs
     // the full path setup (which re-reads every slot's live segment + color and
-    // calls ui_filament_path_canvas_refresh) on the next deferred tick.
+    // repaints when any of them changed) on the next deferred tick.
     auto on_slot_path_change = [](AmsPanel* self, int) {
         if (!self->subjects_initialized_ || !self->panel_)
             return;
