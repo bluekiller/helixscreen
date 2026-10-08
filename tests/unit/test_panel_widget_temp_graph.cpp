@@ -185,8 +185,8 @@ TEST_CASE_METHOD(TempGraphFeatureFixture, "Gradient opacity zeroed when GRADIENT
     REQUIRE(graph != nullptr);
 
     // Add a series so we can check gradient state
-    int sid = ui_temp_graph_add_series(graph, "Nozzle", lv_color_hex(0xFF4444));
-    REQUIRE(sid >= 0);
+    SeriesId sid = ui_temp_graph_add_series(graph, "Nozzle", lv_color_hex(0xFF4444));
+    REQUIRE(sid != SeriesId::None);
 
     // Disable gradients
     ui_temp_graph_set_features(graph, TEMP_GRAPH_FEATURE_LINES);

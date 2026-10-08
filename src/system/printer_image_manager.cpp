@@ -439,6 +439,30 @@ PrinterImageManager::validate_image(const std::string& path) const {
 // Import + conversion
 // =============================================================================
 
+int PrinterImageManager::invalidate_printer_image_cache(const std::string& source_image_path) {
+    int removed = 0;
+
+    // An absent cache dir leaves nothing to invalidate.
+    if (const auto listing = helix::fs::list_dir(get_printer_image_cache_dir())) {
+        for (const auto& entry : *listing) {
+            if (!entry.is_regular)
+                continue;
+            if (printer_cache_entry_matches(entry.name, source_image_path)) {
+                if (helix::fs::remove(entry.path) || errno == ENOENT) {
+                    ++removed;
+                    spdlog::debug("[PrinterCache] Invalidated cache: {}", entry.name);
+                }
+            }
+        }
+    }
+
+    if (removed > 0) {
+        spdlog::info("[PrinterCache] Invalidated {} cache entries for '{}'", removed,
+                     source_image_path);
+    }
+    return removed;
+}
+
 bool PrinterImageManager::convert_to_bin(const uint8_t* pixels, int w, int h,
                                          const std::string& output_path, int target_size) {
     // Calculate target dimensions maintaining aspect ratio

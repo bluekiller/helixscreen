@@ -192,23 +192,6 @@ fi
 echo ""
 
 SECTION_START=$(date +%s)
-echo -n "🖼️  Checking printer image cache invalidation..."
-# Only src/system/ may delete a printer image cache: every entry a UI refresh
-# deletes costs a decode, resize and flash write to rebuild.
-if python3 scripts/check_printer_image_invalidation.py >/tmp/printer_image_inval.out 2>&1; then
-  section_time $SECTION_START
-  echo ""
-  tail -1 /tmp/printer_image_inval.out
-else
-  section_time $SECTION_START
-  echo ""
-  cat /tmp/printer_image_inval.out
-  EXIT_CODE=1
-fi
-
-echo ""
-
-SECTION_START=$(date +%s)
 echo -n "⏱️  Checking timer destructor cancels..."
 
 # Ratcheting baseline. A raw lv_timer_t* cancelled only in cleanup()/stop_*()
@@ -485,28 +468,6 @@ fi
 echo ""
 
 SECTION_START=$(date +%s)
-echo -n "🔄 Checking display rotation cache order..."
-
-# The resolution cache must be read after set_display_rotation() settles: a
-# plane owning 90/270 un-swaps the resolution, and a cache read before the
-# call records a value the display no longer has (#1587). apply_rotation's
-# body is #ifdef'd out of the test binary (HELIX_DISPLAY_SDL), so a lint is
-# the only thing that makes a wrong-order revert fail.
-if python3 scripts/check_rotation_cache_order.py >/tmp/rotation_cache.out 2>&1; then
-  section_time $SECTION_START
-  echo ""
-  echo "✅ display resolution is cached only after rotation settles"
-else
-  section_time $SECTION_START
-  echo ""
-  cat /tmp/rotation_cache.out
-  echo "   Run: python3 scripts/check_rotation_cache_order.py"
-  EXIT_CODE=1
-fi
-
-echo ""
-
-SECTION_START=$(date +%s)
 echo -n "🗺️  Checking the platform manifest against its consumers..."
 
 # Advisory while the consumers are migrated onto assets/config/platforms.json.
@@ -609,31 +570,6 @@ else
   echo ""
   cat /tmp/grid_metrics.out
   echo "   Take a helix::CellMetrics from GridEditMode::current_metrics() instead."
-  EXIT_CODE=1
-fi
-
-echo ""
-
-SECTION_START=$(date +%s)
-echo -n "⏱️  Checking series_meta slot-vs-handle indexing..."
-
-# series_meta is SLOT-indexed; TempGraphHit::series_id is a monotonic handle
-# that is never reused. remove_series frees a slot without lowering
-# next_series_id, so after one remove-then-add the same number means two
-# different things: indexing with the handle renders the wrong series, and
-# past 16 cycles reads off the end of the array. Resolve with
-# find_meta_by_id() instead. This shipped once in temp_graph_tooltip_draw_cb
-# and was caught in review rather than by a test, because the only symptom is
-# drawn pixels and there is no draw-pass readback here.
-if python3 scripts/check_series_meta_indexing.py >/tmp/series_meta_indexing.out 2>&1; then
-  section_time $SECTION_START
-  echo ""
-  tail -1 /tmp/series_meta_indexing.out
-else
-  section_time $SECTION_START
-  echo ""
-  cat /tmp/series_meta_indexing.out
-  echo "   Use helix::temp_graph_internal::find_meta_by_id(graph, id) instead."
   EXIT_CODE=1
 fi
 

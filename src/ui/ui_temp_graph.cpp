@@ -47,18 +47,11 @@ static inline void mark_gradient_cache_dirty(ui_temp_graph_t* graph) {
 // Helper: Find series metadata by ID
 // Returns nullptr if graph, chart, or series is invalid (protects against use-after-free
 // when chart LVGL widget is destroyed but ui_temp_graph_t struct survives)
-static ui_temp_series_meta_t* find_series(ui_temp_graph_t* graph, int series_id) {
-    if (!graph || !graph->chart || series_id < 0 || series_id >= UI_TEMP_GRAPH_MAX_SERIES) {
+static ui_temp_series_meta_t* find_series(ui_temp_graph_t* graph, SeriesId series_id) {
+    if (!graph || !graph->chart) {
         return nullptr;
     }
-
-    for (int i = 0; i < UI_TEMP_GRAPH_MAX_SERIES; i++) {
-        if (graph->series_meta[i].id == series_id &&
-            graph->series_meta[i].chart_series != nullptr) {
-            return &graph->series_meta[i];
-        }
-    }
-    return nullptr;
+    return helix::temp_graph_internal::find_meta_by_id(graph, series_id);
 }
 
 namespace helix::temp_graph_internal {
@@ -1886,15 +1879,15 @@ lv_obj_t* ui_temp_graph_get_chart(ui_temp_graph_t* graph) {
 }
 
 // Add a new temperature series
-int ui_temp_graph_add_series(ui_temp_graph_t* graph, const char* name, lv_color_t color) {
+SeriesId ui_temp_graph_add_series(ui_temp_graph_t* graph, const char* name, lv_color_t color) {
     if (!graph || !graph->chart || !name) {
         spdlog::error("[TempGraph] NULL graph, chart, or name");
-        return -1;
+        return SeriesId::None;
     }
 
     if (graph->series_count >= UI_TEMP_GRAPH_MAX_SERIES) {
         spdlog::error("[TempGraph] Maximum series count ({}) reached", UI_TEMP_GRAPH_MAX_SERIES);
-        return -1;
+        return SeriesId::None;
     }
 
     // Find next available slot
@@ -1908,14 +1901,14 @@ int ui_temp_graph_add_series(ui_temp_graph_t* graph, const char* name, lv_color_
 
     if (slot == -1) {
         spdlog::error("[TempGraph] No available series slots");
-        return -1;
+        return SeriesId::None;
     }
 
     // Create LVGL chart series
     lv_chart_series_t* ser = lv_chart_add_series(graph->chart, color, LV_CHART_AXIS_PRIMARY_Y);
     if (!ser) {
         spdlog::error("[TempGraph] Failed to create chart series");
-        return -1;
+        return SeriesId::None;
     }
 
     // Initialize all points to POINT_NONE (no data) so empty chart doesn't show false history.
@@ -1924,7 +1917,7 @@ int ui_temp_graph_add_series(ui_temp_graph_t* graph, const char* name, lv_color_
 
     // Initialize series metadata
     ui_temp_series_meta_t* meta = &graph->series_meta[slot];
-    meta->id = graph->next_series_id++;
+    meta->id = static_cast<SeriesId>(graph->next_series_id++);
     meta->chart_series = ser;
     meta->color = color;
     strncpy(meta->name, name, sizeof(meta->name) - 1);
@@ -1944,7 +1937,7 @@ int ui_temp_graph_add_series(ui_temp_graph_t* graph, const char* name, lv_color_
         lv_chart_remove_series(graph->chart, ser);
         memset(meta, 0, sizeof(ui_temp_series_meta_t));
         meta->chart_series = nullptr;
-        return -1;
+        return SeriesId::None;
     }
     meta->target_cap = graph->point_count;
 
@@ -1961,7 +1954,7 @@ int ui_temp_graph_add_series(ui_temp_graph_t* graph, const char* name, lv_color_
 }
 
 // Remove a temperature series
-void ui_temp_graph_remove_series(ui_temp_graph_t* graph, int series_id) {
+void ui_temp_graph_remove_series(ui_temp_graph_t* graph, SeriesId series_id) {
     ui_temp_series_meta_t* meta = find_series(graph, series_id);
     if (!meta) {
         spdlog::error("[TempGraph] Series {} not found", series_id);
@@ -1991,7 +1984,8 @@ void ui_temp_graph_remove_series(ui_temp_graph_t* graph, int series_id) {
 }
 
 // Rename a series; the legend draws its name
-void helix::temp_graph_set_series_name(ui_temp_graph_t* graph, int series_id, const char* name) {
+void helix::temp_graph_set_series_name(ui_temp_graph_t* graph, SeriesId series_id,
+                                       const char* name) {
     ui_temp_series_meta_t* meta = find_series(graph, series_id);
     if (!meta || !name) {
         return;
@@ -2002,7 +1996,7 @@ void helix::temp_graph_set_series_name(ui_temp_graph_t* graph, int series_id, co
 }
 
 // Show or hide a series
-void ui_temp_graph_show_series(ui_temp_graph_t* graph, int series_id, bool visible) {
+void ui_temp_graph_show_series(ui_temp_graph_t* graph, SeriesId series_id, bool visible) {
     ui_temp_series_meta_t* meta = find_series(graph, series_id);
     if (!meta) {
         spdlog::error("[TempGraph] Series {} not found", series_id);
@@ -2046,7 +2040,7 @@ static void push_target_sample(ui_temp_series_meta_t* meta) {
 }
 
 // Add a single temperature point (push mode)
-void ui_temp_graph_update_series(ui_temp_graph_t* graph, int series_id, float temp) {
+void ui_temp_graph_update_series(ui_temp_graph_t* graph, SeriesId series_id, float temp) {
     ui_temp_series_meta_t* meta = find_series(graph, series_id);
     if (!meta) {
         spdlog::error("[TempGraph] Series {} not found", series_id);
@@ -2078,7 +2072,7 @@ void ui_temp_graph_update_series(ui_temp_graph_t* graph, int series_id, float te
 }
 
 // Add temperature point with timestamp (for X-axis labels)
-void ui_temp_graph_update_series_with_time(ui_temp_graph_t* graph, int series_id, float temp,
+void ui_temp_graph_update_series_with_time(ui_temp_graph_t* graph, SeriesId series_id, float temp,
                                            int64_t timestamp_ms) {
     ui_temp_series_meta_t* meta = find_series(graph, series_id);
     if (!meta) {
@@ -2134,7 +2128,7 @@ void ui_temp_graph_update_series_with_time(ui_temp_graph_t* graph, int series_id
 }
 
 // Replace all data points (array mode)
-void ui_temp_graph_set_series_data(ui_temp_graph_t* graph, int series_id, const float* temps,
+void ui_temp_graph_set_series_data(ui_temp_graph_t* graph, SeriesId series_id, const float* temps,
                                    int count) {
     ui_temp_series_meta_t* meta = find_series(graph, series_id);
     if (!meta || !temps || count <= 0) {
@@ -2182,7 +2176,7 @@ void ui_temp_graph_set_series_data(ui_temp_graph_t* graph, int series_id, const 
 // Replace all data + target history for a series (array mode, parallel arrays).
 // Used by backfill paths that have both temp and target history per sample
 // (e.g., TemperatureHistoryManager::get_samples_since() replay).
-void ui_temp_graph_set_series_data_with_targets(ui_temp_graph_t* graph, int series_id,
+void ui_temp_graph_set_series_data_with_targets(ui_temp_graph_t* graph, SeriesId series_id,
                                                 const float* temps, const float* targets,
                                                 int count) {
     ui_temp_series_meta_t* meta = find_series(graph, series_id);
@@ -2271,7 +2265,7 @@ void ui_temp_graph_clear(ui_temp_graph_t* graph) {
 }
 
 // Clear data for a specific series
-void ui_temp_graph_clear_series(ui_temp_graph_t* graph, int series_id) {
+void ui_temp_graph_clear_series(ui_temp_graph_t* graph, SeriesId series_id) {
     ui_temp_series_meta_t* meta = find_series(graph, series_id);
     if (!meta) {
         spdlog::error("[TempGraph] Series {} not found", series_id);
@@ -2295,7 +2289,7 @@ void ui_temp_graph_clear_series(ui_temp_graph_t* graph, int series_id) {
 }
 
 // Set target temperature and visibility
-void ui_temp_graph_set_series_target(ui_temp_graph_t* graph, int series_id, float target,
+void ui_temp_graph_set_series_target(ui_temp_graph_t* graph, SeriesId series_id, float target,
                                      bool show) {
     ui_temp_series_meta_t* meta = find_series(graph, series_id);
     if (!meta) {
@@ -2312,7 +2306,7 @@ void ui_temp_graph_set_series_target(ui_temp_graph_t* graph, int series_id, floa
 }
 
 // Show or hide target temperature line
-void ui_temp_graph_show_target(ui_temp_graph_t* graph, int series_id, bool show) {
+void ui_temp_graph_show_target(ui_temp_graph_t* graph, SeriesId series_id, bool show) {
     ui_temp_series_meta_t* meta = find_series(graph, series_id);
     if (!meta) {
         spdlog::error("[TempGraph] Series {} not found", series_id);
@@ -2324,7 +2318,7 @@ void ui_temp_graph_show_target(ui_temp_graph_t* graph, int series_id, bool show)
 
 // Stage a new current target without pushing into the history buffer.
 // The buffer push happens on the next actuals sample (push_target_sample).
-void ui_temp_graph_set_current_target(ui_temp_graph_t* graph, int series_id, float target,
+void ui_temp_graph_set_current_target(ui_temp_graph_t* graph, SeriesId series_id, float target,
                                       bool show) {
     ui_temp_series_meta_t* meta = find_series(graph, series_id);
     if (!meta) {
@@ -2400,8 +2394,8 @@ void ui_temp_graph_set_point_count(ui_temp_graph_t* graph, int count) {
 }
 
 // Set gradient opacity for a series
-void ui_temp_graph_set_series_gradient(ui_temp_graph_t* graph, int series_id, lv_opa_t bottom_opa,
-                                       lv_opa_t top_opa) {
+void ui_temp_graph_set_series_gradient(ui_temp_graph_t* graph, SeriesId series_id,
+                                       lv_opa_t bottom_opa, lv_opa_t top_opa) {
     ui_temp_series_meta_t* meta = find_series(graph, series_id);
     if (!meta) {
         spdlog::error("[TempGraph] Series {} not found", series_id);

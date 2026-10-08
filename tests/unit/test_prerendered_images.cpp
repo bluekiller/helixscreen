@@ -12,6 +12,7 @@
 
 #include "../../include/lvgl_image_writer.h"
 #include "../../include/prerendered_images.h"
+#include "../../include/printer_image_manager.h"
 
 #include <array>
 #include <cstdint>
@@ -25,6 +26,15 @@
 #include "../catch_amalgamated.hpp"
 
 using namespace helix;
+
+namespace helix {
+class PrinterImageManagerTestAccess {
+  public:
+    static int invalidate_printer_image_cache(const std::string& source_image_path) {
+        return PrinterImageManager::invalidate_printer_image_cache(source_image_path);
+    }
+};
+} // namespace helix
 
 // ============================================================================
 // Splash Screen Size Selection Tests
@@ -543,14 +553,15 @@ TEST_CASE("Invalidating a printer PNG spares the prerendered variants' caches",
         REQUIRE(std::filesystem::exists(entry));
     }
 
-    CHECK(invalidate_printer_image_cache("A:assets/images/printers/" + stem + ".png") == 1);
+    CHECK(PrinterImageManagerTestAccess::invalidate_printer_image_cache(
+              "A:assets/images/printers/" + stem + ".png") == 1);
     CHECK_FALSE(std::filesystem::exists(png_entry));
     CHECK(std::filesystem::exists(tier300_entry));
     CHECK(std::filesystem::exists(tier150_entry));
 
     // Each prerendered variant still owns, and can still clear, its own entries.
-    CHECK(invalidate_printer_image_cache("A:assets/images/printers/prerendered/" + stem +
-                                         "-300.bin") == 1);
+    CHECK(PrinterImageManagerTestAccess::invalidate_printer_image_cache(
+              "A:assets/images/printers/prerendered/" + stem + "-300.bin") == 1);
     CHECK_FALSE(std::filesystem::exists(tier300_entry));
     CHECK(std::filesystem::exists(tier150_entry));
 
