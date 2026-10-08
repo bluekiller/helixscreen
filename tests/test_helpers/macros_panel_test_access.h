@@ -74,6 +74,9 @@ struct MacrosPanelTestAccess {
     static int save_hidden_subject(MacrosPanel& p) {
         return lv_subject_get_int(&p.macros_edit_save_hidden_);
     }
+    static size_t item_in_slot(MacrosPanel& p, size_t slot) {
+        return p.item_in_slot(slot);
+    }
     /// Hand the panel a discovered list without an API.
     static void seed(MacrosPanel& p, std::vector<std::string> macros) {
         std::sort(macros.begin(), macros.end());

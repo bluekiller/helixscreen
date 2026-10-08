@@ -371,3 +371,58 @@ TEST_CASE_METHOD(MacrosRowsFixture, "A taller Macros viewport fills with rows",
     CHECK(cards().size() > slots_short);
     CHECK(shown_rows.back().area.y2 >= view.y2);
 }
+
+TEST_CASE_METHOD(MacrosRowsFixture,
+                 "A Macros list that shrinks while scrolled shows the rows its slots hold",
+                 "[macros][macros_rows]") {
+    const auto macros = many_macros(200);
+    open(macros);
+    lv_obj_scroll_to_y(list(), 6000, LV_ANIM_OFF);
+    settle();
+    REQUIRE(lv_obj_get_scroll_y(list()) > 3000);
+
+    const std::vector<std::string> fewer(macros.begin(), macros.begin() + 30);
+    MacrosPanelTestAccess::seed(panel, fewer);
+    MacrosPanelTestAccess::rebuild(panel);
+    settle();
+
+    const auto shown_rows = rows();
+    REQUIRE_FALSE(shown_rows.empty());
+    CHECK(shown_rows.back().label == shown(fewer.back()));
+    const auto& displayed = MacrosPanelTestAccess::displayed(panel);
+    for (const auto& r : shown_rows) {
+        const char* name = lv_obj_get_name(r.card);
+        REQUIRE(name != nullptr);
+        size_t slot = 0;
+        REQUIRE(std::sscanf(name, "macro_slot_%zu", &slot) == 1);
+        const size_t item = MacrosPanelTestAccess::item_in_slot(panel, slot);
+        REQUIRE(item < displayed.size());
+        CHECK(r.label == shown(displayed[item]));
+    }
+    lv_area_t view;
+    lv_obj_get_coords(list(), &view);
+    CHECK(shown_rows.front().area.y1 <= view.y1);
+    CHECK(shown_rows.back().area.y2 >= view.y1);
+}
+
+TEST_CASE_METHOD(MacrosRowsFixture, "A Macros edit toggle survives scrolling its row away and back",
+                 "[macros][macros_rows]") {
+    const auto macros = many_macros(200);
+    open(macros);
+    long_press(row_named(macros[2]));
+    REQUIRE(checked(row_named(macros[2])));
+
+    tap(row_named(macros[2]));
+    REQUIRE_FALSE(checked(row_named(macros[2])));
+    CHECK(checked(row_named(macros[3])));
+
+    lv_obj_scroll_to_y(list(), 6000, LV_ANIM_OFF);
+    settle();
+    for (const auto& r : rows())
+        REQUIRE(r.label != shown(macros[2]));
+
+    lv_obj_scroll_to_y(list(), 0, LV_ANIM_OFF);
+    settle();
+    CHECK_FALSE(checked(row_named(macros[2])));
+    CHECK(checked(row_named(macros[3])));
+}

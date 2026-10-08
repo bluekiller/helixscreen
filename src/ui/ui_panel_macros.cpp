@@ -121,7 +121,18 @@ void MacrosPanel::register_callbacks() {
              // measuring needs a layout pass, which cannot nest inside the one
              // reporting this resize.
              auto& self = get_global_macros_panel();
-             self.lifetime_.defer("MacrosPanel::relayout", [&self]() { self.layout_rows(); });
+             self.lifetime_.defer("MacrosPanel::relayout", [&self]() {
+                 if (!self.scroll_container_) {
+                     return;
+                 }
+                 if (lv_obj_get_width(self.scroll_container_) != self.measured_width_ ||
+                     lv_obj_get_content_height(self.scroll_container_) !=
+                         self.measured_viewport_h_) {
+                     self.layout_rows();
+                 } else {
+                     self.update_visible(false);
+                 }
+             });
          }},
         {"on_macros_edit_save",
          [](lv_event_t*) { get_global_macros_panel().exit_edit_mode(true); }},
@@ -154,6 +165,7 @@ lv_obj_t* MacrosPanel::create(lv_obj_t* parent) {
     row_tops_.clear();
     shown_first_ = shown_last_ = -1;
     last_leading_ = last_trailing_ = -1;
+    measured_width_ = measured_viewport_h_ = -1;
 
     helix::LapLog laps("MacrosPanel");
     if (!OverlayBase::create(parent)) {
@@ -390,6 +402,13 @@ void MacrosPanel::layout_rows() {
     }
     std::fill(slot_items_.begin(), slot_items_.end(), -1);
     update_visible(true);
+    // A list that shrank can leave the scroll position past its new end; clamp it and
+    // show the rows that brings into view.
+    lv_obj_update_layout(scroll_container_);
+    lv_obj_readjust_scroll(scroll_container_, LV_ANIM_OFF);
+    update_visible(false);
+    measured_width_ = lv_obj_get_width(scroll_container_);
+    measured_viewport_h_ = lv_obj_get_content_height(scroll_container_);
     laps.lap("show rows");
 }
 

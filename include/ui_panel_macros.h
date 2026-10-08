@@ -163,6 +163,8 @@ class MacrosPanel : public OverlayBase {
     std::vector<ssize_t> slot_items_;     ///< Slot -> displayed_ index (-1 = parked)
     std::vector<int> row_tops_;           ///< displayed_ row tops; back() = list height
     int shown_first_ = -1, shown_last_ = -1;
+    int measured_width_ = -1;      ///< List width the rows were last laid out at
+    int measured_viewport_h_ = -1; ///< List content height the slot pool was sized for
     int last_leading_ = -1, last_trailing_ = -1;
 
     // === Per-slot subject pools (grow-only; reclaimed on close) ===
