@@ -611,6 +611,7 @@ class PrintHistoryManager {
     bool hold_until_discovery_ = false;
     bool discovered_ = false;
     int held_scope_ = kNoFetch; ///< Widest fetch asked for while held
+    int last_conn_state_ = 0;   ///< Connection subject value the gate last saw
     ObserverGuard discovery_gate_observer_;
 
     int wire_page_jobs_ = kWirePageJobs;

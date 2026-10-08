@@ -3976,6 +3976,8 @@ translations:
   '{} is still printing. The print keeps running after you switch.': '{} sigue imprimiendo. La impresión continúa después de cambiar.'
   '{} is not set up on this printer': '{} no está configurado en esta impresora'
   '{} lines in helixscreen.env were ignored': '{} líneas de helixscreen.env fueron ignoradas'
+  '{} kept crashing the panel; switched back to {}': '{} bloqueó la pantalla repetidamente; se volvió a {}'
+  '{} kept crashing the panel; pick a printer to connect': '{} bloqueó la pantalla repetidamente; elige una impresora para conectar'
   '{} macro not configured': Macro {} no configurado
   '{} matches.': '{} coincide.'
   '{} may cause unintended changes. Are you sure?': '{} puede causar cambios no deseados.
