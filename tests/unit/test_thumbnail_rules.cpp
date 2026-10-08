@@ -5,9 +5,12 @@
 // writers that must apply them: nothing the cache names `.png` may hold
 // anything but PNG bytes.
 
+#include "ui_update_queue.h"
+
 #include "../helix_test_fixture.h"
 #include "../lvgl_test_fixture.h"
 #include "../test_helpers/thumbnail_processor_test_access.h"
+#include "async_lifetime_guard.h"
 #include "http_request_epoch.h"
 #include "moonraker_api_mock.h"
 #include "moonraker_client_mock.h"
@@ -17,10 +20,16 @@
 #include "thumbnail_processor.h"
 #include "thumbnail_rules.h"
 
+#include <atomic>
+#include <chrono>
+#include <ctime>
 #include <filesystem>
 #include <fstream>
+#include <functional>
 #include <iterator>
 #include <string>
+#include <sys/stat.h>
+#include <utime.h>
 #include <vector>
 
 #include "../catch_amalgamated.hpp"
@@ -94,6 +103,12 @@ TEST_CASE("ensure_png passes PNG, re-encodes JPEG, refuses the rest", "[thumbnai
     REQUIRE_FALSE(from_jpeg.empty());
     CHECK(helix::sniff_image_format(from_jpeg) == ImageFormat::Png);
     CHECK(helix::is_complete_image(from_jpeg));
+
+    // A cut JPEG never reaches the decoder, even one cut so late (just the
+    // EOI marker missing) that the decoder would make something of it.
+    const auto jpeg = read_bytes(kJpegAsset);
+    CHECK(helix::ensure_png({jpeg.begin(), jpeg.begin() + jpeg.size() / 2}).empty());
+    CHECK(helix::ensure_png({jpeg.begin(), jpeg.end() - 2}).empty());
 
     CHECK(helix::ensure_png(qoi_bytes()).empty());
     CHECK(helix::ensure_png({0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, 0x4A, 0x46}).empty());
@@ -220,4 +235,154 @@ TEST_CASE("A cached thumbnail is found only under the source it was saved as",
     CHECK(cache.get_if_cached(req).empty());
 
     cache.invalidate(helix::thumbnail_cache_id(helix::ThumbnailSource::Usb, id));
+}
+
+// ============================================================================
+// Cache behaviour the shared rules drive
+// ============================================================================
+
+namespace {
+
+void set_mtime(const std::string& path, time_t epoch) {
+    const utimbuf times{epoch, epoch};
+    REQUIRE(::utime(path.c_str(), &times) == 0);
+}
+
+time_t mtime_of(const std::string& path) {
+    struct stat st {};
+    REQUIRE(::stat(path.c_str(), &st) == 0);
+    return st.st_mtime;
+}
+
+void settle_fetches(const std::function<bool()>& done) {
+    for (int i = 0; i < 20 && !done(); ++i) {
+        helix::ThumbnailProcessor::instance().wait_for_completion();
+        helix::ui::UpdateQueue::instance().drain();
+    }
+}
+
+} // namespace
+
+TEST_CASE_METHOD(LVGLTestFixture, "save_prescaled: a fresh .bin makes a rescan a no-op",
+                 "[thumbnail][rules][usb]") {
+    ThumbnailCache& cache = get_thumbnail_cache();
+    const std::string id = "/media/usb0/rescan_" + helix::test::unique_suffix() + ".gcode";
+    helix::ThumbnailTarget target;
+    target.width = 128;
+    target.height = 128;
+    const auto png = read_bytes(kPngAsset);
+
+    const std::string first =
+        cache.save_prescaled(helix::ThumbnailSource::Usb, id, png, target, 1000);
+    REQUIRE(first.size() > 4);
+    REQUIRE(first.compare(first.size() - 4, 4, ".bin") == 0);
+    const std::string bin = first.substr(2);
+    const std::string png_path =
+        cache.get_cache_path(helix::thumbnail_cache_id(helix::ThumbnailSource::Usb, id));
+    set_mtime(bin, 2000);
+    set_mtime(png_path, 2000);
+
+    // Unchanged stick file: neither the PNG nor the .bin is written again.
+    CHECK(cache.save_prescaled(helix::ThumbnailSource::Usb, id, png, target, 1000) == first);
+    CHECK(mtime_of(bin) == 2000);
+    CHECK(mtime_of(png_path) == 2000);
+
+    // A file edited since: both are rebuilt.
+    CHECK(cache.save_prescaled(helix::ThumbnailSource::Usb, id, png, target, 3000) == first);
+    CHECK(mtime_of(bin) != 2000);
+
+    cache.invalidate(helix::thumbnail_cache_id(helix::ThumbnailSource::Usb, id));
+}
+
+TEST_CASE_METHOD(LVGLTestFixture, "A full-PNG fetch honours source_modified",
+                 "[thumbnail][rules][freshness]") {
+    ThumbnailCache cache;
+    const std::string key = ".thumbs/fullpng_fresh_" + helix::test::unique_suffix() + ".png";
+    const std::string saved =
+        cache.save_raw_png(helix::ThumbnailSource::Moonraker, key, read_bytes(kPngAsset));
+    REQUIRE_FALSE(saved.empty());
+    set_mtime(saved.substr(2), 1000);
+
+    ThumbnailRequest req;
+    req.key = key;
+    req.format = ThumbnailRequest::ThumbnailFormat::FullPng;
+    std::atomic<uint32_t> gen{0};
+    helix::AsyncLifetimeGuard guard;
+
+    std::string delivered, error;
+    auto fetch = [&](time_t source_modified) {
+        delivered.clear();
+        error.clear();
+        req.source_modified = source_modified;
+        cache.fetch(
+            req, ThumbnailLoadContext::create(guard, &gen),
+            [&](const std::string& path, bool) { delivered = path; },
+            [&](const std::string& e) { error = e; });
+        helix::ui::UpdateQueue::instance().drain();
+    };
+
+    fetch(500); // cache newer than the source
+    CHECK(delivered == saved);
+
+    fetch(2000); // re-sliced since: the stale PNG is not served (no API to refetch)
+    CHECK(delivered.empty());
+    CHECK_FALSE(error.empty());
+    CHECK_FALSE(std::filesystem::exists(saved.substr(2)));
+}
+
+TEST_CASE_METHOD(LVGLTestFixture, "A refused thumbnail format is not downloaded again",
+                 "[thumbnail][rules][unsupported]") {
+    MoonrakerClientMock client(MoonrakerClientMock::PrinterType::VORON_24);
+    helix::PrinterState state;
+    state.init_subjects(false);
+    MoonrakerAPIMock api(client, state);
+    ThumbnailCache cache;
+
+    ScratchDir dir("rules_unsupported");
+    const std::string source = dir.path + "/thumb.qoi";
+    {
+        std::ofstream out(source, std::ios::binary);
+        const auto qoi = qoi_bytes();
+        out.write(reinterpret_cast<const char*>(qoi.data()),
+                  static_cast<std::streamsize>(qoi.size()));
+    }
+
+    ThumbnailRequest req;
+    req.key = source;
+    req.target.width = 96;
+    req.target.height = 96;
+    req.api = &api;
+    std::atomic<uint32_t> gen{0};
+    helix::AsyncLifetimeGuard guard;
+    bool done = false;
+    std::string delivered, error;
+    auto fetch = [&](time_t source_modified) {
+        done = false;
+        delivered.clear();
+        error.clear();
+        req.source_modified = source_modified;
+        cache.fetch(
+            req, ThumbnailLoadContext::create(guard, &gen),
+            [&](const std::string& path, bool) { delivered = path, done = true; },
+            [&](const std::string& e) { error = e, done = true; });
+        settle_fetches([&] { return done; });
+    };
+
+    fetch(0);
+    REQUIRE_FALSE(error.empty());
+
+    // The source turns decodable, but nothing has said the cached verdict is
+    // stale: the refusal stands and no download goes out.
+    std::filesystem::copy_file(kPngAsset, source,
+                               std::filesystem::copy_options::overwrite_existing);
+    fetch(0);
+    CHECK(delivered.empty());
+    CHECK_FALSE(error.empty());
+
+    // A source newer than the verdict is fetched again.
+    fetch(std::time(nullptr) + 3600);
+    CHECK(error.empty());
+    CHECK_FALSE(delivered.empty());
+
+    cache.invalidate(source);
 }

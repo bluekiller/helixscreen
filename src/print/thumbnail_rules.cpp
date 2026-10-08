@@ -78,7 +78,7 @@ std::vector<uint8_t> jpeg_to_png(const std::vector<uint8_t>& jpeg) {
     (void)jpeg;
     return {};
 #else
-    constexpr int kMaxSide = 512;
+    constexpr int kMaxSide = THUMBNAIL_MAX_SOURCE_DIMENSION;
     const int len = static_cast<int>(jpeg.size());
     int w = 0, h = 0, channels = 0;
     if (!stbi_info_from_memory(jpeg.data(), len, &w, &h, &channels) || w <= 0 || h <= 0 ||
@@ -110,7 +110,8 @@ std::vector<uint8_t> ensure_png(std::vector<uint8_t> bytes) {
     case ImageFormat::Png:
         return bytes;
     case ImageFormat::Jpeg:
-        return jpeg_to_png(bytes);
+        // stb_image overreads the heap on a stream cut mid-way.
+        return is_complete_image(bytes) ? jpeg_to_png(bytes) : std::vector<uint8_t>{};
     default:
         return {};
     }

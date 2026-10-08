@@ -646,7 +646,8 @@ ThumbnailCache::ErrorCallback ThumbnailCache::on_main_err(ErrorCallback cb) {
 }
 
 void ThumbnailCache::fetch(IMoonrakerAPI* api, const std::string& relative_path,
-                           SuccessCallback on_success, ErrorCallback on_error) {
+                           SuccessCallback on_success, ErrorCallback on_error,
+                           time_t source_modified) {
     // Marshal once, at the boundary — see on_main() for why per-path wrapping
     // does not hold. Everything below may now deliver from any thread.
     on_success = on_main(std::move(on_success));
@@ -683,7 +684,7 @@ void ThumbnailCache::fetch(IMoonrakerAPI* api, const std::string& relative_path,
     }
 
     // Check cache
-    std::string cached = get_if_cached(relative_path);
+    std::string cached = get_if_cached(relative_path, source_modified);
     if (!cached.empty()) {
         if (on_success) {
             on_success(cached, /*degraded=*/false);
@@ -709,6 +710,13 @@ void ThumbnailCache::fetch(IMoonrakerAPI* api, const std::string& relative_path,
         return;
     }
 
+    if (is_refused(relative_path, source_modified)) {
+        if (on_error) {
+            on_error("Unsupported thumbnail format: " + relative_path);
+        }
+        return;
+    }
+
     // Evict old files before downloading new one
     evict_if_needed();
 
@@ -730,9 +738,10 @@ void ThumbnailCache::fetch(IMoonrakerAPI* api, const std::string& relative_path,
             }
         },
         // Error callback
-        [on_error, relative_path](const MoonrakerError& error) {
+        [this, on_error, relative_path](const MoonrakerError& error) {
             spdlog::warn("[ThumbnailCache] Failed to download {}: {}", relative_path,
                          error.message);
+            note_download_error(relative_path, error);
             if (on_error) {
                 on_error(error.message);
             }
@@ -828,7 +837,13 @@ std::string ThumbnailCache::save_raw_png(ThumbnailSource source, const std::stri
 
 std::string ThumbnailCache::save_prescaled(ThumbnailSource source, const std::string& id,
                                            const std::vector<uint8_t>& image_data,
-                                           const ThumbnailTarget& target) {
+                                           const ThumbnailTarget& target, time_t source_modified) {
+    // A rescan of an unchanged file: rewriting the PNG would drop this .bin
+    // and blank the card until the decode below replaced it.
+    if (std::string bin = get_if_optimized(thumbnail_cache_id(source, id), target, source_modified);
+        !bin.empty()) {
+        return bin;
+    }
     const std::string png_path = save_raw_png(source, id, image_data);
 #if !defined(HELIX_PLATFORM_ESP32)
     if (!png_path.empty()) {
@@ -844,6 +859,37 @@ std::string ThumbnailCache::save_prescaled(ThumbnailSource source, const std::st
     (void)target;
 #endif
     return png_path;
+}
+
+std::string ThumbnailCache::unsupported_marker_path(const std::string& cache_id) const {
+    return cache_dir_ + "/" + thumbnail_hash(cache_id) + ".unsupported";
+}
+
+bool ThumbnailCache::is_refused(const std::string& cache_id, time_t source_modified) {
+    const std::string marker = unsupported_marker_path(cache_id);
+    const auto mtime = helix::fs::mtime_ns(marker);
+    if (!mtime) {
+        return false;
+    }
+    const bool fresh = is_fresh(static_cast<time_t>(*mtime / 1'000'000'000), source_modified);
+    if (!fresh) {
+        std::lock_guard<std::mutex> lock(mutex_);
+        helix::fs::remove(marker);
+        forget_file_locked(marker);
+    }
+    return fresh;
+}
+
+void ThumbnailCache::note_download_error(const std::string& cache_id, const MoonrakerError& error) {
+    // VALIDATION_ERROR is the download refusing the bytes it got; anything
+    // else (a 404, a dropped connection) is worth retrying.
+    if (error.type != MoonrakerErrorType::VALIDATION_ERROR) {
+        return;
+    }
+    const std::string marker = unsupported_marker_path(cache_id);
+    if (helix::text_io::write_file(marker, "")) {
+        note_write_and_evict(marker);
+    }
 }
 
 size_t ThumbnailCache::clear_cache() {
@@ -935,6 +981,12 @@ size_t ThumbnailCache::invalidate(const std::string& cache_id) {
         } else {
             failed = true;
         }
+    }
+
+    const std::string marker = unsupported_marker_path(cache_id);
+    if (helix::fs::remove(marker)) {
+        forget_file_locked(marker);
+        ++count;
     }
 
     // Delete all pre-scaled .bin variants (e.g., {hash}_120x120_RGB565.bin)
@@ -1067,6 +1119,13 @@ void ThumbnailCache::fetch_optimized(IMoonrakerAPI* api, const std::string& rela
         return;
     }
 
+    if (is_refused(relative_path, source_modified)) {
+        if (on_error) {
+            on_error("Unsupported thumbnail format: " + relative_path);
+        }
+        return;
+    }
+
     evict_if_needed();
 
     std::string cache_path = get_cache_path(relative_path);
@@ -1090,9 +1149,10 @@ void ThumbnailCache::fetch_optimized(IMoonrakerAPI* api, const std::string& rela
             process_and_callback(lvgl_path, relative_path, target, on_success, on_error);
         },
         // Error callback - download failed
-        [on_error, relative_path](const MoonrakerError& error) {
+        [this, on_error, relative_path](const MoonrakerError& error) {
             spdlog::warn("[ThumbnailCache] Optimized fetch failed for {}: {}", relative_path,
                          error.message);
+            note_download_error(relative_path, error);
             if (on_error) {
                 on_error(error.message);
             }
@@ -1180,7 +1240,7 @@ void ThumbnailCache::fetch(const ThumbnailRequest& req, ThumbnailLoadContext ctx
             [guarded_success](const std::string& path, bool /*degraded*/) {
                 guarded_success(path, /*degraded=*/false);
             },
-            std::move(guarded_error));
+            std::move(guarded_error), req.source_modified);
         return;
     }
 

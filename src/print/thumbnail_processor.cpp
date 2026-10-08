@@ -46,8 +46,8 @@ static constexpr int MAX_WORKER_THREADS = 2; // Don't starve UI thread on single
 
 // Safety limits to prevent memory exhaustion and integer overflow
 static constexpr size_t MAX_PNG_INPUT_SIZE = 10 * 1024 * 1024; // 10 MB compressed
-static constexpr int MAX_SOURCE_DIMENSION = 4096;              // 4K max source
-static constexpr int MAX_OUTPUT_DIMENSION = 1024;              // 1K max output
+static constexpr int MAX_SOURCE_DIMENSION = THUMBNAIL_MAX_SOURCE_DIMENSION;
+static constexpr int MAX_OUTPUT_DIMENSION = 1024; // 1K max output
 
 // ============================================================================
 // Singleton

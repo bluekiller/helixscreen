@@ -170,11 +170,11 @@ TEST_CASE_METHOD(
     PrintHistoryJob job;
     job.filename = in_subdir ? "sub/dir/DetailThumbProbe.gcode" : "DetailThumbProbe.gcode";
     job.status = PrintJobStatus::COMPLETED;
-    // The detail target at 800x480 is 300x300: the smallest thumbnail that
-    // covers it is fetched, not the largest and not the icon.
+    // The smallest thumbnail covering the image box as laid out is fetched,
+    // not the largest and not the icon.
     job.thumbnails = {{".thumbs/DetailThumbProbe-32x32.png", 32, 32},
-                      {".thumbs/DetailThumbProbe-600x600.png", 600, 600},
-                      {".thumbs/DetailThumbProbe.png", 300, 300}};
+                      {".thumbs/DetailThumbProbe-2000x2000.png", 2000, 2000},
+                      {".thumbs/DetailThumbProbe.png", 600, 600}};
     const std::string key =
         in_subdir ? "sub/dir/.thumbs/DetailThumbProbe.png" : ".thumbs/DetailThumbProbe.png";
 

@@ -213,11 +213,13 @@ class ThumbnailCache {
      * @param relative_path Moonraker relative path (e.g., ".thumbnails/file.png")
      * @param on_success Called with LVGL path on success (may be called synchronously if cached)
      * @param on_error Called with error message on failure
+     * @param source_modified Source mtime; a cached PNG older than it is dropped and
+     *        refetched. 0 skips the check.
      *
      * @note Callbacks may be invoked from background thread - use ui_queue_update() for UI updates
      */
     void fetch(IMoonrakerAPI* api, const std::string& relative_path, SuccessCallback on_success,
-               ErrorCallback on_error);
+               ErrorCallback on_error, time_t source_modified = 0);
 
     /**
      * @brief Fetch a thumbnail described by a request, guarded by a load context
@@ -266,15 +268,16 @@ class ThumbnailCache {
      * @brief save_raw_png(), then pre-scale to @p target on the calling thread
      *
      * For sources with no fetch to hang the pre-scale off (a USB scan), so
-     * their cards draw a .bin like every other card. Blocks on the decode:
-     * worker threads only.
+     * their cards draw a .bin like every other card. A .bin still fresh against
+     * @p source_modified is returned as is, with nothing rewritten or decoded.
+     * Otherwise blocks on the decode: worker threads only.
      *
      * @return The .bin path, the PNG path when pre-scaling fails, or empty when
      *         nothing was saved
      */
     std::string save_prescaled(helix::ThumbnailSource source, const std::string& id,
                                const std::vector<uint8_t>& image_data,
-                               const helix::ThumbnailTarget& target);
+                               const helix::ThumbnailTarget& target, time_t source_modified);
 
     /**
      * @brief Clear all cached thumbnails
@@ -440,6 +443,17 @@ class ThumbnailCache {
     [[nodiscard]] std::string get_if_optimized(const std::string& relative_path,
                                                const helix::ThumbnailTarget& target,
                                                time_t source_modified = 0) const;
+
+    /// "{hash}.unsupported": the server sent this cache id in a format the
+    /// cache refuses (QOI and the like). A cached miss until the source is newer.
+    [[nodiscard]] std::string unsupported_marker_path(const std::string& cache_id) const;
+
+    /// A refusal recorded for @p cache_id that is still fresh against
+    /// @p source_modified. A stale marker is removed.
+    [[nodiscard]] bool is_refused(const std::string& cache_id, time_t source_modified);
+
+    /// Record a refusal, or drop the reply for any other download error.
+    void note_download_error(const std::string& cache_id, const MoonrakerError& error);
 
     /**
      * @brief Wrap a caller callback so it always fires on the LVGL main thread

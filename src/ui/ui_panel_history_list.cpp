@@ -938,11 +938,11 @@ void HistoryListPanel::show_detail_overlay(const PrintHistoryJob& job) {
     ThumbnailLoadContext ctx = ThumbnailLoadContext::create(lifetime_, &detail_overlay_generation_);
 
     if (thumbnail_image && thumbnail_fallback) {
-        const auto detail_target =
-            helix::ThumbnailProcessor::get_target_for_display(helix::ThumbnailSize::Detail);
-        const std::string thumb_path =
-            helix::select_and_resolve_thumbnail(job.thumbnails, helix::gcode_dir_of(job.filename),
-                                                detail_target.width, detail_target.height);
+        // Sized for the image box as laid out (inner_align contain).
+        lv_obj_update_layout(detail_overlay_);
+        const std::string thumb_path = helix::select_and_resolve_thumbnail(
+            job.thumbnails, helix::gcode_dir_of(job.filename), lv_obj_get_width(thumbnail_image),
+            lv_obj_get_height(thumbnail_image));
         if (!thumb_path.empty()) {
             // Show fallback initially while loading
             lv_obj_add_flag(thumbnail_image, LV_OBJ_FLAG_HIDDEN);
@@ -951,8 +951,8 @@ void HistoryListPanel::show_detail_overlay(const PrintHistoryJob& job) {
             IMoonrakerAPI* api = get_moonraker_api();
 
             // The detail overlay renders the full-resolution PNG, so it asks
-            // for FullPng and req.target goes unused; the detail target only
-            // picks which of the file's thumbnails to fetch.
+            // for FullPng and req.target goes unused; the box size only picks
+            // which of the file's thumbnails to fetch.
             ThumbnailRequest req;
             req.key = thumb_path;
             req.api = api;

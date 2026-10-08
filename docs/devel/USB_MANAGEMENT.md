@@ -152,13 +152,14 @@ The volume label comes from the mount point leaf when it does not look like a de
         auto best = helix::gcode::get_best_thumbnail(file.path);
         if (!best.png_data.empty()) {
             cache_path = get_thumbnail_cache().save_prescaled(ThumbnailSource::Usb, file.path,
-                                                              best.png_data, card_target);
+                                                              best.png_data, card_target,
+                                                              static_cast<time_t>(file.modified_time));
         }
         scan.thumbnails.push_back(std::move(cache_path));
     }
 ```
 
-The cache key is the full path under `ThumbnailSource::Usb`, so same-named files in different folders or on different sticks keep their own thumbnails. The card draws the pre-scaled `.bin`, like a Moonraker card; the PNG is the fallback when pre-scaling fails. Cura's `; thumbnail_JPG begin` blocks arrive as PNG, because `get_best_thumbnail()` and `save_raw_png` both pass bytes through `helix::ensure_png` (`src/print/thumbnail_rules.cpp#ensure_png`), which re-encodes a JPEG and refuses anything else.
+The cache key is the full path under `ThumbnailSource::Usb`, so same-named files in different folders or on different sticks keep their own thumbnails. The card draws the pre-scaled `.bin`, like a Moonraker card; the PNG is the fallback when pre-scaling fails. A rescan of a file whose `.bin` is newer than its mtime returns that `.bin` without rewriting or decoding anything. Cura's `; thumbnail_JPG begin` blocks arrive as PNG, because `get_best_thumbnail()` and `save_raw_png` both pass bytes through `helix::ensure_png` (`src/print/thumbnail_rules.cpp#ensure_png`), which re-encodes a JPEG and refuses anything else.
 
 One walk runs at a time, through `SingleFlightWalk` (`include/single_flight_walk.h`). Every refresh supersedes the walk in flight: its `cancelled()` predicate, polled before each drive and each file, turns true and its result is dropped, and the newest request runs once it ends, so any number of refreshes during a walk cost one extra walk. A switch to the Printer tab and the source's destruction cancel both the running walk and any queued one. Results come back through the walk's lifetime token, which expires with the source. The walk holds the backend, never the manager, because the application destroys the manager before it stops the executors; `~UsbManager` stops the backend, so a walk still holding it scans nothing and its monitor thread cannot report into the freed manager.
 

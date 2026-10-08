@@ -54,8 +54,9 @@ UsbScan scan_usb_drives(UsbBackend& backend, const std::vector<UsbDrive>& drives
         std::string cache_path;
         auto best = helix::gcode::get_best_thumbnail(file.path);
         if (!best.png_data.empty()) {
-            cache_path = get_thumbnail_cache().save_prescaled(ThumbnailSource::Usb, file.path,
-                                                              best.png_data, card_target);
+            cache_path = get_thumbnail_cache().save_prescaled(
+                ThumbnailSource::Usb, file.path, best.png_data, card_target,
+                static_cast<time_t>(file.modified_time));
         }
         scan.thumbnails.push_back(std::move(cache_path));
     }

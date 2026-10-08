@@ -788,8 +788,6 @@ void MoonrakerFileTransferAPIMock::download_thumbnail(const std::string& thumbna
         return;
     }
 
-    (void)on_error; // Unused below - mock falls back to placeholder on failure
-
     namespace fs = std::filesystem;
 
     // First check: if thumbnail_path is already a local file that exists, use it directly
@@ -806,6 +804,16 @@ void MoonrakerFileTransferAPIMock::download_thumbnail(const std::string& thumbna
                          cache_path);
             if (on_success) {
                 on_success("A:" + cache_path);
+            }
+            return;
+        }
+        if (raw && png.empty()) {
+            // The real download refuses a format it cannot store as PNG.
+            if (on_error) {
+                MoonrakerError err;
+                err.type = MoonrakerErrorType::VALIDATION_ERROR;
+                err.message = "Not a PNG or decodable JPEG thumbnail: " + thumbnail_path;
+                on_error(err);
             }
             return;
         }

@@ -314,7 +314,7 @@ void MoonrakerFileTransferAPI::download_thumbnail(const std::string& thumbnail_p
         // name, so a JPEG thumbnail is re-encoded and anything else refused.
         const std::vector<uint8_t> png = helix::ensure_png({resp->body.begin(), resp->body.end()});
         if (png.empty()) {
-            report_error(on_error, MoonrakerErrorType::UNKNOWN, "download_thumbnail",
+            report_error(on_error, MoonrakerErrorType::VALIDATION_ERROR, "download_thumbnail",
                          "Not a PNG or decodable JPEG thumbnail: " + thumbnail_path);
             return;
         }
