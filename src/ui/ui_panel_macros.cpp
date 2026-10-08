@@ -117,17 +117,11 @@ void MacrosPanel::register_callbacks() {
          [](lv_event_t*) { get_global_macros_panel().update_visible(false); }},
         {"on_macro_list_resized",
          [](lv_event_t*) {
-             // Row heights depend on the list width, and measuring needs a layout pass,
-             // which cannot nest inside the one reporting this resize.
+             // Row heights follow the list width and the slot count its height, and
+             // measuring needs a layout pass, which cannot nest inside the one
+             // reporting this resize.
              auto& self = get_global_macros_panel();
-             self.lifetime_.defer("MacrosPanel::relayout", [&self]() {
-                 if (self.scroll_container_ &&
-                     lv_obj_get_width(self.scroll_container_) != self.measured_width_) {
-                     self.layout_rows();
-                 } else {
-                     self.update_visible(false);
-                 }
-             });
+             self.lifetime_.defer("MacrosPanel::relayout", [&self]() { self.layout_rows(); });
          }},
         {"on_macros_edit_save",
          [](lv_event_t*) { get_global_macros_panel().exit_edit_mode(true); }},
@@ -158,7 +152,6 @@ lv_obj_t* MacrosPanel::create(lv_obj_t* parent) {
     slots_.clear();
     slot_items_.clear();
     row_tops_.clear();
-    measured_width_ = -1;
     shown_first_ = shown_last_ = -1;
     last_leading_ = last_trailing_ = -1;
 
@@ -331,6 +324,10 @@ void MacrosPanel::layout_rows() {
     if (!rows_container_) {
         return;
     }
+    // Every slot is about to be rebound, so a press held on one would release onto
+    // a different macro.
+    helix::ui::reset_input_within(rows_container_);
+
     helix::LapLog laps("MacrosPanel");
     const size_t n = displayed_.size();
     const auto grow_slots = [this](size_t count) {
@@ -378,7 +375,6 @@ void MacrosPanel::layout_rows() {
         max_h = std::max(max_h, it->second);
         row_tops_.push_back(row_tops_.back() + it->second + gap);
     }
-    measured_width_ = scroll_container_ ? lv_obj_get_width(scroll_container_) : -1;
     laps.lap("measure rows");
 
     if (n > 0) {

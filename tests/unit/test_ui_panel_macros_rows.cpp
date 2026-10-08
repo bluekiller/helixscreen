@@ -11,6 +11,7 @@
 
 #include "../test_fixtures.h"
 #include "../test_helpers/macros_panel_test_access.h"
+#include "../test_helpers/scoped_pointer_indev.h"
 #include "../test_helpers/update_queue_test_access.h"
 #include "../ui_test_utils.h"
 #include "app_globals.h"
@@ -85,7 +86,7 @@ class MacrosRowsFixture : public XMLTestFixture {
     /// Every macro is known to take no parameters, so a tap runs it outright.
     /// `described` macros also carry a description, which makes their rows taller.
     void open(const std::vector<std::string>& macros,
-              const std::vector<std::string>& described = {}) {
+              const std::vector<std::string>& described = {}, lv_obj_t* parent = nullptr) {
         nlohmann::json config;
         for (const auto& m : macros) {
             config["gcode_macro " + m]["gcode"] = "G28";
@@ -100,7 +101,7 @@ class MacrosRowsFixture : public XMLTestFixture {
 
         // create() rebuilds from all_macros_ when no API is installed.
         MacrosPanelTestAccess::seed(panel, macros);
-        root = panel.create(test_screen());
+        root = panel.create(parent ? parent : test_screen());
         REQUIRE(root != nullptr);
         lv_obj_remove_flag(root, LV_OBJ_FLAG_HIDDEN);
         lv_obj_set_size(root, lv_pct(100), lv_pct(100));
@@ -318,4 +319,55 @@ TEST_CASE_METHOD(MacrosRowsFixture,
     lv_obj_scroll_to_y(scroller, 0, LV_ANIM_OFF);
     settle();
     CHECK(check_window("back at top") == 0);
+}
+
+TEST_CASE_METHOD(MacrosRowsFixture,
+                 "A Macros list change under a held row does not run the rebound macro",
+                 "[macros][macros_rows]") {
+    open({"CLEAN_NOZZLE", "LOAD_FILAMENT", "PRINT_START"});
+    set_moonraker_api(&mock_api);
+    helix_test::ScopedPointerIndev indev;
+
+    lv_obj_t* card = row_named("LOAD_FILAMENT");
+    lv_area_t a;
+    lv_obj_get_coords(card, &a);
+    const int x = (a.x1 + a.x2) / 2, y = (a.y1 + a.y2) / 2;
+    indev.press(x, y);
+    bool pressing_card = false;
+    for (lv_obj_t* o = indev.indev()->pointer.act_obj; o; o = lv_obj_get_parent(o))
+        pressing_card = pressing_card || o == card;
+    REQUIRE(pressing_card);
+
+    // A reconnect discovers one more macro, sorted ahead of the held one, so the
+    // pressed slot now shows a different macro.
+    MacrosPanelTestAccess::seed(panel,
+                                {"BED_MESH", "CLEAN_NOZZLE", "LOAD_FILAMENT", "PRINT_START"});
+    MacrosPanelTestAccess::rebuild(panel);
+    settle();
+    REQUIRE(row_named("BED_MESH") != nullptr);
+
+    indev.release(x, y);
+    settle();
+    CHECK(toasts.empty());
+}
+
+TEST_CASE_METHOD(MacrosRowsFixture, "A taller Macros viewport fills with rows",
+                 "[macros][macros_rows]") {
+    lv_obj_t* host = lv_obj_create(test_screen());
+    lv_obj_remove_style_all(host);
+    lv_obj_set_size(host, lv_pct(100), 150);
+    lv_obj_update_layout(test_screen());
+    open(many_macros(200), {}, host);
+    const size_t slots_short = cards().size();
+
+    lv_obj_set_height(host, lv_pct(100));
+    settle();
+
+    lv_area_t view;
+    lv_obj_get_coords(list(), &view);
+    REQUIRE(view.y2 - view.y1 > 300);
+    const auto shown_rows = rows();
+    REQUIRE_FALSE(shown_rows.empty());
+    CHECK(cards().size() > slots_short);
+    CHECK(shown_rows.back().area.y2 >= view.y2);
 }

@@ -162,7 +162,6 @@ class MacrosPanel : public OverlayBase {
     std::vector<lv_obj_t*> slots_;        ///< Row slot widgets, by slot index
     std::vector<ssize_t> slot_items_;     ///< Slot -> displayed_ index (-1 = parked)
     std::vector<int> row_tops_;           ///< displayed_ row tops; back() = list height
-    int measured_width_ = -1;             ///< List width row_tops_ was measured at
     int shown_first_ = -1, shown_last_ = -1;
     int last_leading_ = -1, last_trailing_ = -1;
 
