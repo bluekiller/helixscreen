@@ -24,6 +24,7 @@
  *    behind it cleared the overlay stack and bounced the user to Home.
  */
 
+#include "ui_nav.h"
 #include "ui_nav_manager.h"
 #include "ui_panel_base.h"
 #include "ui_update_queue.h"
@@ -35,8 +36,10 @@
 #include "app_globals.h"
 #include "connection_state.h"
 #include "display_settings_manager.h"
+#include "helix-xml/src/xml/lv_xml.h"
 #include "lvgl/lvgl.h"
 #include "panel_lifecycle.h"
+#include "platform_capabilities.h"
 #include "printer_state.h"
 
 #include <spdlog/spdlog.h>
@@ -85,10 +88,40 @@ class RecordingPanel : public PanelBase {
     bool navigate_to_home_on_activate = false;
 };
 
+/// Sets the platform_tier subject for one scope.
+class ScopedTier {
+  public:
+    explicit ScopedTier(helix::PlatformTier tier)
+        : subject_(lv_xml_get_subject(nullptr, "platform_tier")),
+          saved_(lv_subject_get_int(subject_)) {
+        lv_subject_set_int(subject_, static_cast<int>(tier));
+    }
+    ~ScopedTier() {
+        lv_subject_set_int(subject_, saved_);
+    }
+
+  private:
+    lv_subject_t* subject_;
+    int saved_;
+};
+
+/// Unhidden children of the top layer, where the loading pill lives.
+uint32_t shown_top_layer_children() {
+    uint32_t shown = 0;
+    lv_obj_t* layer = lv_layer_top();
+    for (uint32_t i = 0; i < lv_obj_get_child_count(layer); ++i) {
+        if (!lv_obj_has_flag(lv_obj_get_child(layer, i), LV_OBJ_FLAG_HIDDEN)) {
+            ++shown;
+        }
+    }
+    return shown;
+}
+
 class RecordingOverlay : public IPanelLifecycle {
   public:
     void on_activate() override {
         ++activates;
+        top_layer_shown_on_activate = shown_top_layer_children();
     }
     void on_deactivate(DeactivateReason) override {
         ++deactivates;
@@ -103,6 +136,7 @@ class RecordingOverlay : public IPanelLifecycle {
     bool destination = false;
     int activates = 0;
     int deactivates = 0;
+    uint32_t top_layer_shown_on_activate = 0;
 };
 
 /**
@@ -448,6 +482,85 @@ TEST_CASE_METHOD(OverlayActivationFixture, "Deleting a root with a pending push 
     drain();
     CHECK(overlay_lifecycle_.activates == 0);
     CHECK_FALSE(nav.has_open_overlays());
+}
+
+TEST_CASE_METHOD(OverlayActivationFixture,
+                 "An overlay built under the loading pill activates beneath it",
+                 "[navigation][overlay][pending_push][loading_pill]") {
+    ScopedTier tier(helix::PlatformTier::EMBEDDED);
+    auto& nav = NavigationManager::instance();
+    const uint32_t shown_before = shown_top_layer_children();
+
+    int renders = 0;
+    lv_display_t* disp = lv_display_get_default();
+    lv_event_cb_t count_render = [](lv_event_t* e) {
+        ++*static_cast<int*>(lv_event_get_user_data(e));
+    };
+    lv_display_add_event_cb(disp, count_render, LV_EVENT_RENDER_READY, &renders);
+
+    uint32_t shown_in_build = 0;
+    int renders_in_build = 0;
+    helix::nav::build_under_loading_pill([&]() {
+        shown_in_build = shown_top_layer_children();
+        renders_in_build = renders;
+        nav.push_overlay(overlay_);
+    });
+    lv_display_remove_event_cb_with_user_data(disp, count_render, &renders);
+
+    // Painted before the build ran, not merely created.
+    CHECK(shown_in_build == shown_before + 1);
+    CHECK(renders_in_build > 0);
+
+    drain();
+    CHECK(overlay_lifecycle_.activates == 1);
+    CHECK(overlay_lifecycle_.top_layer_shown_on_activate == shown_before + 1);
+    CHECK(shown_top_layer_children() == shown_before);
+}
+
+TEST_CASE_METHOD(OverlayActivationFixture, "A push cancelled under the loading pill still lifts it",
+                 "[navigation][overlay][pending_push][loading_pill]") {
+    ScopedTier tier(helix::PlatformTier::BASIC);
+    auto& nav = NavigationManager::instance();
+    const uint32_t shown_before = shown_top_layer_children();
+
+    helix::nav::build_under_loading_pill([&]() {
+        nav.push_overlay(overlay_);
+        nav.close_overlay(overlay_);
+    });
+    drain();
+
+    CHECK(overlay_lifecycle_.activates == 0);
+    CHECK_FALSE(nav.has_open_overlays());
+    CHECK(shown_top_layer_children() == shown_before);
+}
+
+TEST_CASE_METHOD(OverlayActivationFixture,
+                 "The loading pill stays off on the standard tier and under a switch's pill",
+                 "[navigation][overlay][loading_pill]") {
+    auto& nav = NavigationManager::instance();
+    const uint32_t shown_before = shown_top_layer_children();
+    uint32_t shown_in_build = 0;
+    bool built = false;
+    auto build = [&]() {
+        built = true;
+        shown_in_build = shown_top_layer_children();
+    };
+
+    SECTION("standard tier") {
+        ScopedTier tier(helix::PlatformTier::STANDARD);
+        nav.build_under_loading_pill(build);
+    }
+    SECTION("a panel switch's pill is already up") {
+        ScopedTier tier(helix::PlatformTier::EMBEDDED);
+        NavigationManagerTestAccess::set_nav_scrim_active(nav, true);
+        nav.build_under_loading_pill(build);
+        NavigationManagerTestAccess::set_nav_scrim_active(nav, false);
+    }
+
+    CHECK(built);
+    CHECK(shown_in_build == shown_before);
+    drain();
+    CHECK(shown_top_layer_children() == shown_before);
 }
 
 // ============================================================================
