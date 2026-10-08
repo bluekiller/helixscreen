@@ -317,19 +317,32 @@ select_thumbnail(const std::vector<ThumbnailInfo>& thumbnails, int target_w, int
     return gcode_dir + "/" + thumb_relative_path;
 }
 
+namespace helix {
+
+/// The directory a gcodes-root path sits in: "sub/dir/Foo.gcode" -> "sub/dir", "Foo.gcode" -> "".
+[[nodiscard]] inline std::string gcode_dir_of(const std::string& gcode_path) {
+    const auto slash = gcode_path.find_last_of('/');
+    return slash == std::string::npos ? std::string() : gcode_path.substr(0, slash);
+}
+
 /**
- * @brief Resolve a thumbnail relative_path against the gcode file it came from
+ * @brief Which of a file's thumbnails to fetch for a box, as a path from the gcodes root
  *
- * "sub/dir/Foo.gcode" with ".thumbs/Foo.png" resolves to "sub/dir/.thumbs/Foo.png";
- * a root-level file's path is unchanged.
+ * The one size and subfolder rule every consumer uses: select_thumbnail()'s
+ * choice for @p target_w x @p target_h (an unmeasured box takes the largest),
+ * resolved against @p gcode_dir, the directory of the gcode file the
+ * thumbnails came from.
+ *
+ * @return Empty when there are no thumbnails
  */
 [[nodiscard]] inline std::string
-resolve_gcode_thumbnail_path(const std::string& thumb_relative_path,
-                             const std::string& gcode_filename) {
-    const auto slash = gcode_filename.find_last_of('/');
-    return resolve_thumbnail_path(
-        thumb_relative_path, slash == std::string::npos ? "" : gcode_filename.substr(0, slash));
+select_and_resolve_thumbnail(const std::vector<ThumbnailInfo>& thumbnails,
+                             const std::string& gcode_dir, int target_w, int target_h) {
+    const ThumbnailInfo* best = select_thumbnail(thumbnails, target_w, target_h);
+    return best ? resolve_thumbnail_path(best->relative_path, gcode_dir) : std::string();
 }
+
+} // namespace helix
 
 /**
  * @brief File metadata structure (detailed file info)
@@ -362,23 +375,6 @@ struct FileMetadata {
     uint64_t gcode_end_byte = 0;
     std::string uuid;                      // Slicer-generated UUID (for history matching)
     std::vector<ThumbnailInfo> thumbnails; // Thumbnails with dimensions
-
-    /**
-     * @brief Get the largest thumbnail path
-     * @return Path to largest thumbnail, or empty string if none available
-     */
-    [[nodiscard]] std::string get_largest_thumbnail() const {
-        const ThumbnailInfo* best = select_thumbnail(thumbnails, 0, 0);
-        return best ? best->relative_path : "";
-    }
-
-    /**
-     * @brief Get the best thumbnail for a target display size (see select_thumbnail())
-     * @return Pointer to best thumbnail, or nullptr if no thumbnails available
-     */
-    [[nodiscard]] const ThumbnailInfo* get_best_thumbnail(int target_w, int target_h) const {
-        return select_thumbnail(thumbnails, target_w, target_h);
-    }
 };
 
 // ============================================================================

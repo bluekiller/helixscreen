@@ -3405,6 +3405,7 @@
   <translation tag="You can skip this and calibrate later in Settings." zh="您可以跳过此步骤，稍后在设置中进行校准。"/>
   <translation tag="You have unsaved changes. Discard them?" zh="您有未保存的更改。是否丢弃？"/>
   <translation tag="Your completed prints will appear here" zh="您完成的打印将显示在此处"/>
+  <translation tag="Your print start or end macro also sets LEDs. It and Automatic LED Control may override each other." zh="您的打印开始或结束宏也会设置 LED。它与自动 LED 控制可能会互相覆盖。"/>
   <translation tag="Your printer at a glance" zh="一览您的打印机"/>
   <translation tag="Your printer has an automatic filament changer" zh="您的打印机配有自动换色系统"/>
   <translation tag="Your printer was offline during setup, so hardware options were skipped. Set them up now?" zh="设置期间打印机离线，硬件选项已跳过。现在设置吗？"/>
@@ -3548,6 +3549,8 @@
   <translation tag="{} is installed, but its backup-spool setting could not be read - do not count on an automatic swap." zh="{} 已安装，但无法读取其备用料盘设置 - 请勿指望自动切换。"/>
   <translation tag="{} is not set up on this printer" zh="{} 未在此打印机上设置"/>
   <translation tag="{} is still printing. The print keeps running after you switch." zh="{} 仍在打印。切换后打印会继续进行。"/>
+  <translation tag="{} kept crashing the panel; pick a printer to connect" zh="{} 反复导致屏幕崩溃，请选择要连接的打印机"/>
+  <translation tag="{} kept crashing the panel; switched back to {}" zh="{} 反复导致屏幕崩溃，已切换回 {}"/>
   <translation tag="{} lines in helixscreen.env were ignored" zh="helixscreen.env 中有 {} 行被忽略"/>
   <translation tag="{} macro not configured" zh="{} 宏未配置"/>
   <translation tag="{} matches." zh="{} 匹配。"/>

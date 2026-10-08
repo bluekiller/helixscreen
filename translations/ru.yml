@@ -3780,6 +3780,7 @@ translations:
   You have unsaved changes. Discard them?: У вас есть несохранённые изменения. Отменить
     их?
   Your completed prints will appear here: Ваши завершённые печати появятся здесь
+  Your print start or end macro also sets LEDs. It and Automatic LED Control may override each other.: 'Ваш макрос начала или окончания печати тоже управляет светодиодами. Он и автоматическое управление светодиодами могут перезаписывать друг друга.'
   Your printer at a glance: Ваш принтер одним взглядом
   Your printer has an automatic filament changer: Ваш принтер оснащён автоматическим
     сменщиком филамента
@@ -3934,6 +3935,8 @@ translations:
   '{} is still printing. The print keeps running after you switch.': '{} ещё печатает. Печать продолжится после переключения.'
   '{} is not set up on this printer': '{} не настроен на этом принтере'
   '{} lines in helixscreen.env were ignored': 'В helixscreen.env проигнорировано строк: {}'
+  '{} kept crashing the panel; switched back to {}': '{} постоянно вызывал сбой экрана; возврат к {}'
+  '{} kept crashing the panel; pick a printer to connect': '{} постоянно вызывал сбой экрана; выберите принтер для подключения'
   '{} macro not configured': Макрос {} не настроен
   '{} matches.': '{} подходит.'
   '{} may cause unintended changes. Are you sure?': '{} может привести к непреднамеренным

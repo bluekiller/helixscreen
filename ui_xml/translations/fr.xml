@@ -3405,6 +3405,7 @@
   <translation tag="You can skip this and calibrate later in Settings." fr="Vous pouvez ignorer cette étape et calibrer plus tard dans les paramètres."/>
   <translation tag="You have unsaved changes. Discard them?" fr="Vous avez des modifications non enregistrées. Les abandonner ?"/>
   <translation tag="Your completed prints will appear here" fr="Vos impressions terminées apparaîtront ici"/>
+  <translation tag="Your print start or end macro also sets LEDs. It and Automatic LED Control may override each other." fr="Votre macro de début ou de fin d&apos;impression contrôle aussi les LED. Elle et le contrôle automatique des LED peuvent s&apos;annuler mutuellement."/>
   <translation tag="Your printer at a glance" fr="Votre imprimante en un coup d&apos;œil"/>
   <translation tag="Your printer has an automatic filament changer" fr="Votre imprimante dispose d&apos;un changeur de filament automatique"/>
   <translation tag="Your printer was offline during setup, so hardware options were skipped. Set them up now?" fr="Votre imprimante était hors ligne lors de la configuration, les options matérielles ont donc été ignorées. Les configurer maintenant ?"/>
@@ -3548,6 +3549,8 @@
   <translation tag="{} is installed, but its backup-spool setting could not be read - do not count on an automatic swap." fr="{} est installé, mais son réglage de bobine de secours n&apos;a pas pu être lu - ne comptez pas sur un changement automatique."/>
   <translation tag="{} is not set up on this printer" fr="{} n&apos;est pas configuré sur cette imprimante"/>
   <translation tag="{} is still printing. The print keeps running after you switch." fr="{} imprime encore. L&apos;impression continue après le changement."/>
+  <translation tag="{} kept crashing the panel; pick a printer to connect" fr="{} a planté l&apos;écran à plusieurs reprises ; choisissez une imprimante à connecter"/>
+  <translation tag="{} kept crashing the panel; switched back to {}" fr="{} a planté l&apos;écran à plusieurs reprises ; retour à {}"/>
   <translation tag="{} lines in helixscreen.env were ignored" fr="{} lignes de helixscreen.env ont été ignorées"/>
   <translation tag="{} macro not configured" fr="Macro {} non configurée"/>
   <translation tag="{} matches." fr="{} correspond."/>

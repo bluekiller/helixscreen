@@ -3568,6 +3568,7 @@ translations:
   You can skip this and calibrate later in Settings.: スキップして後で設定でキャリブレーションできます。
   You have unsaved changes. Discard them?: 保存されていない変更があります。破棄しますか？
   Your completed prints will appear here: 完了した印刷がここに表示されます
+  Your print start or end macro also sets LEDs. It and Automatic LED Control may override each other.: '印刷開始または終了マクロもLEDを設定しています。マクロと自動LED制御が互いに上書きする可能性があります。'
   Your printer at a glance: プリンターを一目で確認
   Your printer has an automatic filament changer: プリンターに自動フィラメントチェンジャーが搭載されています
   Your printer was offline during setup, so hardware options were skipped. Set them up now?: セットアップ中にプリンターがオフラインだったため、ハードウェアオプションはスキップされました。今すぐ設定しますか？
@@ -3719,6 +3720,8 @@ translations:
   '{} is still printing. The print keeps running after you switch.': '{}は印刷中です。切り替えても印刷は続行されます。'
   '{} is not set up on this printer': '{} はこのプリンターで設定されていません'
   '{} lines in helixscreen.env were ignored': 'helixscreen.env の{}行が無視されました'
+  '{} kept crashing the panel; switched back to {}': '{} で画面のクラッシュが繰り返されたため、{} に戻しました'
+  '{} kept crashing the panel; pick a printer to connect': '{} で画面のクラッシュが繰り返されました。接続するプリンターを選んでください'
   '{} macro not configured': '{} マクロが未設定です'
   '{} matches.': '{} が一致します。'
   '{} may cause unintended changes. Are you sure?': '{} は意図しない変更を引き起こす可能性があります。よろしいですか？'

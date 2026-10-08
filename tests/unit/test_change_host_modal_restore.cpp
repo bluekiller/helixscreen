@@ -170,6 +170,7 @@ TEST_CASE_METHOD(ChangeHostRestoreFixture,
         added_host = host;
         added_port = port;
         url_when_added = client_->get_last_url();
+        return false; // not switched
     });
     UpdateQueue::instance().drain();
     lv_obj_t* dialog = Modal::get_top();
@@ -195,16 +196,41 @@ TEST_CASE_METHOD(ChangeHostRestoreFixture,
 
     CHECK(added_host == "10.9.9.9");
     CHECK(added_port == 7125);
-    // The client is back on the saved printer before the caller decides whether to switch,
-    // so a declined or failed switch leaves it where config and UI say it is.
-    CHECK(url_when_added == kSavedUrl);
+    // A caller that did not switch gets the client back on the saved printer, so a declined
+    // or failed switch leaves it where config and UI say it is.
+    CHECK(url_when_added == kTestedUrl);
+    CHECK(client_->get_last_url() == kSavedUrl);
     Config* cfg = Config::get_instance();
     CHECK(cfg->get<std::string>(cfg->df() + "moonraker_host") == kSavedHost);
 }
 
+// A switch retargets the client itself, so handing it back first would cycle the
+// transport twice (prestonbrown/helixscreen#1751).
+TEST_CASE_METHOD(ChangeHostRestoreFixture,
+                 "Add printer: an add that switches skips the hand-back to the saved printer",
+                 "[change_host][connection][multi-printer]") {
+    bool added = false;
+    helix::ui::show_add_printer_modal([&](const std::string&, int) {
+        added = true;
+        return true; // switched: the switch retargeted the client
+    });
+    UpdateQueue::instance().drain();
+    lv_obj_t* dialog = Modal::get_top();
+    REQUIRE(dialog != nullptr);
+    lv_subject_copy_string(lv_xml_get_subject(nullptr, "change_host_ip"), "10.9.9.9");
+    click(dialog, "btn_test_connection");
+    REQUIRE(client_->get_last_url() == kTestedUrl);
+    lv_subject_set_int(lv_xml_get_subject(nullptr, "change_host_validated"), 1);
+    click(dialog, "modal_save_btn");
+    UpdateQueue::instance().drain();
+
+    REQUIRE(added);
+    CHECK(client_->get_last_url() == kTestedUrl);
+}
+
 TEST_CASE_METHOD(ChangeHostRestoreFixture, "Change Host after Add shows the saved host again",
                  "[change_host][connection][multi-printer]") {
-    helix::ui::show_add_printer_modal([](const std::string&, int) {});
+    helix::ui::show_add_printer_modal([](const std::string&, int) { return false; });
     UpdateQueue::instance().drain();
     click(Modal::get_top(), "modal_cancel_btn");
 
@@ -275,6 +301,7 @@ lv_obj_t* open_add_modal(AddResult& result) {
     helix::ui::show_add_printer_modal([&result](const std::string& host, int) {
         ++result.calls;
         result.host = host;
+        return false;
     });
     UpdateQueue::instance().drain();
     lv_obj_t* dialog = Modal::get_top();

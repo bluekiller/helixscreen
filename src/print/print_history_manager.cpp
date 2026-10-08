@@ -342,14 +342,22 @@ void PrintHistoryManager::hold_until_discovery() {
     if (!api_) {
         return;
     }
+    // Only leaving CONNECTED means a new discovery is coming. The subject trails the
+    // client, so discovery can complete while it still reads CONNECTING; its catching up
+    // must not close the gate again. Immediate, so the close is ordered with the subject
+    // write and lands before the next connection's discovery opens the gate.
+    auto* conn = api_->printer_state().network_state().get_printer_connection_state_subject();
+    last_conn_state_ = lv_subject_get_int(conn);
     discovery_gate_observer_ = helix::ui::observe<int>(
-        api_->printer_state().network_state().get_printer_connection_state_subject(), this,
+        conn, this,
         [](PrintHistoryManager* self, int conn_state) {
-            if (conn_state != static_cast<int>(ConnectionState::CONNECTED)) {
+            const int connected = static_cast<int>(ConnectionState::CONNECTED);
+            if (self->last_conn_state_ == connected && conn_state != connected) {
                 self->discovered_ = false;
             }
+            self->last_conn_state_ = conn_state;
         },
-        api_->printer_state().get_subjects_lifetime());
+        api_->printer_state().get_subjects_lifetime(), helix::ui::Dispatch::Immediate);
 }
 
 void PrintHistoryManager::on_discovery_complete() {
@@ -481,8 +489,6 @@ void PrintHistoryManager::apply_original(PrintHistoryJob& job, const OriginalFil
     job.exists = original.exists;
     job.modified = original.modified;
     job.thumbnails = original.thumbnails;
-    const ThumbnailInfo* largest = select_thumbnail(job.thumbnails, 0, 0);
-    job.thumbnail_path = largest ? largest->relative_path : std::string{};
 }
 
 void PrintHistoryManager::adopt_original(PrintHistoryJob& job) {

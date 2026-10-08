@@ -954,6 +954,7 @@ void PrinterDiscovery::clear() {
     macro_config_names_.clear();
     host_restarting_macros_.clear();
     host_halting_macros_.clear();
+    led_driving_macros_.clear();
     sensor_toggle_command_.clear();
     helix_macros_.clear();
     nozzle_clean_macro_.clear();

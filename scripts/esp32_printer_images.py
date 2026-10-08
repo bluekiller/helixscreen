@@ -8,7 +8,8 @@ The storage partition cannot hold every printer's picture (80 renditions came
 to 1.2MB against ~0.7MB free), so the firmware ships ESP32_PRINTERS: the
 machines an add-on panel like the K-Touch drives, which are the DIY and
 Klipper-converted printers without a stock screen, ranked by hardware_profile
-telemetry. A printer not in the set shows generic-corexy, the widget's fallback.
+telemetry, plus the FlashForge Adventurer 5M and 5M Pro, which a K-Touch drives
+over the network. A printer not in the set shows generic-corexy, the widget's fallback.
 Renditions fit a 200x200 box: the home widget's image cell is about 230x210
 on the 800x480 panel, and the firmware decodes the PNG and scales it at draw
 time, so a larger rendition costs flash and decode time and shows nothing more.
@@ -53,6 +54,7 @@ ESP32_PRINTERS = (
     "zerog-hydra-255", "zerog-hydra-370", "zerog-nebula", "zerog-nebula-370",
     "vzbot", "doron_velta", "pfa-micron", "pfa-stealthfork",
     "creality-ender-3", "creality-ender-5", "creality-cr10", "prusa-mk4",
+    "flashforge-adventurer-5m", "flashforge-adventurer-5m-pro",
 )
 
 

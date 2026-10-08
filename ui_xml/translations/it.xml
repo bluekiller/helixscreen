@@ -3405,6 +3405,7 @@
   <translation tag="You can skip this and calibrate later in Settings." it="Puoi saltare e calibrare più tardi nelle Impostazioni."/>
   <translation tag="You have unsaved changes. Discard them?" it="Hai modifiche non salvate. Scartarle?"/>
   <translation tag="Your completed prints will appear here" it="Le stampe completate appariranno qui"/>
+  <translation tag="Your print start or end macro also sets LEDs. It and Automatic LED Control may override each other." it="La macro di inizio o fine stampa imposta anche i LED. Essa e il controllo automatico dei LED potrebbero sovrascriversi a vicenda."/>
   <translation tag="Your printer at a glance" it="La tua stampante a colpo d&apos;occhio"/>
   <translation tag="Your printer has an automatic filament changer" it="La stampante ha un cambio filamento automatico"/>
   <translation tag="Your printer was offline during setup, so hardware options were skipped. Set them up now?" it="La stampante era offline durante la configurazione, quindi le opzioni hardware sono state saltate. Configurarle ora?"/>
@@ -3548,6 +3549,8 @@
   <translation tag="{} is installed, but its backup-spool setting could not be read - do not count on an automatic swap." it="{} è installato, ma non è stato possibile leggere la sua impostazione della bobina di riserva - non contare su un cambio automatico."/>
   <translation tag="{} is not set up on this printer" it="{} non è configurato su questa stampante"/>
   <translation tag="{} is still printing. The print keeps running after you switch." it="{} sta ancora stampando. La stampa continua dopo il cambio."/>
+  <translation tag="{} kept crashing the panel; pick a printer to connect" it="{} ha bloccato ripetutamente lo schermo; scegli una stampante a cui connetterti"/>
+  <translation tag="{} kept crashing the panel; switched back to {}" it="{} ha bloccato ripetutamente lo schermo; tornato a {}"/>
   <translation tag="{} lines in helixscreen.env were ignored" it="{} righe di helixscreen.env sono state ignorate"/>
   <translation tag="{} macro not configured" it="Macro {} non configurata"/>
   <translation tag="{} matches." it="{} corrisponde."/>

@@ -3830,6 +3830,7 @@ translations:
   You have unsaved changes. Discard them?: Sie haben ungespeicherte Änderungen. Verwerfen?
   Your completed prints will appear here: Ihre abgeschlossenen Drucke werden hier
     angezeigt
+  Your print start or end macro also sets LEDs. It and Automatic LED Control may override each other.: 'Ihr Druckstart- oder Druckende-Makro steuert ebenfalls LEDs. Es und die automatische LED-Steuerung können sich gegenseitig überschreiben.'
   Your printer at a glance: Ihr Drucker auf einen Blick
   Your printer has an automatic filament changer: Ihr Drucker hat einen automatischen
     Filamentwechsler
@@ -3986,6 +3987,8 @@ translations:
   '{} is still printing. The print keeps running after you switch.': '{} druckt noch. Der Druck läuft nach dem Wechsel weiter.'
   '{} is not set up on this printer': '{} ist auf diesem Drucker nicht eingerichtet'
   '{} lines in helixscreen.env were ignored': '{} Zeilen in helixscreen.env wurden ignoriert'
+  '{} kept crashing the panel; switched back to {}': '{} hat den Bildschirm wiederholt abstürzen lassen; zurück zu {} gewechselt'
+  '{} kept crashing the panel; pick a printer to connect': '{} hat den Bildschirm wiederholt abstürzen lassen; Drucker zum Verbinden auswählen'
   '{} macro not configured': '{}-Makro nicht konfiguriert'
   '{} matches.': '{} passt.'
   '{} may cause unintended changes. Are you sure?': '{} kann unbeabsichtigte Änderungen

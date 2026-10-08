@@ -6,14 +6,8 @@
 #include "text_io.h"
 
 #include <algorithm>
-#include <functional>
 
 namespace helix::timelapse {
-
-std::string cache_key(const std::string& video_filename) {
-    auto hash = std::hash<std::string>{}(video_filename);
-    return "tl_" + std::to_string(hash);
-}
 
 std::string companion_filename(const std::string& video_filename) {
     auto dot = video_filename.rfind('.');
@@ -24,7 +18,10 @@ std::string companion_filename(const std::string& video_filename) {
 
 std::vector<std::string> ffmpeg_extract_args(const std::string& input_path,
                                              const std::string& output_path) {
-    return {"ffmpeg", "-y", "-i", input_path, "-vframes", "1", "-q:v", "3", output_path};
+    // 480px wide: a full-resolution frame would cost every pre-scale a
+    // multi-megabyte decode on a worker.
+    return {"ffmpeg", "-y", "-i",  input_path,     "-vframes", "1",
+            "-q:v",   "3",  "-vf", "scale=480:-2", output_path};
 }
 
 bool is_video_file(const std::string& filename) {

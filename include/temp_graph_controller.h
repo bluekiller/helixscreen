@@ -243,7 +243,7 @@ class TempGraphController {
      * @brief Look up the graph series ID for a given Klipper name
      * @return Series ID (>= 0) or -1 if not found
      */
-    int series_id_for(const std::string& klipper_name) const;
+    SeriesId series_id_for(const std::string& klipper_name) const;
 
     /// Rename the series for @p klipper_name in the legend; no-op when absent.
     void set_series_name(const std::string& klipper_name, const std::string& display_name);
@@ -254,7 +254,7 @@ class TempGraphController {
     /// Per-series runtime state (extends the spec with observer handles)
     struct SeriesState {
         std::string klipper_name;
-        int series_id = -1;
+        SeriesId series_id = SeriesId::None;
         bool show_target = false;
         bool is_dynamic = false;
         /// Bound to a stand-in subject because the real one is not discovered

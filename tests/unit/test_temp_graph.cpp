@@ -97,12 +97,12 @@ TEST_CASE_METHOD(TempGraphTestFixture, "Add series", "[ui][series]") {
     REQUIRE(graph != nullptr);
 
     SECTION("Add single series returns valid ID") {
-        int id = ui_temp_graph_add_series(graph, "Nozzle", lv_color_hex(0xFF5722));
+        SeriesId id = ui_temp_graph_add_series(graph, "Nozzle", lv_color_hex(0xFF5722));
 
-        REQUIRE(id >= 0);
+        REQUIRE(id != SeriesId::None);
         REQUIRE(graph->series_count == 1);
         REQUIRE(graph->next_series_id == 1);
-        REQUIRE(graph->series_meta[0].id == 0);
+        REQUIRE(graph->series_meta[0].id == SeriesId{0});
         REQUIRE(graph->series_meta[0].chart_series != nullptr);
         REQUIRE(graph->series_meta[0].visible == true);
         REQUIRE(graph->series_meta[0].show_target == false);
@@ -110,13 +110,13 @@ TEST_CASE_METHOD(TempGraphTestFixture, "Add series", "[ui][series]") {
     }
 
     SECTION("Add multiple series with unique IDs") {
-        int id1 = ui_temp_graph_add_series(graph, "Nozzle", lv_color_hex(0xFF5722));
-        int id2 = ui_temp_graph_add_series(graph, "Bed", lv_color_hex(0x2196F3));
-        int id3 = ui_temp_graph_add_series(graph, "Chamber", lv_color_hex(0x4CAF50));
+        SeriesId id1 = ui_temp_graph_add_series(graph, "Nozzle", lv_color_hex(0xFF5722));
+        SeriesId id2 = ui_temp_graph_add_series(graph, "Bed", lv_color_hex(0x2196F3));
+        SeriesId id3 = ui_temp_graph_add_series(graph, "Chamber", lv_color_hex(0x4CAF50));
 
-        REQUIRE(id1 >= 0);
-        REQUIRE(id2 >= 0);
-        REQUIRE(id3 >= 0);
+        REQUIRE(id1 != SeriesId::None);
+        REQUIRE(id2 != SeriesId::None);
+        REQUIRE(id3 != SeriesId::None);
         REQUIRE(id1 != id2);
         REQUIRE(id2 != id3);
         REQUIRE(id1 != id3);
@@ -125,24 +125,24 @@ TEST_CASE_METHOD(TempGraphTestFixture, "Add series", "[ui][series]") {
     }
 
     SECTION("Add series with NULL name fails") {
-        int id = ui_temp_graph_add_series(graph, nullptr, lv_color_hex(0xFF5722));
-        REQUIRE(id == -1);
+        SeriesId id = ui_temp_graph_add_series(graph, nullptr, lv_color_hex(0xFF5722));
+        REQUIRE(id == SeriesId::None);
         REQUIRE(graph->series_count == 0);
     }
 
     SECTION("Add series to NULL graph fails") {
-        int id = ui_temp_graph_add_series(nullptr, "Nozzle", lv_color_hex(0xFF5722));
-        REQUIRE(id == -1);
+        SeriesId id = ui_temp_graph_add_series(nullptr, "Nozzle", lv_color_hex(0xFF5722));
+        REQUIRE(id == SeriesId::None);
     }
 
     SECTION("Add up to max series") {
-        int ids[UI_TEMP_GRAPH_MAX_SERIES];
+        SeriesId ids[UI_TEMP_GRAPH_MAX_SERIES];
 
         for (int i = 0; i < UI_TEMP_GRAPH_MAX_SERIES; i++) {
             char name[32];
             snprintf(name, sizeof(name), "Series%d", i);
             ids[i] = ui_temp_graph_add_series(graph, name, lv_color_hex(0xFF5722 + i));
-            REQUIRE(ids[i] >= 0);
+            REQUIRE(ids[i] != SeriesId::None);
         }
 
         REQUIRE(graph->series_count == UI_TEMP_GRAPH_MAX_SERIES);
@@ -164,8 +164,8 @@ TEST_CASE_METHOD(TempGraphTestFixture, "Add series", "[ui][series]") {
         }
 
         // Try to add one more
-        int id = ui_temp_graph_add_series(graph, "Overflow", lv_color_hex(0xFF5722));
-        REQUIRE(id == -1);
+        SeriesId id = ui_temp_graph_add_series(graph, "Overflow", lv_color_hex(0xFF5722));
+        REQUIRE(id == SeriesId::None);
         REQUIRE(graph->series_count == UI_TEMP_GRAPH_MAX_SERIES);
     }
 
@@ -177,8 +177,8 @@ TEST_CASE_METHOD(TempGraphTestFixture, "Remove series", "[ui][series]") {
     REQUIRE(graph != nullptr);
 
     SECTION("Remove existing series") {
-        int id = ui_temp_graph_add_series(graph, "Nozzle", lv_color_hex(0xFF5722));
-        REQUIRE(id >= 0);
+        SeriesId id = ui_temp_graph_add_series(graph, "Nozzle", lv_color_hex(0xFF5722));
+        REQUIRE(id != SeriesId::None);
         REQUIRE(graph->series_count == 1);
 
         ui_temp_graph_remove_series(graph, id);
@@ -186,9 +186,9 @@ TEST_CASE_METHOD(TempGraphTestFixture, "Remove series", "[ui][series]") {
     }
 
     SECTION("Remove series from middle") {
-        int id1 = ui_temp_graph_add_series(graph, "Series1", lv_color_hex(0xFF5722));
-        int id2 = ui_temp_graph_add_series(graph, "Series2", lv_color_hex(0x2196F3));
-        int id3 = ui_temp_graph_add_series(graph, "Series3", lv_color_hex(0x4CAF50));
+        SeriesId id1 = ui_temp_graph_add_series(graph, "Series1", lv_color_hex(0xFF5722));
+        SeriesId id2 = ui_temp_graph_add_series(graph, "Series2", lv_color_hex(0x2196F3));
+        SeriesId id3 = ui_temp_graph_add_series(graph, "Series3", lv_color_hex(0x4CAF50));
 
         REQUIRE(graph->series_count == 3);
 
@@ -201,20 +201,37 @@ TEST_CASE_METHOD(TempGraphTestFixture, "Remove series", "[ui][series]") {
     }
 
     SECTION("Remove invalid series ID does nothing") {
-        int id = ui_temp_graph_add_series(graph, "Nozzle", lv_color_hex(0xFF5722));
-        REQUIRE(id >= 0);
+        SeriesId id = ui_temp_graph_add_series(graph, "Nozzle", lv_color_hex(0xFF5722));
+        REQUIRE(id != SeriesId::None);
         REQUIRE(graph->series_count == 1);
 
-        ui_temp_graph_remove_series(graph, 999);
+        ui_temp_graph_remove_series(graph, SeriesId{999});
         REQUIRE(graph->series_count == 1);
     }
 
     SECTION("Remove from NULL graph is safe") {
-        REQUIRE_NOTHROW(ui_temp_graph_remove_series(nullptr, 0));
+        REQUIRE_NOTHROW(ui_temp_graph_remove_series(nullptr, SeriesId{0}));
+    }
+
+    SECTION("A handle past the slot count still resolves") {
+        // Handles are never reused, so a graph whose series are rebuilt hands out
+        // handles larger than UI_TEMP_GRAPH_MAX_SERIES while using one slot.
+        SeriesId id = SeriesId::None;
+        for (int i = 0; i <= UI_TEMP_GRAPH_MAX_SERIES; i++) {
+            if (id != SeriesId::None) {
+                ui_temp_graph_remove_series(graph, id);
+            }
+            id = ui_temp_graph_add_series(graph, "Nozzle", lv_color_hex(0xFF5722));
+        }
+        REQUIRE(static_cast<int>(id) >= UI_TEMP_GRAPH_MAX_SERIES);
+        REQUIRE(graph->series_count == 1);
+
+        ui_temp_graph_remove_series(graph, id);
+        CHECK(graph->series_count == 0);
     }
 
     SECTION("Remove already removed series is safe") {
-        int id = ui_temp_graph_add_series(graph, "Nozzle", lv_color_hex(0xFF5722));
+        SeriesId id = ui_temp_graph_add_series(graph, "Nozzle", lv_color_hex(0xFF5722));
         ui_temp_graph_remove_series(graph, id);
         ui_temp_graph_remove_series(graph, id); // Remove again
         REQUIRE(graph->series_count == 0);
@@ -228,7 +245,7 @@ TEST_CASE_METHOD(TempGraphTestFixture, "Show/hide series", "[ui][series]") {
     REQUIRE(graph != nullptr);
 
     SECTION("Hide visible series") {
-        int id = ui_temp_graph_add_series(graph, "Nozzle", lv_color_hex(0xFF5722));
+        SeriesId id = ui_temp_graph_add_series(graph, "Nozzle", lv_color_hex(0xFF5722));
         REQUIRE(graph->series_meta[0].visible == true);
 
         ui_temp_graph_show_series(graph, id, false);
@@ -236,7 +253,7 @@ TEST_CASE_METHOD(TempGraphTestFixture, "Show/hide series", "[ui][series]") {
     }
 
     SECTION("Show hidden series") {
-        int id = ui_temp_graph_add_series(graph, "Nozzle", lv_color_hex(0xFF5722));
+        SeriesId id = ui_temp_graph_add_series(graph, "Nozzle", lv_color_hex(0xFF5722));
         ui_temp_graph_show_series(graph, id, false);
         REQUIRE(graph->series_meta[0].visible == false);
 
@@ -245,11 +262,11 @@ TEST_CASE_METHOD(TempGraphTestFixture, "Show/hide series", "[ui][series]") {
     }
 
     SECTION("Show/hide invalid series ID does nothing") {
-        REQUIRE_NOTHROW(ui_temp_graph_show_series(graph, 999, false));
+        REQUIRE_NOTHROW(ui_temp_graph_show_series(graph, SeriesId{999}, false));
     }
 
     SECTION("Show/hide on NULL graph is safe") {
-        REQUIRE_NOTHROW(ui_temp_graph_show_series(nullptr, 0, false));
+        REQUIRE_NOTHROW(ui_temp_graph_show_series(nullptr, SeriesId{0}, false));
     }
 
     ui_temp_graph_destroy(graph);
@@ -264,14 +281,14 @@ TEST_CASE_METHOD(TempGraphTestFixture, "Update series data (push mode)", "[ui][d
     REQUIRE(graph != nullptr);
 
     SECTION("Update single series with single value") {
-        int id = ui_temp_graph_add_series(graph, "Nozzle", lv_color_hex(0xFF5722));
+        SeriesId id = ui_temp_graph_add_series(graph, "Nozzle", lv_color_hex(0xFF5722));
 
         REQUIRE_NOTHROW(ui_temp_graph_update_series(graph, id, 210.5f));
         REQUIRE(graph->series_count == 1);
     }
 
     SECTION("Update series multiple times") {
-        int id = ui_temp_graph_add_series(graph, "Nozzle", lv_color_hex(0xFF5722));
+        SeriesId id = ui_temp_graph_add_series(graph, "Nozzle", lv_color_hex(0xFF5722));
 
         for (int i = 0; i < 10; i++) {
             ui_temp_graph_update_series(graph, id, 200.0f + i);
@@ -282,16 +299,16 @@ TEST_CASE_METHOD(TempGraphTestFixture, "Update series data (push mode)", "[ui][d
     }
 
     SECTION("Update invalid series ID is safe") {
-        REQUIRE_NOTHROW(ui_temp_graph_update_series(graph, 999, 100.0f));
+        REQUIRE_NOTHROW(ui_temp_graph_update_series(graph, SeriesId{999}, 100.0f));
         REQUIRE(graph->series_count == 0);
     }
 
     SECTION("Update NULL graph is safe") {
-        REQUIRE_NOTHROW(ui_temp_graph_update_series(nullptr, 0, 100.0f));
+        REQUIRE_NOTHROW(ui_temp_graph_update_series(nullptr, SeriesId{0}, 100.0f));
     }
 
     SECTION("Update with boundary values") {
-        int id = ui_temp_graph_add_series(graph, "Nozzle", lv_color_hex(0xFF5722));
+        SeriesId id = ui_temp_graph_add_series(graph, "Nozzle", lv_color_hex(0xFF5722));
 
         REQUIRE_NOTHROW(ui_temp_graph_update_series(graph, id, 0.0f));
         REQUIRE_NOTHROW(ui_temp_graph_update_series(graph, id, 300.0f));
@@ -309,7 +326,7 @@ TEST_CASE_METHOD(TempGraphTestFixture, "Set series data (array mode)", "[ui][dat
     REQUIRE(graph != nullptr);
 
     SECTION("Set data with valid array") {
-        int id = ui_temp_graph_add_series(graph, "Nozzle", lv_color_hex(0xFF5722));
+        SeriesId id = ui_temp_graph_add_series(graph, "Nozzle", lv_color_hex(0xFF5722));
 
         float temps[] = {20.0f, 50.0f, 100.0f, 150.0f, 200.0f, 210.5f};
         REQUIRE_NOTHROW(ui_temp_graph_set_series_data(graph, id, temps, 6));
@@ -318,7 +335,7 @@ TEST_CASE_METHOD(TempGraphTestFixture, "Set series data (array mode)", "[ui][dat
     }
 
     SECTION("Set data with array larger than point count") {
-        int id = ui_temp_graph_add_series(graph, "Nozzle", lv_color_hex(0xFF5722));
+        SeriesId id = ui_temp_graph_add_series(graph, "Nozzle", lv_color_hex(0xFF5722));
 
         // Create array larger than default point count
         float* temps = new float[UI_TEMP_GRAPH_DEFAULT_POINTS + 100];
@@ -335,21 +352,21 @@ TEST_CASE_METHOD(TempGraphTestFixture, "Set series data (array mode)", "[ui][dat
     }
 
     SECTION("Set data with NULL array fails gracefully") {
-        int id = ui_temp_graph_add_series(graph, "Nozzle", lv_color_hex(0xFF5722));
+        SeriesId id = ui_temp_graph_add_series(graph, "Nozzle", lv_color_hex(0xFF5722));
         REQUIRE_NOTHROW(ui_temp_graph_set_series_data(graph, id, nullptr, 10));
         // Series still exists despite invalid data
         REQUIRE(graph->series_count == 1);
     }
 
     SECTION("Set data with zero count fails gracefully") {
-        int id = ui_temp_graph_add_series(graph, "Nozzle", lv_color_hex(0xFF5722));
+        SeriesId id = ui_temp_graph_add_series(graph, "Nozzle", lv_color_hex(0xFF5722));
         float temps[] = {100.0f};
         REQUIRE_NOTHROW(ui_temp_graph_set_series_data(graph, id, temps, 0));
         REQUIRE(graph->series_count == 1);
     }
 
     SECTION("Set data with negative count fails gracefully") {
-        int id = ui_temp_graph_add_series(graph, "Nozzle", lv_color_hex(0xFF5722));
+        SeriesId id = ui_temp_graph_add_series(graph, "Nozzle", lv_color_hex(0xFF5722));
         float temps[] = {100.0f};
         REQUIRE_NOTHROW(ui_temp_graph_set_series_data(graph, id, temps, -5));
         REQUIRE(graph->series_count == 1);
@@ -357,7 +374,7 @@ TEST_CASE_METHOD(TempGraphTestFixture, "Set series data (array mode)", "[ui][dat
 
     SECTION("Set data on NULL graph is safe") {
         float temps[] = {100.0f};
-        REQUIRE_NOTHROW(ui_temp_graph_set_series_data(nullptr, 0, temps, 1));
+        REQUIRE_NOTHROW(ui_temp_graph_set_series_data(nullptr, SeriesId{0}, temps, 1));
     }
 
     ui_temp_graph_destroy(graph);
@@ -368,8 +385,8 @@ TEST_CASE_METHOD(TempGraphTestFixture, "Clear graph data", "[ui][data]") {
     REQUIRE(graph != nullptr);
 
     SECTION("Clear all series data") {
-        int id1 = ui_temp_graph_add_series(graph, "Nozzle", lv_color_hex(0xFF5722));
-        int id2 = ui_temp_graph_add_series(graph, "Bed", lv_color_hex(0x2196F3));
+        SeriesId id1 = ui_temp_graph_add_series(graph, "Nozzle", lv_color_hex(0xFF5722));
+        SeriesId id2 = ui_temp_graph_add_series(graph, "Bed", lv_color_hex(0x2196F3));
 
         // Add some data
         ui_temp_graph_update_series(graph, id1, 210.0f);
@@ -398,7 +415,7 @@ TEST_CASE_METHOD(TempGraphTestFixture, "Clear individual series data", "[ui][dat
     REQUIRE(graph != nullptr);
 
     SECTION("Clear single series") {
-        int id = ui_temp_graph_add_series(graph, "Nozzle", lv_color_hex(0xFF5722));
+        SeriesId id = ui_temp_graph_add_series(graph, "Nozzle", lv_color_hex(0xFF5722));
         ui_temp_graph_update_series(graph, id, 210.0f);
 
         ui_temp_graph_clear_series(graph, id);
@@ -408,8 +425,8 @@ TEST_CASE_METHOD(TempGraphTestFixture, "Clear individual series data", "[ui][dat
     }
 
     SECTION("Clear one series leaves others intact") {
-        int id1 = ui_temp_graph_add_series(graph, "Nozzle", lv_color_hex(0xFF5722));
-        int id2 = ui_temp_graph_add_series(graph, "Bed", lv_color_hex(0x2196F3));
+        SeriesId id1 = ui_temp_graph_add_series(graph, "Nozzle", lv_color_hex(0xFF5722));
+        SeriesId id2 = ui_temp_graph_add_series(graph, "Bed", lv_color_hex(0x2196F3));
 
         ui_temp_graph_update_series(graph, id1, 210.0f);
         ui_temp_graph_update_series(graph, id2, 60.0f);
@@ -420,12 +437,12 @@ TEST_CASE_METHOD(TempGraphTestFixture, "Clear individual series data", "[ui][dat
     }
 
     SECTION("Clear invalid series ID is safe") {
-        REQUIRE_NOTHROW(ui_temp_graph_clear_series(graph, 999));
+        REQUIRE_NOTHROW(ui_temp_graph_clear_series(graph, SeriesId{999}));
         REQUIRE(graph->series_count == 0);
     }
 
     SECTION("Clear on NULL graph is safe") {
-        REQUIRE_NOTHROW(ui_temp_graph_clear_series(nullptr, 0));
+        REQUIRE_NOTHROW(ui_temp_graph_clear_series(nullptr, SeriesId{0}));
     }
 
     ui_temp_graph_destroy(graph);
@@ -440,7 +457,7 @@ TEST_CASE_METHOD(TempGraphTestFixture, "Set series target temperature", "[ui][ta
     REQUIRE(graph != nullptr);
 
     SECTION("Set target temperature with visibility") {
-        int id = ui_temp_graph_add_series(graph, "Nozzle", lv_color_hex(0xFF5722));
+        SeriesId id = ui_temp_graph_add_series(graph, "Nozzle", lv_color_hex(0xFF5722));
 
         ui_temp_graph_set_series_target(graph, id, 210.0f, true);
 
@@ -449,7 +466,7 @@ TEST_CASE_METHOD(TempGraphTestFixture, "Set series target temperature", "[ui][ta
     }
 
     SECTION("Set target temperature without showing") {
-        int id = ui_temp_graph_add_series(graph, "Nozzle", lv_color_hex(0xFF5722));
+        SeriesId id = ui_temp_graph_add_series(graph, "Nozzle", lv_color_hex(0xFF5722));
 
         ui_temp_graph_set_series_target(graph, id, 210.0f, false);
 
@@ -458,7 +475,7 @@ TEST_CASE_METHOD(TempGraphTestFixture, "Set series target temperature", "[ui][ta
     }
 
     SECTION("Update target temperature") {
-        int id = ui_temp_graph_add_series(graph, "Nozzle", lv_color_hex(0xFF5722));
+        SeriesId id = ui_temp_graph_add_series(graph, "Nozzle", lv_color_hex(0xFF5722));
 
         ui_temp_graph_set_series_target(graph, id, 200.0f, true);
         REQUIRE(graph->series_meta[0].target_temp == 200.0f);
@@ -468,7 +485,7 @@ TEST_CASE_METHOD(TempGraphTestFixture, "Set series target temperature", "[ui][ta
     }
 
     SECTION("Set target with boundary values") {
-        int id = ui_temp_graph_add_series(graph, "Nozzle", lv_color_hex(0xFF5722));
+        SeriesId id = ui_temp_graph_add_series(graph, "Nozzle", lv_color_hex(0xFF5722));
 
         ui_temp_graph_set_series_target(graph, id, 0.0f, true);
         REQUIRE(graph->series_meta[0].target_temp == 0.0f);
@@ -478,12 +495,12 @@ TEST_CASE_METHOD(TempGraphTestFixture, "Set series target temperature", "[ui][ta
     }
 
     SECTION("Set target on invalid series ID is safe") {
-        REQUIRE_NOTHROW(ui_temp_graph_set_series_target(graph, 999, 210.0f, true));
+        REQUIRE_NOTHROW(ui_temp_graph_set_series_target(graph, SeriesId{999}, 210.0f, true));
         REQUIRE(graph->series_count == 0);
     }
 
     SECTION("Set target on NULL graph is safe") {
-        REQUIRE_NOTHROW(ui_temp_graph_set_series_target(nullptr, 0, 210.0f, true));
+        REQUIRE_NOTHROW(ui_temp_graph_set_series_target(nullptr, SeriesId{0}, 210.0f, true));
     }
 
     ui_temp_graph_destroy(graph);
@@ -494,7 +511,7 @@ TEST_CASE_METHOD(TempGraphTestFixture, "Show/hide target temperature", "[ui][tar
     REQUIRE(graph != nullptr);
 
     SECTION("Show target temperature") {
-        int id = ui_temp_graph_add_series(graph, "Nozzle", lv_color_hex(0xFF5722));
+        SeriesId id = ui_temp_graph_add_series(graph, "Nozzle", lv_color_hex(0xFF5722));
         ui_temp_graph_set_series_target(graph, id, 210.0f, false);
         REQUIRE(graph->series_meta[0].show_target == false);
 
@@ -503,7 +520,7 @@ TEST_CASE_METHOD(TempGraphTestFixture, "Show/hide target temperature", "[ui][tar
     }
 
     SECTION("Hide target temperature") {
-        int id = ui_temp_graph_add_series(graph, "Nozzle", lv_color_hex(0xFF5722));
+        SeriesId id = ui_temp_graph_add_series(graph, "Nozzle", lv_color_hex(0xFF5722));
         ui_temp_graph_set_series_target(graph, id, 210.0f, true);
         REQUIRE(graph->series_meta[0].show_target == true);
 
@@ -512,12 +529,12 @@ TEST_CASE_METHOD(TempGraphTestFixture, "Show/hide target temperature", "[ui][tar
     }
 
     SECTION("Show/hide on invalid series ID is safe") {
-        REQUIRE_NOTHROW(ui_temp_graph_show_target(graph, 999, true));
+        REQUIRE_NOTHROW(ui_temp_graph_show_target(graph, SeriesId{999}, true));
         REQUIRE(graph->series_count == 0);
     }
 
     SECTION("Show/hide on NULL graph is safe") {
-        REQUIRE_NOTHROW(ui_temp_graph_show_target(nullptr, 0, true));
+        REQUIRE_NOTHROW(ui_temp_graph_show_target(nullptr, SeriesId{0}, true));
     }
 
     ui_temp_graph_destroy(graph);
@@ -623,7 +640,7 @@ TEST_CASE_METHOD(TempGraphTestFixture, "Set series gradient", "[ui][config]") {
     REQUIRE(graph != nullptr);
 
     SECTION("Set custom gradient opacities") {
-        int id = ui_temp_graph_add_series(graph, "Nozzle", lv_color_hex(0xFF5722));
+        SeriesId id = ui_temp_graph_add_series(graph, "Nozzle", lv_color_hex(0xFF5722));
 
         ui_temp_graph_set_series_gradient(graph, id, LV_OPA_80, LV_OPA_20);
 
@@ -632,7 +649,7 @@ TEST_CASE_METHOD(TempGraphTestFixture, "Set series gradient", "[ui][config]") {
     }
 
     SECTION("Set gradient to full opacity") {
-        int id = ui_temp_graph_add_series(graph, "Nozzle", lv_color_hex(0xFF5722));
+        SeriesId id = ui_temp_graph_add_series(graph, "Nozzle", lv_color_hex(0xFF5722));
 
         ui_temp_graph_set_series_gradient(graph, id, LV_OPA_COVER, LV_OPA_COVER);
 
@@ -641,7 +658,7 @@ TEST_CASE_METHOD(TempGraphTestFixture, "Set series gradient", "[ui][config]") {
     }
 
     SECTION("Set gradient to transparent") {
-        int id = ui_temp_graph_add_series(graph, "Nozzle", lv_color_hex(0xFF5722));
+        SeriesId id = ui_temp_graph_add_series(graph, "Nozzle", lv_color_hex(0xFF5722));
 
         ui_temp_graph_set_series_gradient(graph, id, LV_OPA_TRANSP, LV_OPA_TRANSP);
 
@@ -650,12 +667,14 @@ TEST_CASE_METHOD(TempGraphTestFixture, "Set series gradient", "[ui][config]") {
     }
 
     SECTION("Set gradient on invalid series ID is safe") {
-        REQUIRE_NOTHROW(ui_temp_graph_set_series_gradient(graph, 999, LV_OPA_50, LV_OPA_10));
+        REQUIRE_NOTHROW(
+            ui_temp_graph_set_series_gradient(graph, SeriesId{999}, LV_OPA_50, LV_OPA_10));
         REQUIRE(graph->series_count == 0);
     }
 
     SECTION("Set gradient on NULL graph is safe") {
-        REQUIRE_NOTHROW(ui_temp_graph_set_series_gradient(nullptr, 0, LV_OPA_50, LV_OPA_10));
+        REQUIRE_NOTHROW(
+            ui_temp_graph_set_series_gradient(nullptr, SeriesId{0}, LV_OPA_50, LV_OPA_10));
     }
 
     ui_temp_graph_destroy(graph);
@@ -671,8 +690,8 @@ TEST_CASE_METHOD(TempGraphTestFixture, "Complete workflow scenarios", "[ui][inte
 
     SECTION("Typical heating profile") {
         // Add nozzle series
-        int nozzle_id = ui_temp_graph_add_series(graph, "Nozzle", lv_color_hex(0xFF5722));
-        REQUIRE(nozzle_id >= 0);
+        SeriesId nozzle_id = ui_temp_graph_add_series(graph, "Nozzle", lv_color_hex(0xFF5722));
+        REQUIRE(nozzle_id != SeriesId::None);
 
         // Set target temperature
         ui_temp_graph_set_series_target(graph, nozzle_id, 210.0f, true);
@@ -690,13 +709,13 @@ TEST_CASE_METHOD(TempGraphTestFixture, "Complete workflow scenarios", "[ui][inte
 
     SECTION("Multi-heater monitoring") {
         // Add multiple heaters
-        int nozzle_id = ui_temp_graph_add_series(graph, "Nozzle", lv_color_hex(0xFF5722));
-        int bed_id = ui_temp_graph_add_series(graph, "Bed", lv_color_hex(0x2196F3));
-        int chamber_id = ui_temp_graph_add_series(graph, "Chamber", lv_color_hex(0x4CAF50));
+        SeriesId nozzle_id = ui_temp_graph_add_series(graph, "Nozzle", lv_color_hex(0xFF5722));
+        SeriesId bed_id = ui_temp_graph_add_series(graph, "Bed", lv_color_hex(0x2196F3));
+        SeriesId chamber_id = ui_temp_graph_add_series(graph, "Chamber", lv_color_hex(0x4CAF50));
 
-        REQUIRE(nozzle_id >= 0);
-        REQUIRE(bed_id >= 0);
-        REQUIRE(chamber_id >= 0);
+        REQUIRE(nozzle_id != SeriesId::None);
+        REQUIRE(bed_id != SeriesId::None);
+        REQUIRE(chamber_id != SeriesId::None);
 
         // Set targets
         ui_temp_graph_set_series_target(graph, nozzle_id, 210.0f, true);
@@ -712,16 +731,16 @@ TEST_CASE_METHOD(TempGraphTestFixture, "Complete workflow scenarios", "[ui][inte
     }
 
     SECTION("Series removal and re-addition") {
-        int id1 = ui_temp_graph_add_series(graph, "Series1", lv_color_hex(0xFF5722));
-        int id2 = ui_temp_graph_add_series(graph, "Series2", lv_color_hex(0x2196F3));
+        SeriesId id1 = ui_temp_graph_add_series(graph, "Series1", lv_color_hex(0xFF5722));
+        SeriesId id2 = ui_temp_graph_add_series(graph, "Series2", lv_color_hex(0x2196F3));
 
         // Remove first series
         ui_temp_graph_remove_series(graph, id1);
         REQUIRE(graph->series_count == 1);
 
         // Add new series (should reuse slot)
-        int id3 = ui_temp_graph_add_series(graph, "Series3", lv_color_hex(0x4CAF50));
-        REQUIRE(id3 >= 0);
+        SeriesId id3 = ui_temp_graph_add_series(graph, "Series3", lv_color_hex(0x4CAF50));
+        REQUIRE(id3 != SeriesId::None);
         REQUIRE(graph->series_count == 2);
 
         // Verify second series still works
@@ -730,7 +749,7 @@ TEST_CASE_METHOD(TempGraphTestFixture, "Complete workflow scenarios", "[ui][inte
     }
 
     SECTION("Bulk data update") {
-        int id = ui_temp_graph_add_series(graph, "Nozzle", lv_color_hex(0xFF5722));
+        SeriesId id = ui_temp_graph_add_series(graph, "Nozzle", lv_color_hex(0xFF5722));
 
         // Create historical temperature data
         const int count = 100;
@@ -753,8 +772,8 @@ TEST_CASE_METHOD(TempGraphTestFixture, "Stress tests", "[ui][stress]") {
     REQUIRE(graph != nullptr);
 
     SECTION("Large data updates") {
-        int id = ui_temp_graph_add_series(graph, "Nozzle", lv_color_hex(0xFF5722));
-        REQUIRE(id >= 0);
+        SeriesId id = ui_temp_graph_add_series(graph, "Nozzle", lv_color_hex(0xFF5722));
+        REQUIRE(id != SeriesId::None);
 
         // Push many data points
         for (int i = 0; i < 1000; i++) {
@@ -766,8 +785,8 @@ TEST_CASE_METHOD(TempGraphTestFixture, "Stress tests", "[ui][stress]") {
     }
 
     SECTION("Rapid configuration changes") {
-        int id = ui_temp_graph_add_series(graph, "Test", lv_color_hex(0xFF5722));
-        REQUIRE(id >= 0);
+        SeriesId id = ui_temp_graph_add_series(graph, "Test", lv_color_hex(0xFF5722));
+        REQUIRE(id != SeriesId::None);
 
         // Rapidly change configuration
         for (int i = 0; i < 100; i++) {
@@ -794,8 +813,8 @@ TEST_CASE_METHOD(TempGraphTestFixture, "Over-range points stored at full precisi
     // Set a small Y range: 0-150°C
     ui_temp_graph_set_temp_range(graph, 0.0f, 150.0f);
 
-    int id = ui_temp_graph_add_series(graph, "Nozzle", lv_color_hex(0xFF5722));
-    REQUIRE(id >= 0);
+    SeriesId id = ui_temp_graph_add_series(graph, "Nozzle", lv_color_hex(0xFF5722));
+    REQUIRE(id != SeriesId::None);
 
     // Push values: some in range, some over range
     ui_temp_graph_update_series(graph, id, 50.0f);  // in range
@@ -845,8 +864,8 @@ TEST_CASE_METHOD(TempGraphTestFixture, "ui_temp_graph: target buffer allocated o
     ui_temp_graph_t* g = ui_temp_graph_create(screen);
     REQUIRE(g != nullptr);
 
-    int id = ui_temp_graph_add_series(g, "Nozzle", lv_color_hex(0xFF4444));
-    REQUIRE(id >= 0);
+    SeriesId id = ui_temp_graph_add_series(g, "Nozzle", lv_color_hex(0xFF4444));
+    REQUIRE(id != SeriesId::None);
 
     bool found = false;
     for (int i = 0; i < UI_TEMP_GRAPH_MAX_SERIES; i++) {
@@ -870,8 +889,8 @@ TEST_CASE_METHOD(TempGraphTestFixture, "ui_temp_graph: target buffer freed on re
     ui_temp_graph_t* g = ui_temp_graph_create(screen);
     REQUIRE(g != nullptr);
 
-    int id = ui_temp_graph_add_series(g, "Bed", lv_color_hex(0x44FF44));
-    REQUIRE(id >= 0);
+    SeriesId id = ui_temp_graph_add_series(g, "Bed", lv_color_hex(0x44FF44));
+    REQUIRE(id != SeriesId::None);
 
     ui_temp_graph_remove_series(g, id);
 
@@ -890,10 +909,10 @@ TEST_CASE_METHOD(TempGraphTestFixture, "ui_temp_graph: set_point_count reallocs 
     const int original_count = g->point_count;
     REQUIRE(original_count > 200); // both resizes below have to be real resizes
 
-    int id_a = ui_temp_graph_add_series(g, "A", lv_color_hex(0xFF0000));
-    int id_b = ui_temp_graph_add_series(g, "B", lv_color_hex(0x00FF00));
-    REQUIRE(id_a >= 0);
-    REQUIRE(id_b >= 0);
+    SeriesId id_a = ui_temp_graph_add_series(g, "A", lv_color_hex(0xFF0000));
+    SeriesId id_b = ui_temp_graph_add_series(g, "B", lv_color_hex(0x00FF00));
+    REQUIRE(id_a != SeriesId::None);
+    REQUIRE(id_b != SeriesId::None);
 
     // Run a check over every live series, asserting that both of them were seen.
     auto for_each_live_series = [&](auto&& check) {
@@ -996,8 +1015,8 @@ TEST_CASE_METHOD(TempGraphTestFixture,
     ui_temp_graph_t* g = ui_temp_graph_create(screen);
     REQUIRE(g != nullptr);
 
-    int id = ui_temp_graph_add_series(g, "Nozzle", lv_color_hex(0xFF4444));
-    REQUIRE(id >= 0);
+    SeriesId id = ui_temp_graph_add_series(g, "Nozzle", lv_color_hex(0xFF4444));
+    REQUIRE(id != SeriesId::None);
 
     auto get_meta = [&]() -> ui_temp_series_meta_t* {
         for (int i = 0; i < UI_TEMP_GRAPH_MAX_SERIES; i++) {
@@ -1047,8 +1066,8 @@ TEST_CASE_METHOD(TempGraphTestFixture, "ui_temp_graph: target buffer shifts left
     // Shrink to a tractable size for the test.
     ui_temp_graph_set_point_count(g, 4);
 
-    int id = ui_temp_graph_add_series(g, "X", lv_color_hex(0x123456));
-    REQUIRE(id >= 0);
+    SeriesId id = ui_temp_graph_add_series(g, "X", lv_color_hex(0x123456));
+    REQUIRE(id != SeriesId::None);
 
     auto get_meta = [&]() -> ui_temp_series_meta_t* {
         for (int i = 0; i < UI_TEMP_GRAPH_MAX_SERIES; i++) {
@@ -1095,8 +1114,8 @@ TEST_CASE_METHOD(TempGraphTestFixture,
     ui_temp_graph_t* g = ui_temp_graph_create(screen);
     REQUIRE(g != nullptr);
 
-    int id = ui_temp_graph_add_series(g, "N", lv_color_hex(0xFF0000));
-    REQUIRE(id >= 0);
+    SeriesId id = ui_temp_graph_add_series(g, "N", lv_color_hex(0xFF0000));
+    REQUIRE(id != SeriesId::None);
 
     auto get_meta = [&]() -> ui_temp_series_meta_t* {
         for (int i = 0; i < UI_TEMP_GRAPH_MAX_SERIES; i++) {
@@ -1132,8 +1151,8 @@ TEST_CASE_METHOD(TempGraphTestFixture,
     ui_temp_graph_t* g = ui_temp_graph_create(screen);
     REQUIRE(g != nullptr);
 
-    int id = ui_temp_graph_add_series(g, "N", lv_color_hex(0xFF0000));
-    REQUIRE(id >= 0);
+    SeriesId id = ui_temp_graph_add_series(g, "N", lv_color_hex(0xFF0000));
+    REQUIRE(id != SeriesId::None);
 
     auto get_meta = [&]() -> ui_temp_series_meta_t* {
         for (int i = 0; i < UI_TEMP_GRAPH_MAX_SERIES; i++) {
@@ -1164,8 +1183,8 @@ TEST_CASE_METHOD(TempGraphTestFixture, "ui_temp_graph: clear_series zeroes targe
     ui_temp_graph_t* g = ui_temp_graph_create(screen);
     REQUIRE(g != nullptr);
 
-    int id = ui_temp_graph_add_series(g, "X", lv_color_hex(0xFF0000));
-    REQUIRE(id >= 0);
+    SeriesId id = ui_temp_graph_add_series(g, "X", lv_color_hex(0xFF0000));
+    REQUIRE(id != SeriesId::None);
 
     auto get_meta = [&]() -> ui_temp_series_meta_t* {
         for (int i = 0; i < UI_TEMP_GRAPH_MAX_SERIES; i++) {
@@ -1374,8 +1393,8 @@ TEST_CASE_METHOD(TempGraphTestFixture,
     ui_temp_graph_t* graph = ui_temp_graph_create(screen);
     REQUIRE(graph != nullptr);
 
-    int s = ui_temp_graph_add_series(graph, "Nozzle", lv_color_hex(0xFF4444));
-    REQUIRE(s >= 0);
+    SeriesId s = ui_temp_graph_add_series(graph, "Nozzle", lv_color_hex(0xFF4444));
+    REQUIRE(s != SeriesId::None);
 
     // Pushing a sample shifts the curve -> cache must recompute.
     ui_temp_graph_update_series(graph, s, 100.0f);
@@ -1398,8 +1417,8 @@ TEST_CASE_METHOD(TempGraphTestFixture,
                  "[temp_graph][gradient_cache]") {
     ui_temp_graph_t* graph = ui_temp_graph_create(screen);
     REQUIRE(graph != nullptr);
-    int s = ui_temp_graph_add_series(graph, "Nozzle", lv_color_hex(0xFF4444));
-    REQUIRE(s >= 0);
+    SeriesId s = ui_temp_graph_add_series(graph, "Nozzle", lv_color_hex(0xFF4444));
+    REQUIRE(s != SeriesId::None);
 
     ui_temp_graph_set_temp_range(graph, 0.0f, 300.0f);
     ui_temp_graph_mark_gradient_cache_clean(graph);
@@ -1422,8 +1441,8 @@ TEST_CASE_METHOD(TempGraphTestFixture,
                  "[temp_graph][gradient_cache]") {
     ui_temp_graph_t* graph = ui_temp_graph_create(screen);
     REQUIRE(graph != nullptr);
-    int s = ui_temp_graph_add_series(graph, "Nozzle", lv_color_hex(0xFF4444));
-    REQUIRE(s >= 0);
+    SeriesId s = ui_temp_graph_add_series(graph, "Nozzle", lv_color_hex(0xFF4444));
+    REQUIRE(s != SeriesId::None);
 
     uint32_t feats = ui_temp_graph_get_features(graph);
     REQUIRE((feats & TEMP_GRAPH_FEATURE_GRADIENTS) != 0);
@@ -1539,8 +1558,8 @@ TEST_CASE_METHOD(LVGLTestFixture, "ui_temp_graph: a frame rebuilds a stale gradi
     ui_temp_graph_t* graph = ui_temp_graph_create(test_screen());
     REQUIRE(graph != nullptr);
     lv_obj_set_size(ui_temp_graph_get_chart(graph), 400, 200);
-    int s = ui_temp_graph_add_series(graph, "Nozzle", lv_color_hex(0xFF4444));
-    REQUIRE(s >= 0);
+    SeriesId s = ui_temp_graph_add_series(graph, "Nozzle", lv_color_hex(0xFF4444));
+    REQUIRE(s != SeriesId::None);
     for (float t : {20.0f, 60.0f, 120.0f, 180.0f})
         ui_temp_graph_update_series(graph, s, t);
     REQUIRE(ui_temp_graph_gradient_cache_is_dirty(graph));
@@ -1588,7 +1607,7 @@ TEST_CASE_METHOD(TempGraphTestFixture, "ui_temp_graph: legend row sits outside t
     lv_obj_t* chart = ui_temp_graph_get_chart(graph);
     lv_obj_set_size(chart, w, h);
     ui_temp_graph_set_axis_size(graph, "xs");
-    int nozzle = ui_temp_graph_add_series(graph, "Nozzle", lv_color_hex(0xFF0000));
+    SeriesId nozzle = ui_temp_graph_add_series(graph, "Nozzle", lv_color_hex(0xFF0000));
     ui_temp_graph_add_series(graph, "Bed", lv_color_hex(0x00FFFF));
     ui_temp_graph_set_features(graph, TEMP_GRAPH_FEATURE_LINES | TEMP_GRAPH_FEATURE_GRADIENTS |
                                           TEMP_GRAPH_FEATURE_TARGET_LINES |

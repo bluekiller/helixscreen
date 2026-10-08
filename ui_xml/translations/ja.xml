@@ -3405,6 +3405,7 @@
   <translation tag="You can skip this and calibrate later in Settings." ja="スキップして後で設定でキャリブレーションできます。"/>
   <translation tag="You have unsaved changes. Discard them?" ja="保存されていない変更があります。破棄しますか？"/>
   <translation tag="Your completed prints will appear here" ja="完了した印刷がここに表示されます"/>
+  <translation tag="Your print start or end macro also sets LEDs. It and Automatic LED Control may override each other." ja="印刷開始または終了マクロもLEDを設定しています。マクロと自動LED制御が互いに上書きする可能性があります。"/>
   <translation tag="Your printer at a glance" ja="プリンターを一目で確認"/>
   <translation tag="Your printer has an automatic filament changer" ja="プリンターに自動フィラメントチェンジャーが搭載されています"/>
   <translation tag="Your printer was offline during setup, so hardware options were skipped. Set them up now?" ja="セットアップ中にプリンターがオフラインだったため、ハードウェアオプションはスキップされました。今すぐ設定しますか？"/>
@@ -3548,6 +3549,8 @@
   <translation tag="{} is installed, but its backup-spool setting could not be read - do not count on an automatic swap." ja="{} はインストールされていますが、予備スプールの設定を読み取れませんでした - 自動切り替えを当てにしないでください。"/>
   <translation tag="{} is not set up on this printer" ja="{} はこのプリンターで設定されていません"/>
   <translation tag="{} is still printing. The print keeps running after you switch." ja="{}は印刷中です。切り替えても印刷は続行されます。"/>
+  <translation tag="{} kept crashing the panel; pick a printer to connect" ja="{} で画面のクラッシュが繰り返されました。接続するプリンターを選んでください"/>
+  <translation tag="{} kept crashing the panel; switched back to {}" ja="{} で画面のクラッシュが繰り返されたため、{} に戻しました"/>
   <translation tag="{} lines in helixscreen.env were ignored" ja="helixscreen.env の{}行が無視されました"/>
   <translation tag="{} macro not configured" ja="{} マクロが未設定です"/>
   <translation tag="{} matches." ja="{} が一致します。"/>

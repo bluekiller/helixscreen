@@ -51,7 +51,6 @@ struct PrintHistoryJob {
     double layer_height = 0.0;
     double nozzle_temp = 0.0;
     double bed_temp = 0.0;
-    std::string thumbnail_path; ///< Largest thumbnail relative path (for simple consumers)
     std::vector<ThumbnailInfo> thumbnails; ///< All available thumbnails with dimensions
     std::string uuid;                      ///< Slicer-generated UUID (from metadata.uuid)
     size_t size_bytes = 0;                 ///< File size in bytes (from metadata.size)
@@ -81,18 +80,6 @@ namespace helix {
  */
 [[nodiscard]] inline double job_timestamp(const PrintHistoryJob& job) {
     return job.end_time > 0 ? job.end_time : job.start_time;
-}
-
-/**
- * @brief A job thumbnail's path from the gcodes root, ready to download
- *
- * History metadata gives each thumbnail's relative_path relative to the G-code
- * file's own directory, so "sub/dir/Foo.gcode" with ".thumbs/Foo.png" resolves
- * to "sub/dir/.thumbs/Foo.png". A root-level job's path is unchanged.
- */
-[[nodiscard]] inline std::string job_thumbnail_path(const PrintHistoryJob& job,
-                                                    const std::string& relative_path) {
-    return resolve_gcode_thumbnail_path(relative_path, job.filename);
 }
 
 /**

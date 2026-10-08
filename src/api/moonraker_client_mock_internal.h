@@ -8,6 +8,7 @@
 #include <functional>
 #include <string>
 #include <unordered_map>
+#include <vector>
 
 /**
  * @file moonraker_client_mock_internal.h
@@ -202,6 +203,13 @@ json get_mock_mmu_status();
 } // namespace mock_internal
 
 namespace helix::sim {
+/**
+ * @brief Extra macro names from HELIX_MOCK_MACRO_COUNT=N (MOCK_MACRO_000 ...)
+ *
+ * Empty when the variable is unset. Lets list-scale macro UI run against a
+ * long list; get_mock_gcode_macro_config() describes every third one.
+ */
+std::vector<std::string> mock_padded_macro_names();
 
 /**
  * @brief Get the mock probe's printer objects and their status, keyed by object

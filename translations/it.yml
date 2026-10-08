@@ -3822,6 +3822,7 @@ translations:
     tardi nelle Impostazioni.
   You have unsaved changes. Discard them?: Hai modifiche non salvate. Scartarle?
   Your completed prints will appear here: Le stampe completate appariranno qui
+  Your print start or end macro also sets LEDs. It and Automatic LED Control may override each other.: 'La macro di inizio o fine stampa imposta anche i LED. Essa e il controllo automatico dei LED potrebbero sovrascriversi a vicenda.'
   Your printer at a glance: La tua stampante a colpo d'occhio
   Your printer has an automatic filament changer: La stampante ha un cambio filamento
     automatico
@@ -3977,6 +3978,8 @@ translations:
   '{} is still printing. The print keeps running after you switch.': '{} sta ancora stampando. La stampa continua dopo il cambio.'
   '{} is not set up on this printer': '{} non è configurato su questa stampante'
   '{} lines in helixscreen.env were ignored': '{} righe di helixscreen.env sono state ignorate'
+  '{} kept crashing the panel; switched back to {}': '{} ha bloccato ripetutamente lo schermo; tornato a {}'
+  '{} kept crashing the panel; pick a printer to connect': '{} ha bloccato ripetutamente lo schermo; scegli una stampante a cui connetterti'
   '{} macro not configured': Macro {} non configurata
   '{} matches.': '{} corrisponde.'
   '{} may cause unintended changes. Are you sure?': '{} potrebbe causare modifiche

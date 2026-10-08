@@ -94,11 +94,11 @@ class TempGraphOverlay : public OverlayBase {
         std::string heater_name;  ///< History manager key (e.g., "extruder", "heater_bed")
         std::string klipper_name; ///< Full Klipper object name for API calls
         lv_color_t color{};       ///< Series line color
-        int series_id = -1;       ///< Graph series ID (mapped from controller)
-        bool visible = true;      ///< Current visibility state
-        bool has_target = false;  ///< Whether this heater has a controllable target
-        bool is_dynamic = false;  ///< Dynamic sensor (needs SubjectLifetime)
-        lv_obj_t* chip = nullptr; ///< Toggle chip widget
+        SeriesId series_id = SeriesId::None; ///< Graph series ID (mapped from controller)
+        bool visible = true;                 ///< Current visibility state
+        bool has_target = false;             ///< Whether this heater has a controllable target
+        bool is_dynamic = false;             ///< Dynamic sensor (needs SubjectLifetime)
+        lv_obj_t* chip = nullptr;            ///< Toggle chip widget
     };
 
     // Series management

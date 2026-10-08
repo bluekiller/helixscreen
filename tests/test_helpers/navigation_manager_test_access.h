@@ -9,6 +9,11 @@
 
 class NavigationManagerTestAccess {
   public:
+    /// Stand in for a panel switch whose loading pill is up.
+    static void set_nav_scrim_active(NavigationManager& nav, bool active) {
+        nav.nav_scrim_active_ = active;
+    }
+
     /// Force the keyboard-visible-at-press latch that take_backdrop_keyboard_dismiss()
     /// consults. The latch is normally set at LV_EVENT_PRESSED from live keyboard
     /// state; setting it directly keeps dismiss tests deterministic.
