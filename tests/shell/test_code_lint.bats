@@ -270,7 +270,7 @@ moonraker_concrete_pattern() {
 # Print the body of PrinterSwitchFlow::switch_printer() from the file given in $1.
 switch_printer_body() {
     awk '
-        /^void PrinterSwitchFlow::switch_printer\(/ { inside = 1 }
+        /^bool PrinterSwitchFlow::switch_printer\(/ { inside = 1 }
         inside { print }
         inside && /^\}/ { exit }
     ' "$1"
@@ -337,7 +337,7 @@ check_switch_printer_clears_caches() {
     # Fail-closed: a rename or signature change must break the gate loudly rather
     # than silently pass on an empty body.
     local mutated="${BATS_TEST_TMPDIR}/application_no_fn.cpp"
-    sed -e 's@^void PrinterSwitchFlow::switch_printer(@void PrinterSwitchFlow::switch_printer_renamed(@' \
+    sed -e 's@^bool PrinterSwitchFlow::switch_printer(@bool PrinterSwitchFlow::switch_printer_renamed(@' \
         src/application/printer_switch_flow.cpp > "$mutated"
 
     run check_switch_printer_clears_caches "$mutated"
