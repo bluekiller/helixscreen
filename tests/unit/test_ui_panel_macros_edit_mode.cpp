@@ -4,15 +4,14 @@
 // MacrosPanel edit-mode model: the pure per-row decision logic
 // (macro_edit_logic.h), the SettingsManager hidden-set round-trip, and the
 // panel model methods (enter/exit edit mode, toggle_row) driven through a
-// friend test accessor. Widget instantiation is intentionally NOT exercised
-// here — the row widgets are owned by the XML <repeat> and the singleton panel
-// has the known PrintStatusPanel-style lifetime hazard, so we validate the
-// subject-driving logic (the panel's sole responsibility) instead.
+// friend test accessor. Rows here are the values a row binds, not widgets;
+// test_ui_panel_macros_rows.cpp drives the real row widgets.
 
 #include "ui_panel_macros.h"
 #include "ui_update_queue.h"
 
 #include "../lvgl_test_fixture.h"
+#include "../test_helpers/macros_panel_test_access.h"
 #include "config.h"
 #include "macro_edit_logic.h"
 #include "macro_param_cache.h"
@@ -27,73 +26,6 @@
 #include "hv/json.hpp"
 
 using namespace helix::macros;
-
-// ---------------------------------------------------------------------------
-// Friend accessor — private model access without prod-header test methods (L088)
-// ---------------------------------------------------------------------------
-struct MacrosPanelTestAccess {
-    static void prepare(MacrosPanel& p, std::vector<std::string> macros) {
-        // HelixTestFixture::reset_all() does NOT clear Config data, and the
-        // per-printer "macros/hidden" key is a process-singleton — reset it so
-        // each case starts key-absent (first-run seed) regardless of order.
-        helix::Config::get_instance()->reset_to_defaults();
-        // The test build's get_moonraker_api() stub always returns nullptr
-        // (ui_test_utils.cpp), so refresh_macros() no-ops and keeps the
-        // injected list — no live API can clobber it.
-        p.init_subjects();
-        p.ui_alive_ = true;
-        p.edit_mode_ = false;
-        p.pending_hidden_.clear();
-        p.all_macros_ = std::move(macros);
-        std::sort(p.all_macros_.begin(), p.all_macros_.end());
-    }
-    static void teardown(MacrosPanel& p) {
-        p.edit_mode_ = false;
-        p.pending_hidden_.clear();
-        p.all_macros_.clear();
-        p.displayed_.clear();
-        p.ui_alive_ = false;
-    }
-    static void enter(MacrosPanel& p) {
-        p.enter_edit_mode();
-    }
-    static void exit(MacrosPanel& p, bool save) {
-        p.exit_edit_mode(save);
-    }
-    static void toggle(MacrosPanel& p, size_t i) {
-        p.toggle_row(i);
-    }
-    static const std::vector<std::string>& displayed(MacrosPanel& p) {
-        return p.displayed_;
-    }
-    static const std::set<std::string>& pending_hidden(MacrosPanel& p) {
-        return p.pending_hidden_;
-    }
-    static bool edit_mode(MacrosPanel& p) {
-        return p.edit_mode_;
-    }
-    static int visible_int(MacrosPanel& p, size_t i) {
-        return lv_subject_get_int(p.visible_pool_.at(i));
-    }
-    static int defaults_hidden_int(MacrosPanel& p, size_t i) {
-        return lv_subject_get_int(p.defaults_hidden_pool_.at(i));
-    }
-    static void set_macros(MacrosPanel& p, std::vector<std::string> macros) {
-        p.all_macros_ = std::move(macros);
-    }
-    static void rebuild(MacrosPanel& p) {
-        p.rebuild_rows();
-    }
-    static int row_count(MacrosPanel& p) {
-        return lv_subject_get_int(&p.macro_row_count_);
-    }
-    static int edit_mode_subject(MacrosPanel& p) {
-        return lv_subject_get_int(&p.macro_edit_mode_);
-    }
-    static int save_hidden_subject(MacrosPanel& p) {
-        return lv_subject_get_int(&p.macros_edit_save_hidden_);
-    }
-};
 
 static size_t index_of(MacrosPanel& p, const std::string& name) {
     const auto& d = MacrosPanelTestAccess::displayed(p);
@@ -230,7 +162,7 @@ TEST_CASE_METHOD(LVGLTestFixture, "enter edit mode shows all macros incl. _-pref
     MacrosPanelTestAccess::teardown(p);
 }
 
-TEST_CASE_METHOD(LVGLTestFixture, "toggle_row flips pending_hidden_ and the visible pool int",
+TEST_CASE_METHOD(LVGLTestFixture, "toggle_row flips pending_hidden_ and the row's visible value",
                  "[macros][editmode]") {
     auto& p = get_global_macros_panel();
     MacrosPanelTestAccess::prepare(p, {"CLEAN_NOZZLE", "LOAD", "_HOME_Z"});

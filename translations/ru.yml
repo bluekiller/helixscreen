@@ -3780,6 +3780,7 @@ translations:
   You have unsaved changes. Discard them?: У вас есть несохранённые изменения. Отменить
     их?
   Your completed prints will appear here: Ваши завершённые печати появятся здесь
+  Your print start or end macro also sets LEDs. It and Automatic LED Control may override each other.: 'Ваш макрос начала или окончания печати тоже управляет светодиодами. Он и автоматическое управление светодиодами могут перезаписывать друг друга.'
   Your printer at a glance: Ваш принтер одним взглядом
   Your printer has an automatic filament changer: Ваш принтер оснащён автоматическим
     сменщиком филамента

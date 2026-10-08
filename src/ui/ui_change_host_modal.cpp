@@ -25,6 +25,7 @@
 #include <spdlog/spdlog.h>
 
 #include <string>
+#include <utility>
 
 using namespace helix;
 
@@ -347,12 +348,17 @@ void ChangeHostModal::handle_save() {
 }
 
 void ChangeHostModal::commit_add(const std::string& host, int port) {
-    // The borrow stays: on_hide puts the client back on the saved printer before the caller
-    // runs, so a switch the caller declines or cannot save leaves it there.
+    // A switch retargets the client itself, so the hand-back waits for the caller and runs
+    // only when it did not switch: a declined or unsaved switch leaves the client on the
+    // saved printer, and an add that switches cycles the transport once.
+    const bool borrowed = std::exchange(client_borrowed_, false);
     hide();
     auto on_add = add_callback_;
-    helix::ui::queue_update("ChangeHostModal::handle_add",
-                            [on_add, host, port]() { on_add(host, port); });
+    helix::ui::queue_update("ChangeHostModal::handle_add", [on_add, host, port, borrowed]() {
+        if (!on_add(host, port) && borrowed) {
+            reconnect_active_printer();
+        }
+    });
 }
 
 void ChangeHostModal::update_save_lock() {
@@ -473,7 +479,7 @@ ChangeHostModal& shared_change_host_modal() {
 
 } // namespace
 
-void show_add_printer_modal(std::function<void(const std::string& host, int port)> on_add) {
+void show_add_printer_modal(std::function<bool(const std::string& host, int port)> on_add) {
     ChangeHostModal& modal = shared_change_host_modal();
     modal.set_completion_callback(nullptr);
     modal.show_modal(lv_screen_active(), std::move(on_add));

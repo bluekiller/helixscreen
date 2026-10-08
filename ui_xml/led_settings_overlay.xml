@@ -36,6 +36,11 @@
                             label="Automatic LED Control" icon="tune_variant"
                             description="Change LED color based on printer state" subject="led_auto_state_enabled"
                             callback="on_auto_state_changed"/>
+        <info_note name="auto_state_macro_conflict_note"
+                   icon="alert" icon_variant="warning"
+                   text="Your print start or end macro also sets LEDs. It and Automatic LED Control may override each other.">
+          <bind_flag_if_eq subject="led_print_macros_drive_leds" flag="hidden" ref_value="0"/>
+        </info_note>
         <setting_led_chip_row name="row_auto_state_strips"
                               label="Applies to" icon="lightbulb_outline"
                               description="Lights that follow the printer's state">
