@@ -60,6 +60,7 @@
 #include "app_globals.h"
 #include "asset_manager.h"
 #include "async_lifetime_guard.h"
+#include "boot_crash_guard.h"
 #include "config.h"
 #include "config_storage.h"
 #include "connection_state.h"
@@ -260,6 +261,52 @@ void restart_into_active_printer() {
     esp_restart();
 }
 
+// A panic or watchdog reset. The switch fallback's esp_restart() and a power-on are not crashes.
+bool reset_was_crash() {
+    switch (esp_reset_reason()) {
+    case ESP_RST_PANIC:
+    case ESP_RST_INT_WDT:
+    case ESP_RST_TASK_WDT:
+    case ESP_RST_WDT:
+        return true;
+    default:
+        return false;
+    }
+}
+
+// Set when a run of crash resets moved this boot off the printer it would have connected to.
+std::string g_boot_crashed_printer_name;
+bool g_boot_auto_connect = true;
+
+// Counts crash resets since the last healthy session, and past the threshold boots the
+// printer the last switch came from, or none (prestonbrown/helixscreen#1750). Runs before
+// anything reads the active printer.
+void apply_boot_crash_guard(helix::Config* config) {
+    const bool crash = reset_was_crash();
+    const helix::BootPrinterChoice choice = helix::choose_boot_printer(
+        crash, config->get<int>("/boot_crash_streak", 0), config->get_active_printer_id(),
+        config->get<std::string>("/switch_previous_printer_id", ""), config->get_printer_ids());
+    if (!crash) {
+        return;
+    }
+    config->set<int>("/boot_crash_streak", choice.crash_streak);
+    if (choice.auto_connect && choice.fallback_id.empty()) {
+        ESP_LOGW(TAG, "app_boot: crash reset %d of %d before falling back", choice.crash_streak,
+                 helix::BOOT_CRASH_FALLBACK_THRESHOLD);
+    } else {
+        g_boot_crashed_printer_name = config->get_active_printer_name();
+        g_boot_auto_connect = choice.auto_connect;
+        if (!choice.fallback_id.empty()) {
+            config->set_active_printer(choice.fallback_id);
+        }
+        config->set<std::string>("/switch_previous_printer_id", "");
+        ESP_LOGE(TAG, "app_boot: '%s' crashed the panel %d times; %s",
+                 g_boot_crashed_printer_name.c_str(), helix::BOOT_CRASH_FALLBACK_THRESHOLD,
+                 choice.auto_connect ? "falling back to the previous printer" : "not connecting");
+    }
+    config->save();
+}
+
 // The WebSocket task's 8 KB internal stack plus headroom. The stopped task deleted itself and
 // the idle task frees its stack, which this thread outranks, so wait one beat before looking.
 constexpr size_t WS_STACK_RESERVE_BYTES = 10 * 1024;
@@ -316,7 +363,14 @@ helix::PrinterSwitchFlow& switch_flow() {
     static helix::AsyncLifetimeGuard lifetime;
     static helix::PrinterSwitchFlow flow(
         config, lifetime,
-        {[] { g_switch_started_us = esp_timer_get_time(); },
+        {[] {
+             g_switch_started_us = esp_timer_get_time();
+             // Where a crash loop on the new printer sends the next boot.
+             config->set<std::string>("/switch_previous_printer_id",
+                                      switch_flow().connected_printer_id());
+             config->set<int>("/boot_crash_streak", 0);
+             config->save();
+         },
          [] {
              helix::LapLog laps("switch rebuild");
              if (!helix::retarget_printer_connection()) {
@@ -347,7 +401,9 @@ void wire_printer_callbacks() {
     helix::EspMoonrakerClient::set_transport_stall_handler([] {
         helix::ui::queue_update("app_boot::transport_stall", [] { restart_into_active_printer(); });
     });
-    switch_flow().set_connected_printer_id(helix::Config::get_instance()->get_active_printer_id());
+    // Unconnected, the active printer can be picked again to retry it.
+    switch_flow().set_connected_printer_id(
+        g_boot_auto_connect ? helix::Config::get_instance()->get_active_printer_id() : "");
     NavigationManager::instance().set_printer_callbacks(
         [](const std::string& printer_id) { switch_flow().request_switch(printer_id); },
         [] {
@@ -736,6 +792,10 @@ void kick_moonraker_connect_once() {
     if (!s_moonraker_connect_kicked.compare_exchange_strong(expected, true)) {
         return;
     }
+    if (!g_boot_auto_connect) {
+        ESP_LOGW(TAG, "app_net: not connecting after repeated crashes; pick a printer");
+        return;
+    }
     MoonrakerManager* mgr = g_manager;
     if (!mgr) {
         ESP_LOGE(TAG, "app_net: no MoonrakerManager — cannot connect");
@@ -938,6 +998,7 @@ extern "C" void app_boot_ui(void) {
     // Remembers which AFC message each printer has already shown, so one AFC
     // latched hours ago toasts once rather than at every boot.
     helix::AfcMessageDedup::instance().init("/config");
+    apply_boot_crash_guard(config);
 
     // Task 12 R2: first-boot-only Moonraker host/port seed. If settings.json
     // already has a value (any boot after the user has edited Host in Settings,
@@ -1115,6 +1176,19 @@ extern "C" void app_boot_ui(void) {
             "Touchscreen not detected - display only");
     }
 
+    if (!g_boot_crashed_printer_name.empty()) {
+        const std::string text =
+            g_boot_auto_connect
+                ? fmt::format(
+                      fmt::runtime(lv_tr("{} kept crashing the panel; switched back to {}")),
+                      g_boot_crashed_printer_name, config->get_active_printer_name())
+                : fmt::format(
+                      fmt::runtime(lv_tr("{} kept crashing the panel; pick a printer to connect")),
+                      g_boot_crashed_printer_name);
+        helix::PendingStartupWarnings::instance().enqueue(
+            helix::PendingStartupWarnings::Severity::WARNING, text, 15000);
+    }
+
     // init() does NOT drain the queue: warnings enqueued during pre-UI boot
     // (display/asset backends) stay stranded unless drained explicitly.
     helix::PendingStartupWarnings::instance().drain([](helix::PendingStartupWarnings::Severity sev,
@@ -1202,17 +1276,28 @@ extern "C" void app_boot_tick(void) {
     // discovery, and live status streaming are all up, so this reads budgets
     // under real load. It runs once, so it can afford the largest-block walk
     // log_heap_milestone takes; the per-frame loop never may.
-    // Ten minutes up and connected: a later fallback restart is not part of a loop.
+    // Ten minutes up and connected: a later fallback restart or crash is not part of a loop.
     static bool restart_streak_cleared = false;
     if (!restart_streak_cleared && esp_timer_get_time() > HEALTHY_UPTIME_US && g_manager &&
         g_manager->client() &&
         g_manager->client()->get_connection_state() == helix::ConnectionState::CONNECTED) {
         restart_streak_cleared = true;
         helix::Config* cfg = helix::Config::get_instance();
-        if (cfg->get<int>("/switch_restart_streak", 0) != 0) {
+        if (cfg->get<int>("/switch_restart_streak", 0) != 0 ||
+            cfg->get<int>("/boot_crash_streak", 0) != 0) {
             cfg->set<int>("/switch_restart_streak", 0);
+            cfg->set<int>("/boot_crash_streak", 0);
             cfg->save();
         }
+    }
+
+    // Test-only fault injection; the Kconfig help says how to set it.
+    if (CONFIG_HELIX_FAULT_CRASH_HOST[0] != '\0' && g_manager && g_manager->client() &&
+        g_manager->client()->get_connection_state() == helix::ConnectionState::CONNECTED &&
+        g_manager->client()->get_last_url().find(CONFIG_HELIX_FAULT_CRASH_HOST) !=
+            std::string::npos) {
+        ESP_LOGE(TAG, "fault injection: crashing on %s", CONFIG_HELIX_FAULT_CRASH_HOST);
+        abort();
     }
 
     static bool steady_logged = false;
