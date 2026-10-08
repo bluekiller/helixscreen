@@ -211,6 +211,8 @@ static void gradient_resize_to_widget(lv_obj_t* obj) {
 
     data->draw_buf = lv_draw_buf_create(buf_w, buf_h, LV_COLOR_FORMAT_NATIVE, 0);
     if (!data->draw_buf) {
+        // The image would otherwise keep naming the buffer just freed.
+        lv_image_set_src(obj, nullptr);
         spdlog::error("[GradientCanvas] Failed to resize buffer to {}x{}", buf_w, buf_h);
         return;
     }
