@@ -407,8 +407,9 @@ void wire_printer_callbacks() {
     NavigationManager::instance().set_printer_callbacks(
         [](const std::string& printer_id) { switch_flow().request_switch(printer_id); },
         [] {
-            helix::ui::show_add_printer_modal(
-                [](const std::string& host, int port) { switch_flow().add_printer(host, port); });
+            helix::ui::show_add_printer_modal([](const std::string& host, int port) {
+                return switch_flow().add_printer(host, port);
+            });
         });
 }
 

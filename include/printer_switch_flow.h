@@ -32,12 +32,14 @@ class PrinterSwitchFlow {
     PrinterSwitchFlow(Config*& config, AsyncLifetimeGuard& async, Restart restart);
 
     /// Switches to `printer_id`, asking first when the current printer is printing.
-    /// Picking the connected printer does nothing.
-    void request_switch(const std::string& printer_id);
+    /// Picking the connected printer does nothing. Returns whether it switched before
+    /// returning; asking first returns false.
+    bool request_switch(const std::string& printer_id);
 
     /// Adds the printer at `host`:`port` and switches to it the way request_switch() does. An
     /// address already in the list switches to that printer instead of adding a duplicate.
-    void add_printer(const std::string& host, int port);
+    /// Returns whether it switched before returning.
+    bool add_printer(const std::string& host, int port);
 
     /// The printer the app is connected to. Compared against instead of the config's active
     /// id, which a removal moves to another printer before the switch is requested.
@@ -51,8 +53,9 @@ class PrinterSwitchFlow {
     }
 
     /// Makes `printer_id` the active printer and restarts onto it. Ignored while a restart
-    /// or a switch confirmation is running; an unknown id changes nothing.
-    void switch_printer(const std::string& printer_id);
+    /// or a switch confirmation is running; an unknown id changes nothing. Returns whether
+    /// it switched.
+    bool switch_printer(const std::string& printer_id);
 
     /// Creates an empty printer entry, makes it active and restarts into its setup wizard.
     void add_printer_via_wizard();
