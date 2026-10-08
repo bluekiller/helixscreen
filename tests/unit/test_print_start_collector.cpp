@@ -237,9 +237,20 @@ TEST_CASE("PrintStart: QGL phase detection", "[print][leveling]") {
     REQUIRE(default_phase("quad gantry level") == PrintStartPhase::QGL);
     REQUIRE(default_phase("Running QGL") == PrintStartPhase::QGL);
 
-    // Real Voron V2 macro output
-    REQUIRE(default_phase("SET_DISPLAY_TEXT MSG=\"Leveling gantry\"") ==
-            PrintStartPhase::IDLE); // "gantry" alone doesn't match
+    // Klipper does not echo a macro's commands, so a macro-driven QGL is legible
+    // only through its display text and QGL's own console report.
+    REQUIRE(default_phase("Leveling gantry") == PrintStartPhase::QGL);
+    REQUIRE(default_phase("Levelling gantry...") == PrintStartPhase::QGL);
+    REQUIRE(default_phase("Gantry leveling") == PrintStartPhase::QGL);
+    REQUIRE(default_phase("// Gantry-relative probe points:\n// 0: 6.137500 1: 5.125000") ==
+            PrintStartPhase::QGL);
+
+    // QGL and Z_TILT_ADJUST share Klipper's adjust/retry report, so it names neither.
+    REQUIRE(default_phase("// Making the following Z adjustments:\n// stepper_z = -1.002280") ==
+            PrintStartPhase::IDLE);
+    REQUIRE(default_phase("// Retries: 0/5 Probed points range: 1.742500 tolerance: 0.010000") ==
+            PrintStartPhase::IDLE);
+    REQUIRE(default_phase("Leveling 3/9") == PrintStartPhase::IDLE);
 
     // Should NOT match
     REQUIRE(default_phase("Z_TILT_ADJUST") == PrintStartPhase::Z_TILT);
@@ -251,6 +262,8 @@ TEST_CASE("PrintStart: Z_TILT phase detection", "[print][leveling]") {
     REQUIRE(default_phase("Z_TILT_ADJUST") == PrintStartPhase::Z_TILT);
     REQUIRE(default_phase("z_tilt_adjust") == PrintStartPhase::Z_TILT);
     REQUIRE(default_phase("z tilt adjust") == PrintStartPhase::Z_TILT);
+    REQUIRE(default_phase("Z-tilt") == PrintStartPhase::Z_TILT);
+    REQUIRE(default_phase("Running Z tilt...") == PrintStartPhase::Z_TILT);
 
     // Should NOT match
     REQUIRE(default_phase("QUAD_GANTRY_LEVEL") == PrintStartPhase::QGL);
@@ -315,8 +328,8 @@ TEST_CASE("PrintStart: purging phase detection", "[print][purging]") {
     REQUIRE(default_phase("purge line done") == PrintStartPhase::PURGING);
 
     // Real Voron V2 display text
-    REQUIRE(default_phase("SET_DISPLAY_TEXT MSG=\"Purging\"") ==
-            PrintStartPhase::IDLE); // Just "Purging" alone
+    REQUIRE(default_phase("SET_DISPLAY_TEXT MSG=\"Purging\"") == PrintStartPhase::PURGING);
+    REQUIRE(default_phase("AFC_Poop: purge_length=100") == PrintStartPhase::IDLE);
 
     // Should NOT match
     REQUIRE(default_phase("CLEAN_NOZZLE") == PrintStartPhase::CLEANING);
@@ -378,8 +391,11 @@ TEST_CASE("PrintStart: Voron V2 SET_DISPLAY_TEXT messages", "[print][voron]") {
 
     REQUIRE(default_phase("SET_DISPLAY_TEXT MSG=\"Cleaning nozzle\"") == PrintStartPhase::CLEANING);
 
+    REQUIRE(default_phase("SET_DISPLAY_TEXT MSG=\"Leveling gantry\"") == PrintStartPhase::QGL);
+    REQUIRE(default_phase("Performing bed mesh calibration") == PrintStartPhase::BED_MESH);
+    REQUIRE(default_phase("Purging") == PrintStartPhase::PURGING);
+
     // Wording that names no phase the patterns know does not match
-    REQUIRE(default_phase("SET_DISPLAY_TEXT MSG=\"Leveling gantry\"") == PrintStartPhase::IDLE);
     REQUIRE(default_phase("SET_DISPLAY_TEXT MSG=\"Heating for print\"") == PrintStartPhase::IDLE);
 }
 
@@ -999,6 +1015,36 @@ TEST_CASE_METHOD(PrintStartCollectorHeaterFixture,
     drain_async_updates();
 
     REQUIRE(get_current_message() == "Heating Bed...");
+}
+
+TEST_CASE_METHOD(PrintStartCollectorHeaterFixture,
+                 "PrintStartCollector: Voron display text names QGL after the first clean",
+                 "[print][collector][voron]") {
+    collector().start();
+    drain_async_updates();
+    drain_async_updates();
+
+    // The Voron V2.4 START_PRINT's SET_DISPLAY_TEXT sequence: it cleans the
+    // nozzle before and after leveling the gantry.
+    const auto display = [&](const char* message) {
+        client().dispatch_status_update({{"display_status", {{"message", message}}}});
+        drain_async_updates();
+        drain_async_updates();
+    };
+
+    display("Homing");
+    REQUIRE(get_current_phase() == PrintStartPhase::HOMING);
+    display("Cleaning nozzle");
+    REQUIRE(get_current_phase() == PrintStartPhase::CLEANING);
+    display("Leveling gantry");
+    REQUIRE(get_current_phase() == PrintStartPhase::QGL);
+    REQUIRE(get_current_message() == "Leveling Gantry...");
+    display("Cleaning nozzle");
+    REQUIRE(get_current_phase() == PrintStartPhase::CLEANING);
+    display("Performing bed mesh calibration");
+    REQUIRE(get_current_phase() == PrintStartPhase::BED_MESH);
+    display("Purging");
+    REQUIRE(get_current_phase() == PrintStartPhase::PURGING);
 }
 
 // ============================================================================
