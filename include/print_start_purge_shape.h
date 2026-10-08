@@ -85,8 +85,11 @@ struct PurgeEvidence {
  *
  * A filament system that says it is purging is believed outright. Otherwise a
  * sustained stationary flow is a purge once the heaters are at target, unless
- * the filament system is mid load/unload/select/cut/tip (its own pushes), or
- * reports no filament loaded. Without a filament system the motion stands alone.
+ * the filament system is mid unload/select/cut/tip (its own pushes), or reports
+ * no filament loaded. A load counts once its filament has reached the toolhead:
+ * AFC runs its poop inside the load, so its action stays LOADING through the
+ * purge, while the push to the nozzle before it happens with nothing loaded.
+ * Without a filament system the motion stands alone.
  */
 inline bool is_purge(const PurgeEvidence& e) {
     if (e.ams_present && e.action == AmsAction::PURGING) {
@@ -99,7 +102,6 @@ inline bool is_purge(const PurgeEvidence& e) {
         return true;
     }
     switch (e.action) {
-    case AmsAction::LOADING:
     case AmsAction::UNLOADING:
     case AmsAction::SELECTING:
     case AmsAction::CUTTING:

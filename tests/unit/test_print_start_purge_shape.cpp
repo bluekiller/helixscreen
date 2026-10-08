@@ -88,11 +88,23 @@ TEST_CASE("Purge shape: the filament system gates an inferred purge", "[print][v
         e.heaters_at_target = false;
         CHECK_FALSE(helix::is_purge(e));
     }
-    SECTION("a load in progress is not a purge, however sustained") {
+    SECTION("a load still pushing filament to the nozzle is not a purge") {
+        e.ams_present = true;
+        e.action = AmsAction::LOADING;
+        e.filament_loaded = false;
+        CHECK_FALSE(helix::is_purge(e));
+    }
+    SECTION("a purge inside a load, once the filament is loaded, is a purge") {
+        e.ams_present = true;
+        e.action = AmsAction::LOADING;
+        e.filament_loaded = true;
+        CHECK(helix::is_purge(e));
+    }
+    SECTION("an unload, select, cut or tip is not a purge, however sustained") {
         e.ams_present = true;
         e.filament_loaded = true;
-        for (AmsAction a : {AmsAction::LOADING, AmsAction::UNLOADING, AmsAction::SELECTING,
-                            AmsAction::CUTTING, AmsAction::FORMING_TIP}) {
+        for (AmsAction a : {AmsAction::UNLOADING, AmsAction::SELECTING, AmsAction::CUTTING,
+                            AmsAction::FORMING_TIP}) {
             e.action = a;
             CHECK_FALSE(helix::is_purge(e));
         }
