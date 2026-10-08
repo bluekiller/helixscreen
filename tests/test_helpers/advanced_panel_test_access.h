@@ -5,6 +5,7 @@
 
 #include "ui_panel_advanced.h"
 
+#include <functional>
 #include <utility>
 
 namespace helix::ui {
@@ -25,6 +26,15 @@ struct AdvancedPanelTestAccess {
 
     static void set_uninstall_runner(AdvancedPanel& panel, UninstallRunner runner) {
         panel.uninstall_runner_ = std::move(runner);
+    }
+
+    static void set_moonraker_restarter(AdvancedPanel& panel, std::function<void()> restarter) {
+        panel.moonraker_restarter_ = std::move(restarter);
+    }
+
+    /// What the install modal reports once the script has exited.
+    static void finish_install(AdvancedPanel& panel, bool success) {
+        panel.on_helix_plugin_install_finished(success);
     }
 
     /// What taps on the helper-macro rows dispatch to.

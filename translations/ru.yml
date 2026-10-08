@@ -2718,6 +2718,7 @@ translations:
   Restart Klipper without rebooting: Перезапуск Klipper без перезагрузки
   Restart Klipper?: 'Перезапустить Klipper?'
   Restart Moonraker: Перезапустить Moonraker
+  Restart Moonraker to finish the plugin change: Перезапустите Moonraker, чтобы завершить изменение плагина
   Restart Now: Перезапустить сейчас
   Restart Required: Требуется перезапуск
   'Restart failed: not connected': 'Перезапуск не удался: нет подключения'

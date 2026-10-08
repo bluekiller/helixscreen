@@ -2744,6 +2744,7 @@ translations:
   Restart Klipper without rebooting: Reiniciar Klipper sin reiniciar el host
   Restart Klipper?: '¿Reiniciar Klipper?'
   Restart Moonraker: Reiniciar Moonraker
+  Restart Moonraker to finish the plugin change: Reinicia Moonraker para completar el cambio del plugin
   Restart Now: Reiniciar Ahora
   Restart Required: Reinicio Requerido
   'Restart failed: not connected': 'Reinicio fallido: no conectado'

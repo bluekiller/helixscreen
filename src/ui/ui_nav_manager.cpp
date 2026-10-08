@@ -729,8 +729,9 @@ void NavigationManager::switch_to_panel_impl(int panel_id) {
                 continue;
             }
 
-            // Screen chrome (the navbar E-stop) is not an overlay.
-            if (child == app_layout_widget_ || helix::ui::is_screen_chrome(child)) {
+            // Screen chrome (the navbar E-stop) and open modals are not overlays.
+            if (child == app_layout_widget_ || helix::ui::is_screen_chrome(child) ||
+                ModalStack::instance().backdrop_for_backdrop(child)) {
                 continue;
             }
 
@@ -1836,7 +1837,8 @@ void NavigationManager::go_back_now() {
                 lv_obj_t* child = lv_obj_get_child(screen, static_cast<int32_t>(i));
                 if (child == mgr.app_layout_widget_ || child == mgr.backdrop_.primary() ||
                     child == current_top || child == previous_panel ||
-                    helix::ui::is_screen_chrome(child)) {
+                    helix::ui::is_screen_chrome(child) ||
+                    ModalStack::instance().backdrop_for_backdrop(child)) {
                     continue;
                 }
                 if (!mgr.panels_.is_main_panel(child) &&

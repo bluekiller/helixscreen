@@ -2581,6 +2581,7 @@ translations:
   Restart Klipper without rebooting: ホストを再起動せずに Klipper を再起動
   Restart Klipper?: 'Klipper を再起動しますか？'
   Restart Moonraker: Moonraker を再起動
+  Restart Moonraker to finish the plugin change: プラグインの変更を完了するには Moonraker を再起動してください
   Restart Now: 今すぐ再起動
   Restart Required: 再起動が必要です
   'Restart failed: not connected': '再起動に失敗: 未接続'

@@ -2483,6 +2483,7 @@
   <translation tag="Restart Klipper without rebooting" ja="ホストを再起動せずに Klipper を再起動"/>
   <translation tag="Restart Klipper?" ja="Klipper を再起動しますか？"/>
   <translation tag="Restart Moonraker" ja="Moonraker を再起動"/>
+  <translation tag="Restart Moonraker to finish the plugin change" ja="プラグインの変更を完了するには Moonraker を再起動してください"/>
   <translation tag="Restart Now" ja="今すぐ再起動"/>
   <translation tag="Restart Required" ja="再起動が必要です"/>
   <translation tag="Restart failed: not connected" ja="再起動に失敗: 未接続"/>

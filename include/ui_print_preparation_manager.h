@@ -496,6 +496,9 @@ class PrintPreparationManager {
     [[nodiscard]] bool is_print_in_progress() const;
 
   private:
+    /// Tell PrinterState how many rows the macro analysis adds to displayed_options().
+    void publish_macro_option_count();
+
     friend class ::PrintPreparationManagerTestAccess;
 
     // === Dependencies ===

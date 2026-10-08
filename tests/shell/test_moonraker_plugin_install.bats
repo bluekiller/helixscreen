@@ -173,6 +173,37 @@ setup_instrumented_home() {
     refute_grep 'phase_tracking' "$PLUGIN_PY"
 }
 
+# HelixScreen runs install.sh from a NoNewPrivileges service, where sudo can
+# never work; it passes --no-restart and restarts Moonraker over its API.
+@test "--no-restart leaves Moonraker alone on both auto paths" {
+    local home="$BATS_TEST_TMPDIR/home"
+    setup_instrumented_home "$home"
+    local log="$BATS_TEST_TMPDIR/sudo.log"
+    mock_command_script "sudo" "echo \"\$*\" >> '$log'"
+    mock_command_script "service" "echo \"service \$*\" >> '$log'"
+
+    run env HOME="$home" sh "$SCRIPT" --no-restart --uninstall-auto
+    [ "$status" -eq 0 ]
+    [ ! -e "$log" ] || fail "uninstall restarted Moonraker: $(cat "$log")"
+
+    run env HOME="$home" sh "$SCRIPT" --no-restart --auto
+    [ "$status" -eq 0 ]
+    [ ! -e "$log" ] || fail "install restarted Moonraker: $(cat "$log")"
+    grep -q '^\[helix_print\]' "$home/printer_data/config/moonraker.conf"
+}
+
+@test "without --no-restart the auto install still restarts Moonraker" {
+    local home="$BATS_TEST_TMPDIR/home"
+    setup_instrumented_home "$home"
+    local log="$BATS_TEST_TMPDIR/sudo.log"
+    mock_command_script "sudo" "echo \"\$*\" >> '$log'"
+    mock_command_script "service" "echo \"service \$*\" >> '$log'"
+
+    run env HOME="$home" sh "$SCRIPT" --auto
+    [ "$status" -eq 0 ]
+    grep -q 'restart' "$log" || fail "no restart attempted"
+}
+
 @test "auto_uninstall strips PRINT_START, preserves helix_macros.cfg, and removes the plugin" {
     local home="$BATS_TEST_TMPDIR/home"
     setup_instrumented_home "$home"

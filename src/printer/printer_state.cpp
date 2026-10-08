@@ -616,11 +616,17 @@ void PrinterState::set_helix_plugin_installed(bool installed) {
     });
 }
 
+void PrinterState::set_macro_option_count(size_t count) {
+    macro_option_count_ = count;
+    update_gcode_modification_visibility();
+}
+
 void PrinterState::update_gcode_modification_visibility() {
     // Delegate to composite visibility component
     bool plugin = plugin_status_state_.service_has_helix_plugin();
     composite_visibility_state_.update_visibility(
-        plugin, capabilities_state_, profile_state_.pre_print_option_set().options.size());
+        plugin, capabilities_state_, profile_state_.pre_print_option_set().options.size(),
+        macro_option_count_);
 }
 
 bool PrinterState::is_blocking_operation_active() {

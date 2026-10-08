@@ -2663,6 +2663,7 @@ translations:
   Restart Klipper without rebooting: Restart Klipper without rebooting
   Restart Klipper?: Restart Klipper?
   Restart Moonraker: Restart Moonraker
+  Restart Moonraker to finish the plugin change: Restart Moonraker to finish the plugin change
   Restart Now: Restart Now
   Restart Required: Restart Required
   'Restart failed: not connected': 'Restart failed: not connected'

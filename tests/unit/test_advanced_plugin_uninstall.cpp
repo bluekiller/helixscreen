@@ -12,6 +12,10 @@
  * backdrop dismissal), and that helix_plugin_installed clears on both
  * SUCCESS and NEEDS_ATTENTION - the plugin is gone either way - and only a
  * FAILED run leaves it alone.
+ *
+ * Both install and uninstall restart Moonraker over its API once the script
+ * succeeds: the script runs under the service's NoNewPrivileges and cannot
+ * sudo, so without that restart Moonraker never loads or drops the plugin.
  */
 
 #include "ui_modal.h"
@@ -38,6 +42,7 @@ struct PluginUninstallFixture : LVGLUITestFixture {
     AdvancedPanel panel{get_printer_state(), nullptr};
 
     int uninstall_runs = 0;
+    int restarts = 0;
     Outcome uninstall_outcome = Outcome::SUCCESS;
 
     PluginUninstallFixture() {
@@ -54,6 +59,8 @@ struct PluginUninstallFixture : LVGLUITestFixture {
                                           : "script failed";
                 done(uninstall_outcome, message);
             });
+
+        AdvancedPanelTestAccess::set_moonraker_restarter(panel, [this]() { ++restarts; });
 
         // The row is only reachable while the plugin is installed.
         get_printer_state().set_helix_plugin_installed(true);
@@ -117,6 +124,7 @@ TEST_CASE_METHOD(PluginUninstallFixture, "confirming the uninstall runs it and c
 
     CHECK(uninstall_runs == 1);
     CHECK(plugin_installed() == 0);
+    CHECK(restarts == 1);
     CHECK(ModalStack::instance().stack_empty());
 }
 
@@ -127,6 +135,7 @@ TEST_CASE_METHOD(PluginUninstallFixture, "cancelling the uninstall runs nothing"
 
     CHECK(uninstall_runs == 0);
     CHECK(plugin_installed() == 1);
+    CHECK(restarts == 0);
     CHECK(ModalStack::instance().stack_empty());
 }
 
@@ -149,6 +158,7 @@ TEST_CASE_METHOD(PluginUninstallFixture, "a failed uninstall leaves the plugin m
 
     CHECK(uninstall_runs == 1);
     CHECK(plugin_installed() == 1);
+    CHECK(restarts == 0);
 }
 
 TEST_CASE_METHOD(PluginUninstallFixture, "a needs-attention uninstall still clears installed",
@@ -162,5 +172,31 @@ TEST_CASE_METHOD(PluginUninstallFixture, "a needs-attention uninstall still clea
     answer_modal("btn_primary");
 
     CHECK(uninstall_runs == 1);
+    CHECK(plugin_installed() == 0);
+}
+
+TEST_CASE_METHOD(PluginUninstallFixture,
+                 "a successful install restarts Moonraker and leaves installed to discovery",
+                 "[advanced][plugin_installer]") {
+    get_printer_state().set_helix_plugin_installed(false);
+    UpdateQueue::instance().drain();
+    REQUIRE(plugin_installed() == 0);
+
+    AdvancedPanelTestAccess::finish_install(panel, true);
+    UpdateQueue::instance().drain();
+
+    CHECK(restarts == 1);
+    CHECK(plugin_installed() == 0);
+}
+
+TEST_CASE_METHOD(PluginUninstallFixture, "a failed install restarts nothing",
+                 "[advanced][plugin_installer]") {
+    get_printer_state().set_helix_plugin_installed(false);
+    UpdateQueue::instance().drain();
+
+    AdvancedPanelTestAccess::finish_install(panel, false);
+    UpdateQueue::instance().drain();
+
+    CHECK(restarts == 0);
     CHECK(plugin_installed() == 0);
 }
