@@ -366,11 +366,16 @@ because the changed line does execute. `-Werror=type-limits` catches only the
 compiler-visible form (`>= 0` on a `size_t`); the semantic tautology hides better.
 Only reverting the hunk and watching for red finds it.
 
-### Name the mutation in the commit body
+### When to run it, and where the record goes
+
+Run `make mutate-diff` once, over the whole branch, when the feature or change is done and
+before the final review. Never run it per task or per commit while work is in progress: each
+run costs minutes per hunk, and hunks a later commit rewrites get mutated twice for nothing.
 
 Red-green is invisible after the fact. A test that was mutated and verified is
 indistinguishable from one nobody checked, which is why the discipline decays.
-One line in the commit body fixes that:
+One line per mutation in the body of the branch's last commit (or its merge commit) fixes
+that:
 
 ```
 mutation: flipped >= to > in resolve_slot(); test_ams_topology went red

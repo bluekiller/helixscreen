@@ -15,9 +15,10 @@
 
 #include "ams_types.h"
 #include "filament_database.h" // filament::DEFAULT_DIAMETER_MM
-#include "openams_api.h"       // OpenAMS claims only a manager speaking its API
-#include "printer_detector.h"  // For BuildVolume struct
-#include "text_io.h"           // helix::text_io::to_upper
+#include "leveling_probe_points.h"
+#include "openams_api.h"      // OpenAMS claims only a manager speaking its API
+#include "printer_detector.h" // For BuildVolume struct
+#include "text_io.h"          // helix::text_io::to_upper
 
 #include <algorithm>
 #include <cctype>
@@ -567,6 +568,47 @@ class PrinterDiscovery {
     }
 
     /**
+     * @brief Read the XY points gantry leveling and Z tilt probe
+     *
+     * From `[quad_gantry_level] points` and `[z_tilt] points`, each a list of
+     * [x, y]. A section whose list is missing or has any malformed entry
+     * contributes nothing.
+     *
+     * @param settings JSON object from a configfile.settings response
+     */
+    void parse_leveling_probe_points(const nlohmann::json& settings) {
+        leveling_probe_points_.clear();
+        auto read = [&](const char* section, PrintStartPhase phase) {
+            const auto s = settings.find(section);
+            if (s == settings.end() || !s->is_object()) {
+                return;
+            }
+            const auto pts = s->find("points");
+            if (pts == s->end() || !pts->is_array()) {
+                return;
+            }
+            std::vector<LevelingProbePoint> parsed;
+            for (const auto& p : *pts) {
+                if (!p.is_array() || p.size() < 2 || !p[0].is_number() || !p[1].is_number()) {
+                    return;
+                }
+                parsed.push_back({p[0].get<double>(), p[1].get<double>(), phase});
+            }
+            leveling_probe_points_.insert(leveling_probe_points_.end(), parsed.begin(),
+                                          parsed.end());
+        };
+        if (settings.is_object()) {
+            read("quad_gantry_level", PrintStartPhase::QGL);
+            read("z_tilt", PrintStartPhase::Z_TILT);
+        }
+    }
+
+    /// Configured gantry-leveling / Z-tilt probe points; empty when neither is configured.
+    [[nodiscard]] const std::vector<LevelingProbePoint>& leveling_probe_points() const {
+        return leveling_probe_points_;
+    }
+
+    /**
      * @brief Resolve the command that toggles a filament sensor in firmware
      *
      * A [gcode_macro SET_FILAMENT_SENSOR] wrapper must rename the builtin
@@ -917,6 +959,7 @@ class PrinterDiscovery {
                                              ///< the K2 M141 macro parks the setpoint on this fan's
                                              ///< target, not the heater's.
     float filament_diameter_mm_ = filament::DEFAULT_DIAMETER_MM; ///< [extruder] filament_diameter
+    std::vector<LevelingProbePoint> leveling_probe_points_; ///< [quad_gantry_level]/[z_tilt] points
     int chamber_fan_resting_deci_ = 0; ///< Cooling fan's configured resting/off target
                                        ///< (decidegrees), from configfile.settings
                                        ///< target_temp. 0 = unknown. M141 S0 returns here.

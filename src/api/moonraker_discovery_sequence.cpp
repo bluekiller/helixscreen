@@ -901,6 +901,7 @@ void MoonrakerDiscoverySequence::continue_discovery_objects(uint64_t seq) {
                                     std::lock_guard<std::mutex> lock(hardware_mutex_);
                                     hardware_.parse_build_volume(settings);
                                     hardware_.parse_filament_diameter(settings);
+                                    hardware_.parse_leveling_probe_points(settings);
                                 }
 
                                 // Which macros take the host down with them.
