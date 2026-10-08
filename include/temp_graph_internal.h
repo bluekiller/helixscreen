@@ -64,11 +64,10 @@ std::vector<std::pair<int, int>> coalesce_target_runs(const int16_t* buf, int fr
  *
  * Declared here (not temp_graph_tooltip.h) so unit tests can exercise the
  * id/slot divergence case directly, per this header's own doc comment above.
- * ui_temp_graph.cpp has an equivalent, file-local find_series() with no
- * external linkage; this is temp_graph_tooltip.cpp's counterpart.
  *
  * @return nullptr when no live slot carries that id.
  */
-const ui_temp_series_meta_t* find_meta_by_id(const ui_temp_graph_t* graph, int id);
+const ui_temp_series_meta_t* find_meta_by_id(const ui_temp_graph_t* graph, SeriesId id);
+ui_temp_series_meta_t* find_meta_by_id(ui_temp_graph_t* graph, SeriesId id);
 
 } // namespace helix::temp_graph_internal

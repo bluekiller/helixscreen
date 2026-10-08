@@ -464,8 +464,6 @@ void TimelapseVideosOverlay::load_thumbnail_for_card(lv_obj_t* card, const std::
     // a relative path under ".thumbnails/". For timelapse files, we use the
     // transfers API directly since these aren't gcode thumbnails.
 
-    // Use the cache key from TimelapseThumbnailer as the cache identifier
-    auto cache_key = helix::timelapse::cache_key(filename);
     auto target = helix::ThumbnailProcessor::get_target_for_display(helix::ThumbnailSize::Card);
 
     // Check if already cached (synchronous, fast path). The request-shaped
@@ -473,7 +471,8 @@ void TimelapseVideosOverlay::load_thumbnail_for_card(lv_obj_t* card, const std::
     // companions have no Moonraker mtime to validate against, so
     // source_modified stays 0.
     ThumbnailRequest req;
-    req.key = cache_key;
+    req.key = filename;
+    req.source = helix::ThumbnailSource::Timelapse;
     req.target = target;
 
     auto& cache = get_thumbnail_cache();
@@ -505,8 +504,8 @@ void TimelapseVideosOverlay::load_thumbnail_for_card(lv_obj_t* card, const std::
 
     std::string filename_copy = filename;
 
-    // Download the companion thumbnail via the timelapse file root, keyed by the
-    // timelapse-specific cache key so the pre-scaled .bin lands under it.
+    // Download the companion thumbnail via the timelapse file root, keyed by
+    // the Timelapse cache id so the pre-scaled .bin lands where req looks.
     // The companion .jpg is accessible at "timelapse/<companion>" via Moonraker's
     // file download endpoint. The cache's own fetch cannot be used here: it goes
     // through download_thumbnail, which prefixes ".thumbnails/". For timelapse
@@ -516,6 +515,7 @@ void TimelapseVideosOverlay::load_thumbnail_for_card(lv_obj_t* card, const std::
     std::string dest_path = app_get_runtime_dir() + "/helix_timelapse_thumb_" + companion;
     auto tok = lifetime_.token();
     auto thumb_tok = thumb_lifetime_.token();
+    const std::string cache_key = helix::thumbnail_cache_id(req.source, req.key);
 
     api_->transfers().download_file_to_path(
         "timelapse", companion, dest_path,

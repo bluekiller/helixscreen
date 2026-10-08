@@ -15,6 +15,7 @@
 #include "memory_monitor.h"
 #include "system/crash_handler.h"
 #include "thumbnail_cache.h"
+#include "thumbnail_rules.h"
 
 #include <hv/hthreadpool.h>
 #include <spdlog/spdlog.h>
@@ -45,8 +46,8 @@ static constexpr int MAX_WORKER_THREADS = 2; // Don't starve UI thread on single
 
 // Safety limits to prevent memory exhaustion and integer overflow
 static constexpr size_t MAX_PNG_INPUT_SIZE = 10 * 1024 * 1024; // 10 MB compressed
-static constexpr int MAX_SOURCE_DIMENSION = 4096;              // 4K max source
-static constexpr int MAX_OUTPUT_DIMENSION = 1024;              // 1K max output
+static constexpr int MAX_SOURCE_DIMENSION = THUMBNAIL_MAX_SOURCE_DIMENSION;
+static constexpr int MAX_OUTPUT_DIMENSION = 1024; // 1K max output
 
 // ============================================================================
 // Singleton
@@ -141,7 +142,7 @@ void ThumbnailProcessor::process_file_async(const std::string& png_path,
     auto path_copy = png_path;
     auto source_copy = source_path;
     // ThumbnailCache sweeps a source's variants by this same key.
-    std::string key = ThumbnailCache::compute_hash(source_path);
+    std::string key = thumbnail_hash(source_path);
 
     // Same locked-commit structure as process_async() — see the #1202 commentary
     // there for why commit() must happen under mutex_.
@@ -204,7 +205,7 @@ void ThumbnailProcessor::process_async(const std::vector<uint8_t>& png_data,
     // shutdown() needs to acquire.
     auto png_copy = png_data;
     auto source_copy = source_path;
-    std::string key = ThumbnailCache::compute_hash(source_path);
+    std::string key = thumbnail_hash(source_path);
 
     {
         std::lock_guard<std::mutex> lock(mutex_);
@@ -265,8 +266,8 @@ ProcessResult ThumbnailProcessor::process_sync(const std::vector<uint8_t>& png_d
         cache_dir_copy = cache_dir_;
         journal_copy = write_journal_.lock();
     }
-    return do_process(png_data, source_path, ThumbnailCache::compute_hash(source_path), target,
-                      cache_dir_copy, journal_copy);
+    return do_process(png_data, source_path, thumbnail_hash(source_path), target, cache_dir_copy,
+                      journal_copy);
 }
 
 std::string ThumbnailProcessor::get_if_processed(const std::string& source_path,
@@ -278,8 +279,7 @@ std::string ThumbnailProcessor::get_if_processed(const std::string& source_path,
         cache_dir_copy = cache_dir_;
     }
 
-    std::string filename =
-        generate_cache_filename(ThumbnailCache::compute_hash(source_path), target);
+    std::string filename = thumbnail_file_name(thumbnail_hash(source_path), &target);
     std::string full_path = cache_dir_copy + "/" + filename;
 
     if (std::filesystem::exists(full_path)) {
@@ -378,49 +378,6 @@ void ThumbnailProcessor::submit_test_task(std::function<void()> task) {
 // Private Implementation
 // ============================================================================
 
-std::string ThumbnailProcessor::generate_cache_filename(const std::string& cache_key,
-                                                        const ThumbnailTarget& target) const {
-    // Always ARGB8888 now
-    const char* format_str = "ARGB8888";
-
-    // Generate filename: {hash}_{w}x{h}_{format}.bin
-    // NOTE: Must use .bin extension for LVGL's bin decoder (lv_bin_decoder.c only accepts .bin)
-    char filename[128];
-    std::snprintf(filename, sizeof(filename), "%s_%dx%d_%s.bin", cache_key.c_str(), target.width,
-                  target.height, format_str);
-
-    return filename;
-}
-
-// A complete PNG starts with the 8-byte signature and ends with an IEND chunk.
-// stb_image is fragile on malformed/truncated input — crafted or severed streams
-// can drive heap overreads — and the gcode-header extraction fallback can hand us
-// a PNG cut mid-stream by the 100 KB partial-download boundary. A bad decode runs
-// on the worker thread and corrupts the heap, surfacing later as an unrelated
-// glibc abort on the main thread (debug bundle 783DVYKD). Reject non-PNG and
-// truncated data before stb_image ever touches it.
-static bool is_complete_png(const std::vector<uint8_t>& data) {
-    static const unsigned char SIG[8] = {0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A};
-    static const unsigned char IEND[4] = {0x49, 0x45, 0x4E, 0x44}; // "IEND"
-
-    if (data.size() < 16) {
-        return false; // too small to hold signature + a terminating IEND chunk
-    }
-    if (std::memcmp(data.data(), SIG, sizeof(SIG)) != 0) {
-        return false; // not a PNG
-    }
-    // A complete stream ends with [len=0]["IEND"][CRC], so the IEND marker sits in
-    // the last 12 bytes; scan the final 16 to tolerate a stray trailing byte.
-    constexpr size_t window = 16;
-    const unsigned char* tail = data.data() + (data.size() - window);
-    for (size_t i = 0; i + sizeof(IEND) <= window; ++i) {
-        if (std::memcmp(tail + i, IEND, sizeof(IEND)) == 0) {
-            return true;
-        }
-    }
-    return false; // no IEND near the end → truncated/corrupt
-}
-
 ProcessResult
 ThumbnailProcessor::do_process(const std::vector<uint8_t>& png_data, const std::string& source_path,
                                const std::string& cache_key, const ThumbnailTarget& target,
@@ -440,11 +397,12 @@ ThumbnailProcessor::do_process(const std::vector<uint8_t>& png_data, const std::
         return result;
     }
 
-    // Reject truncated/corrupt or non-PNG data before stb_image touches it (see
-    // is_complete_png). All thumbnails in this pipeline are PNG (Moonraker-served
-    // or extracted from gcode), so a complete-PNG gate is both correct and tightest.
-    if (!is_complete_png(png_data)) {
-        result.error = "Incomplete or non-PNG thumbnail data (truncated or corrupt)";
+    // stb_image is fragile on malformed/truncated input: a severed stream (the
+    // 100 KB gcode-header boundary, a partial download) can drive heap
+    // overreads on this worker that surface later as an unrelated abort on the
+    // main thread (debug bundle 783DVYKD). Only a complete PNG or JPEG is decoded.
+    if (!is_complete_image(png_data)) {
+        result.error = "Incomplete or unsupported thumbnail data (not a complete PNG or JPEG)";
         return result;
     }
 
@@ -558,7 +516,7 @@ ThumbnailProcessor::do_process(const std::vector<uint8_t>& png_data, const std::
     // ========================================================================
     // Step 5: Write LVGL binary file
     // ========================================================================
-    std::string filename = generate_cache_filename(cache_key, target);
+    std::string filename = thumbnail_file_name(cache_key, &target);
     std::string output_path = cache_dir + "/" + filename;
 
     if (!write_lvbin(output_path, out_width, out_height, target.color_format, resized_pixels.data(),

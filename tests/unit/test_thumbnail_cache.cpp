@@ -291,7 +291,8 @@ TEST_CASE("ThumbnailCache save_raw_png saves valid PNG data", "[assets][cache][s
     std::string source_id = "test_save_raw_png_" + helix::test::unique_suffix();
 
     SECTION("Returns LVGL path for valid PNG data") {
-        std::string result = cache.save_raw_png(source_id, valid_png);
+        std::string result =
+            cache.save_raw_png(helix::ThumbnailSource::Moonraker, source_id, valid_png);
 
         REQUIRE(!result.empty());
         REQUIRE(ThumbnailCache::is_lvgl_path(result));
@@ -301,7 +302,8 @@ TEST_CASE("ThumbnailCache save_raw_png saves valid PNG data", "[assets][cache][s
     }
 
     SECTION("Saved file exists and contains correct data") {
-        std::string result = cache.save_raw_png(source_id, valid_png);
+        std::string result =
+            cache.save_raw_png(helix::ThumbnailSource::Moonraker, source_id, valid_png);
         REQUIRE(!result.empty());
 
         // Strip A: prefix and check file exists
@@ -327,8 +329,8 @@ TEST_CASE("ThumbnailCache save_raw_png saves valid PNG data", "[assets][cache][s
         std::string id1 = "test_save_raw_1_" + helix::test::unique_suffix();
         std::string id2 = "test_save_raw_2_" + helix::test::unique_suffix();
 
-        std::string path1 = cache.save_raw_png(id1, valid_png);
-        std::string path2 = cache.save_raw_png(id2, valid_png);
+        std::string path1 = cache.save_raw_png(helix::ThumbnailSource::Moonraker, id1, valid_png);
+        std::string path2 = cache.save_raw_png(helix::ThumbnailSource::Moonraker, id2, valid_png);
 
         REQUIRE(!path1.empty());
         REQUIRE(!path2.empty());
@@ -345,31 +347,35 @@ TEST_CASE("ThumbnailCache save_raw_png validates PNG data", "[assets][cache][sav
 
     SECTION("Rejects empty data") {
         std::vector<uint8_t> empty_data;
-        std::string result = cache.save_raw_png("test_empty", empty_data);
+        std::string result =
+            cache.save_raw_png(helix::ThumbnailSource::Moonraker, "test_empty", empty_data);
         REQUIRE(result.empty());
     }
 
     SECTION("Rejects data smaller than PNG header") {
         std::vector<uint8_t> too_small = {0x89, 'P', 'N', 'G'}; // Only 4 bytes
-        std::string result = cache.save_raw_png("test_small", too_small);
+        std::string result =
+            cache.save_raw_png(helix::ThumbnailSource::Moonraker, "test_small", too_small);
         REQUIRE(result.empty());
     }
 
     SECTION("Rejects invalid PNG magic bytes") {
         std::vector<uint8_t> invalid_magic = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
-        std::string result = cache.save_raw_png("test_invalid_magic", invalid_magic);
+        std::string result = cache.save_raw_png(helix::ThumbnailSource::Moonraker,
+                                                "test_invalid_magic", invalid_magic);
         REQUIRE(result.empty());
     }
 
-    SECTION("Rejects JPEG data (wrong magic)") {
+    SECTION("Rejects a JPEG that does not decode") {
         std::vector<uint8_t> jpeg_data = {0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, 0x4A, 0x46};
-        std::string result = cache.save_raw_png("test_jpeg", jpeg_data);
+        std::string result =
+            cache.save_raw_png(helix::ThumbnailSource::Moonraker, "test_jpeg", jpeg_data);
         REQUIRE(result.empty());
     }
 
     SECTION("Rejects empty source identifier") {
         std::vector<uint8_t> valid_png = {0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A};
-        std::string result = cache.save_raw_png("", valid_png);
+        std::string result = cache.save_raw_png(helix::ThumbnailSource::Moonraker, "", valid_png);
         REQUIRE(result.empty());
     }
 }
@@ -390,7 +396,8 @@ TEST_CASE("ThumbnailCache save_raw_png integrates with cache eviction",
         std::string source_id = "test_cache_integration_" + helix::test::unique_suffix();
 
         // Save the PNG
-        std::string saved_path = cache.save_raw_png(source_id, valid_png);
+        std::string saved_path =
+            cache.save_raw_png(helix::ThumbnailSource::Moonraker, source_id, valid_png);
         REQUIRE(!saved_path.empty());
 
         // Should now be found via get_if_cached
@@ -405,7 +412,8 @@ TEST_CASE("ThumbnailCache save_raw_png integrates with cache eviction",
     SECTION("Saved file can be invalidated") {
         std::string source_id = "test_invalidate_" + helix::test::unique_suffix();
 
-        std::string saved_path = cache.save_raw_png(source_id, valid_png);
+        std::string saved_path =
+            cache.save_raw_png(helix::ThumbnailSource::Moonraker, source_id, valid_png);
         REQUIRE(!saved_path.empty());
 
         // File exists

@@ -362,3 +362,22 @@ TEST_CASE_METHOD(PagingFixture, "history waits for discovery on each connection"
     manager_->on_discovery_complete();
     CHECK(history().requests.size() == 1);
 }
+
+// The connection subject trails the client: discovery can finish while it still reads
+// CONNECTING, and its catching up to CONNECTED is not a new connection.
+TEST_CASE_METHOD(PagingFixture, "history loads when discovery finishes before the state catches up",
+                 "[history_manager][paging][discovery_gate]") {
+    auto* conn = printer_state_.network_state().get_printer_connection_state_subject();
+    lv_subject_set_int(conn, static_cast<int>(ConnectionState::DISCONNECTED));
+    pump();
+    manager_->hold_until_discovery();
+
+    manager_->on_discovery_complete();
+    lv_subject_set_int(conn, static_cast<int>(ConnectionState::CONNECTING));
+    pump();
+    lv_subject_set_int(conn, static_cast<int>(ConnectionState::CONNECTED));
+    pump();
+
+    manager_->ensure_loaded(HistoryScope::RECENT);
+    CHECK(history().requests.size() == 1);
+}

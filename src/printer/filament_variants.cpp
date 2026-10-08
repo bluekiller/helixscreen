@@ -2,6 +2,7 @@
 
 #include "filament_variants.h"
 
+#include "filament_catalog.h"
 #include "filament_database.h"
 #include "text_io.h"
 
@@ -230,10 +231,6 @@ bool g_orca_loaded = false;
 std::set<std::string> g_orca_library_types;
 std::map<std::string, std::string> g_orca_overrides;
 
-// Same search order as FilamentCatalog::BUILTIN_PATHS (filament_catalog.cpp:19).
-const char* ORCA_TABLE_PATHS[] = {"assets/filaments.json", "../assets/filaments.json",
-                                  "/opt/helixscreen/assets/filaments.json"};
-
 /**
  * @brief SAX reader for the two Orca tables, skipping the rest of the file
  *
@@ -363,7 +360,7 @@ void load_orca_tables_locked() {
     if (g_orca_loaded)
         return;
     g_orca_loaded = true; // one attempt; a missing asset must not retry per call
-    for (const char* path : ORCA_TABLE_PATHS) {
+    for (const auto& path : helix::printer::FilamentCatalog::builtin_candidate_paths()) {
         const auto text = helix::text_io::read_file(path);
         if (!text)
             continue;

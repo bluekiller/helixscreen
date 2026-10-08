@@ -150,22 +150,4 @@ bool generate_cached_printer_image(const std::string& source_image_path, int wid
  */
 void prune_printer_image_cache(int max_files = 10, int max_keep = 5);
 
-/**
- * @brief Invalidate every cached size generated from one source image
- *
- * Removes the dimension-specific cache files in the printer image cache directory
- * that printer_cache_entry_matches() attributes to this source. For
- * "A:config/custom_images/my-printer-300.bin" that is
- * "my-printer-300-480x320-<mtime>-<size>.bin" and its siblings, and nothing
- * belonging to another source that shares the stem.
- *
- * Entries are already keyed on the source's mtime and size, so a rewrite in place
- * is never served from a stale one. This is the prompt cleanup of files that can
- * no longer be named, not a correctness requirement.
- *
- * @param source_image_path The LVGL source path (with or without A: prefix)
- * @return Number of cache files removed
- */
-int invalidate_printer_image_cache(const std::string& source_image_path);
-
 } // namespace helix

@@ -26,11 +26,11 @@ TEST_CASE_METHOD(LVGLTestFixture, "Thumbnail cache keys depend on the printer's 
     const std::string thumb = ".thumbs/benchy-300x300.png";
 
     api.set_http_base_url("http://10.0.0.1:7125");
-    const std::string on_a = ThumbnailCache::compute_hash(thumb);
+    const std::string on_a = helix::thumbnail_hash(thumb);
 
     api.set_http_base_url("http://10.0.0.2:7125");
-    CHECK(ThumbnailCache::compute_hash(thumb) != on_a);
+    CHECK(helix::thumbnail_hash(thumb) != on_a);
 
     api.set_http_base_url("http://10.0.0.1:7125");
-    CHECK(ThumbnailCache::compute_hash(thumb) == on_a);
+    CHECK(helix::thumbnail_hash(thumb) == on_a);
 }

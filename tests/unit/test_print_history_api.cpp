@@ -457,7 +457,7 @@ TEST_CASE("Parse Q2 history row with string metadata", "[history][parsing][json_
     CHECK(job.layer_height == Catch::Approx(0.2));
     CHECK(job.size_bytes == 51671);
     REQUIRE(job.thumbnails.size() == 1);
-    CHECK(job.thumbnail_path == ".thumbs/Foo-300x300.png");
+    CHECK(job.thumbnails[0].relative_path == ".thumbs/Foo-300x300.png");
 }
 
 TEST_CASE("History numeric fields accept JSON strings", "[history][parsing][json_coercion]") {

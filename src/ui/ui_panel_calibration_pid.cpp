@@ -566,7 +566,7 @@ void PIDCalibrationPanel::setup_pid_graph() {
     lv_color_t color = is_extruder ? lv_color_hex(0xFF4444) : lv_color_hex(0x00CED1);
     pid_graph_series_id_ = ui_temp_graph_add_series(pid_graph_, heater_name, color);
 
-    if (pid_graph_series_id_ >= 0) {
+    if (pid_graph_series_id_ != SeriesId::None) {
         // Show target temperature line
         ui_temp_graph_set_series_target(pid_graph_, pid_graph_series_id_,
                                         static_cast<float>(target_temp_), true);
@@ -593,7 +593,7 @@ void PIDCalibrationPanel::teardown_pid_graph() {
 
     ui_temp_graph_destroy(pid_graph_);
     pid_graph_ = nullptr;
-    pid_graph_series_id_ = -1;
+    pid_graph_series_id_ = SeriesId::None;
 
     spdlog::debug("[{}] PID temp graph destroyed", get_name());
 }

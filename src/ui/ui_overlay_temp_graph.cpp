@@ -594,7 +594,7 @@ void TempGraphOverlay::create_chips() {
 
         // Apply initial visibility state (set by apply_default_visibility)
         update_chip_style(i);
-        if (controller_ && controller_->is_valid() && s.series_id >= 0) {
+        if (controller_ && controller_->is_valid() && s.series_id != SeriesId::None) {
             ui_temp_graph_show_series(controller_->graph(), s.series_id, s.visible);
         }
     }
@@ -618,7 +618,7 @@ void TempGraphOverlay::toggle_series_visibility(size_t series_idx) {
     auto& s = series_[series_idx];
 
     s.visible = !s.visible;
-    if (controller_ && controller_->is_valid() && s.series_id >= 0) {
+    if (controller_ && controller_->is_valid() && s.series_id != SeriesId::None) {
         auto* graph = controller_->graph();
         ui_temp_graph_show_series(graph, s.series_id, s.visible);
         if (s.has_target) {

@@ -3549,6 +3549,8 @@
   <translation tag="{} is installed, but its backup-spool setting could not be read - do not count on an automatic swap." en="{} is installed, but its backup-spool setting could not be read - do not count on an automatic swap."/>
   <translation tag="{} is not set up on this printer" en="{} is not set up on this printer"/>
   <translation tag="{} is still printing. The print keeps running after you switch." en="{} is still printing. The print keeps running after you switch."/>
+  <translation tag="{} kept crashing the panel; pick a printer to connect" en="{} kept crashing the panel; pick a printer to connect"/>
+  <translation tag="{} kept crashing the panel; switched back to {}" en="{} kept crashing the panel; switched back to {}"/>
   <translation tag="{} lines in helixscreen.env were ignored" en="{} lines in helixscreen.env were ignored"/>
   <translation tag="{} macro not configured" en="{} macro not configured"/>
   <translation tag="{} matches." en="{} matches."/>

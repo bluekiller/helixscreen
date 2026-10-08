@@ -6,6 +6,7 @@
 #include "filament_database.h"
 #include "gcode_color_metadata.h"
 #include "text_io.h"
+#include "thumbnail_rules.h"
 #include "utils/decimal_parse.h"
 
 #include <spdlog/spdlog.h>
@@ -20,14 +21,6 @@
 #include <sys/stat.h>
 #include <system_error>
 #include <utility>
-
-#if !defined(HELIX_PLATFORM_ESP32)
-#include "lodepng_encode.h"
-#include "stb_image.h"
-
-#include <lvgl.h>
-#include <memory>
-#endif
 
 namespace {
 
@@ -1401,43 +1394,6 @@ std::vector<uint8_t> base64_decode(const std::string& encoded) {
     return result;
 }
 
-/// Re-encode a JPEG thumbnail as PNG, since every GCodeThumbnail consumer
-/// expects PNG. Empty when it does not decode or exceeds 512px a side, which
-/// still covers the largest card thumbnails slicers write (512x512).
-std::vector<uint8_t> jpeg_to_png(const std::vector<uint8_t>& jpeg) {
-#if defined(HELIX_PLATFORM_ESP32)
-    (void)jpeg;
-    return {};
-#else
-    constexpr int kMaxSide = 512;
-    const int len = static_cast<int>(jpeg.size());
-    int w = 0, h = 0, channels = 0;
-    if (!stbi_info_from_memory(jpeg.data(), len, &w, &h, &channels) || w <= 0 || h <= 0 ||
-        w > kMaxSide || h > kMaxSide) {
-        return {};
-    }
-    std::unique_ptr<unsigned char, void (*)(void*)> rgba(
-        stbi_load_from_memory(jpeg.data(), len, &w, &h, &channels, 4), stbi_image_free);
-    if (!rgba) {
-        return {};
-    }
-    unsigned char* encoded = nullptr;
-    size_t encoded_size = 0;
-    const unsigned err = lodepng_encode32(&encoded, &encoded_size, rgba.get(),
-                                          static_cast<unsigned>(w), static_cast<unsigned>(h));
-    // lodepng allocates through lv_malloc, so the buffer goes back through lv_free.
-    std::unique_ptr<unsigned char, void (*)(void*)> owned(encoded, lv_free);
-    if (err != 0 || !encoded) {
-        return {};
-    }
-    return {encoded, encoded + encoded_size};
-#endif
-}
-
-bool is_jpeg(const std::vector<uint8_t>& data) {
-    return data.size() >= 3 && data[0] == 0xFF && data[1] == 0xD8 && data[2] == 0xFF;
-}
-
 /// Scan header comments for embedded thumbnails ("; thumbnail begin WxH SIZE",
 /// Cura's "; thumbnail_JPG begin WxH SIZE", or Creality's "; png begin W*H
 /// SIZE") and decode the largest. A JPEG block that wins but cannot be
@@ -1534,10 +1490,8 @@ GCodeThumbnail scan_best_thumbnail(NextLine next_line, std::string_view source) 
 
     GCodeThumbnail best;
     for (const Candidate* c : order) {
-        std::vector<uint8_t> data = base64_decode(c->base64);
-        if (is_jpeg(data)) {
-            data = jpeg_to_png(data);
-        }
+        // Every GCodeThumbnail consumer expects PNG.
+        std::vector<uint8_t> data = helix::ensure_png(base64_decode(c->base64));
         if (!data.empty()) {
             best.width = c->width;
             best.height = c->height;
@@ -1620,11 +1574,11 @@ std::string get_cached_thumbnail(const std::string& gcode_path, const std::strin
     // Check if cache exists and is newer than gcode file
     struct stat gcode_stat, cache_stat;
     if (stat(gcode_path.c_str(), &gcode_stat) == 0 && stat(cache_path.c_str(), &cache_stat) == 0) {
-        if (cache_stat.st_mtime >= gcode_stat.st_mtime) {
+        if (helix::is_fresh(cache_stat.st_mtime, gcode_stat.st_mtime)) {
             // The consumer decodes the file as a PNG, so a fresh-looking entry that
             // is not one (e.g. raw JPEG bytes) is as useless as a missing entry.
             const auto head = helix::text_io::read_file(cache_path, 8);
-            if (head && head->size() == 8 && head->compare(0, 8, "\x89PNG\r\n\x1a\n", 8) == 0) {
+            if (head && helix::sniff_image_format(*head) == helix::ImageFormat::Png) {
                 spdlog::trace("[GCode Parser] Using cached thumbnail: {}", cache_path);
                 return cache_path;
             }

@@ -179,8 +179,8 @@ TEST_CASE_METHOD(TempGraphReattachFixture, "Reattach keeps the graph and its ser
     settle();
 
     auto* graph_before = controller->graph();
-    const int bed_id = controller->series_id_for("heater_bed");
-    REQUIRE(bed_id >= 0);
+    const SeriesId bed_id = controller->series_id_for("heater_bed");
+    REQUIRE(bed_id != SeriesId::None);
 
     reconnect();
 
@@ -188,7 +188,7 @@ TEST_CASE_METHOD(TempGraphReattachFixture, "Reattach keeps the graph and its ser
     // IDs, and therefore the chart data all survive.
     REQUIRE(controller->graph() == graph_before);
     REQUIRE(controller->series_id_for("heater_bed") == bed_id);
-    REQUIRE(controller->series_id_for("extruder") >= 0);
+    REQUIRE(controller->series_id_for("extruder") != SeriesId::None);
 
     controller.reset();
     settle();

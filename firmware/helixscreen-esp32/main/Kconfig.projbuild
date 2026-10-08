@@ -62,6 +62,16 @@ config HELIX_HTTP_HIL
         owns its own WiFi bring-up) — this probe rides the real app's already-
         connected client.
 
+config HELIX_FAULT_CRASH_HOST
+    string "Crash on connecting to this Moonraker host (fault injection)"
+    default ""
+    help
+        Test-only. When set, the panel aborts as soon as it is connected to a
+        printer whose WebSocket URL contains this string, the way a printer
+        whose discovery crashes the firmware would. Exercises the boot crash
+        guard (prestonbrown/helixscreen#1750). Supply it via a git-ignored
+        sdkconfig.local; empty in every committed config, so it never ships.
+
 endmenu
 
 menu "HelixScreen App Core"

@@ -417,7 +417,7 @@ class PIDCalibrationPanel : public OverlayBase {
     // Temperature graph for calibrating state
     TemperatureService* temp_control_panel_ = nullptr;
     ui_temp_graph_t* pid_graph_ = nullptr;
-    int pid_graph_series_id_ = -1;
+    SeriesId pid_graph_series_id_ = SeriesId::None;
 
     // State management
     void set_state(State new_state);

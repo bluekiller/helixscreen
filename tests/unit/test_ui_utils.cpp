@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 #include "ui_format_utils.h"
-#include "ui_image_helpers.h"
 #include "ui_utils.h"
 
 #include "../lvgl_test_fixture.h"
@@ -19,8 +18,6 @@ using helix::ui::format_file_size;
 using helix::ui::format_modified_date;
 using helix::ui::format_print_time;
 using helix::ui::format_relative_time;
-using helix::ui::image_scale_to_contain;
-using helix::ui::image_scale_to_cover;
 
 // ============================================================================
 // format_print_time() Tests
@@ -286,22 +283,6 @@ TEST_CASE("UI Utils: ui_get_responsive_header_height - boundary values",
         REQUIRE(ui_get_responsive_header_height(480) == 60);
     }
 }
-
-// ============================================================================
-// Image Scaling Tests (require LVGL)
-// ============================================================================
-
-TEST_CASE("UI Utils: image_scale_to_cover - null widget", "[ui_utils][image][error]") {
-    REQUIRE(image_scale_to_cover(nullptr, 100, 100) == false);
-}
-
-TEST_CASE("UI Utils: image_scale_to_contain - null widget", "[ui_utils][image][error]") {
-    REQUIRE(image_scale_to_contain(nullptr, 100, 100) == false);
-}
-
-// Note: Testing actual image scaling requires creating LVGL image widgets
-// with valid image data, which is more complex. The basic error handling
-// is tested above. Full integration tests would go in a separate test file.
 
 // ============================================================================
 // ui_brightness_to_lightbulb_icon() Tests
