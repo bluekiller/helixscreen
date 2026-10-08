@@ -26,8 +26,10 @@ struct temp_graph_tooltip_t {
 
 namespace helix::temp_graph_internal {
 
-// See doc comment in temp_graph_internal.h.
-const ui_temp_series_meta_t* find_meta_by_id(const ui_temp_graph_t* graph, int id) {
+namespace {
+// Graph is ui_temp_graph_t or const ui_temp_graph_t; the meta pointer keeps its constness.
+template <typename Graph>
+auto find_meta_in(Graph* graph, SeriesId id) -> decltype(&graph->series_meta[0]) {
     if (!graph) {
         return nullptr;
     }
@@ -37,6 +39,16 @@ const ui_temp_series_meta_t* find_meta_by_id(const ui_temp_graph_t* graph, int i
         }
     }
     return nullptr;
+}
+} // namespace
+
+// See doc comment in temp_graph_internal.h.
+const ui_temp_series_meta_t* find_meta_by_id(const ui_temp_graph_t* graph, SeriesId id) {
+    return find_meta_in(graph, id);
+}
+
+ui_temp_series_meta_t* find_meta_by_id(ui_temp_graph_t* graph, SeriesId id) {
+    return find_meta_in(graph, id);
 }
 
 int16_t target_deci_at(const ui_temp_series_meta_t* meta, int point_count, int logical_index) {
@@ -402,7 +414,7 @@ void temp_graph_tooltip_clear(ui_temp_graph_t* graph) {
     }
 }
 
-void temp_graph_tooltip_on_sample_pushed(ui_temp_graph_t* graph, int series_id) {
+void temp_graph_tooltip_on_sample_pushed(ui_temp_graph_t* graph, SeriesId series_id) {
     const TempGraphHit* pin = temp_graph_tooltip_pinned(graph);
     if (!pin || pin->series_id != series_id) {
         return;
@@ -415,7 +427,7 @@ void temp_graph_tooltip_on_sample_pushed(ui_temp_graph_t* graph, int series_id) 
     lv_obj_invalidate(graph->chart);
 }
 
-void temp_graph_tooltip_on_series_hidden(ui_temp_graph_t* graph, int series_id) {
+void temp_graph_tooltip_on_series_hidden(ui_temp_graph_t* graph, SeriesId series_id) {
     const TempGraphHit* pin = temp_graph_tooltip_pinned(graph);
     if (pin && pin->series_id == series_id) {
         temp_graph_tooltip_clear(graph);

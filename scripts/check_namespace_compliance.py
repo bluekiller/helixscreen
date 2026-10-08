@@ -33,7 +33,7 @@
 #
 # This is a RATCHET, not a wall. The baseline freezes today's count so the debt can
 # only shrink: a new global declaration fails the build, and moving one into helix::
-# lowers the number. Lower the baseline in quality-checks.sh when you do.
+# lowers the number. Lower the baseline in scripts/qc/namespace.sh when you do.
 #
 # Usage:
 #   check_namespace_compliance.py                    # fail on any violation

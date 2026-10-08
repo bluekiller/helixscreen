@@ -261,7 +261,7 @@ void Panel::load() {
 
 @test "the gate is wired into quality-checks.sh" {
     # A gate nothing runs is not a gate.
-    run grep -c 'check_thumbnail_cache_guard.py' scripts/quality-checks.sh
+    run grep -c 'check_thumbnail_cache_guard.py' scripts/qc/decl_ui.sh
     [ "$status" -eq 0 ]
     [ "$output" -ge 1 ]
 }

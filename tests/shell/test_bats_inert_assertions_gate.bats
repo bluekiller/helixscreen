@@ -309,20 +309,13 @@ EOF
 # Code Quality workflow all reach it through quality-checks.sh, so the wiring
 # is pinned the same way the other gates pin theirs.
 
-@test "gate is wired into quality-checks.sh" {
-    run grep -c 'qc_bats_inert' scripts/quality-checks.sh
-    [ "$status" -eq 0 ]
-    # definition, QC_ALL registration, and the path-gating trigger row
-    [ "$output" -ge 3 ]
-}
-
 @test "gate section is registered in the quality-checks section list" {
     run grep -q 'QC_ALL=.*qc_bats_inert' scripts/quality-checks.sh
     [ "$status" -eq 0 ]
 }
 
 @test "gate wakes on .bats files, on helpers.bash, and on itself" {
-    run bash -c "sed -n '/qc_bats_inert)/,/;;/p' scripts/quality-checks.sh"
+    run qc_trigger bats_inert
     [ "$status" -eq 0 ]
     contains '.bats$' "$output"
     contains 'helpers\.bash' "$output"
@@ -330,13 +323,13 @@ EOF
 }
 
 @test "quality-checks.sh actually runs the gate in its section" {
-    run bash -c "sed -n '/^qc_bats_inert() {/,/^}/p' scripts/quality-checks.sh"
+    run bash -c "sed -n '/^qc_bats_inert() {/,/^}/p' scripts/qc/bats_inert.sh"
     [ "$status" -eq 0 ]
     contains 'python3 scripts/check_bats_inert_assertions.py' "$output"
 }
 
 @test "quality-checks.sh passes --staged-only through when STAGED_ONLY is true" {
-    run bash -c "sed -n '/^qc_bats_inert() {/,/^}/p' scripts/quality-checks.sh"
+    run bash -c "sed -n '/^qc_bats_inert() {/,/^}/p' scripts/qc/bats_inert.sh"
     [ "$status" -eq 0 ]
     contains 'BATS_INERT_ARGS="--staged-only"' "$output"
 }

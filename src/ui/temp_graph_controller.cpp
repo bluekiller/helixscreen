@@ -367,19 +367,19 @@ void TempGraphController::reattach_observers() {
 
 void TempGraphController::set_series_name(const std::string& klipper_name,
                                           const std::string& display_name) {
-    const int id = series_id_for(klipper_name);
-    if (graph_ && id >= 0) {
+    const SeriesId id = series_id_for(klipper_name);
+    if (graph_ && id != SeriesId::None) {
         temp_graph_set_series_name(graph_, id, display_name.c_str());
     }
 }
 
-int TempGraphController::series_id_for(const std::string& klipper_name) const {
+SeriesId TempGraphController::series_id_for(const std::string& klipper_name) const {
     for (const auto& s : series_) {
         if (s.klipper_name == klipper_name) {
             return s.series_id;
         }
     }
-    return -1;
+    return SeriesId::None;
 }
 
 // ============================================================================
@@ -426,8 +426,8 @@ void TempGraphController::setup_series() {
     for (const auto& spec : config_.series) {
         const char* label =
             spec.display_name.empty() ? spec.klipper_name.c_str() : spec.display_name.c_str();
-        int series_id = ui_temp_graph_add_series(graph_, label, spec.color);
-        if (series_id < 0) {
+        SeriesId series_id = ui_temp_graph_add_series(graph_, label, spec.color);
+        if (series_id == SeriesId::None) {
             spdlog::warn("[TempGraphController] Failed to add series '{}'", spec.klipper_name);
             continue;
         }
@@ -638,7 +638,7 @@ bool TempGraphController::attach_series_observers(size_t i) {
                         return;
 
                     auto& si = self->series_[idx];
-                    if (si.series_id < 0)
+                    if (si.series_id == SeriesId::None)
                         return;
 
                     // Filter garbage / "no data" readings at the source, mirroring
@@ -671,7 +671,7 @@ bool TempGraphController::attach_series_observers(size_t i) {
                         return;
 
                     for (auto& sj : self->series_) {
-                        if (sj.series_id < 0 || sj.latest_deci == 0 ||
+                        if (sj.series_id == SeriesId::None || sj.latest_deci == 0 ||
                             !sample_due(sj.last_update_ms, now_ms))
                             continue;
                         sj.last_update_ms = now_ms;
@@ -701,7 +701,7 @@ bool TempGraphController::attach_series_observers(size_t i) {
                         return;
 
                     auto& si = self->series_[idx];
-                    if (si.series_id < 0)
+                    if (si.series_id == SeriesId::None)
                         return;
 
                     float target_deg = deci_to_degrees_f(target_deci);
@@ -781,7 +781,7 @@ void TempGraphController::backfill_history() {
                                      UI_TEMP_GRAPH_SAMPLE_INTERVAL_SEC * 1000;
 
     for (auto& s : series_) {
-        if (s.series_id < 0)
+        if (s.series_id == SeriesId::None)
             continue;
 
         auto samples = history_mgr->get_samples_since(s.klipper_name, cutoff_ms);
@@ -849,7 +849,7 @@ void TempGraphController::apply_auto_range() {
     // Find max relevant temperature (from data and targets)
     float max_temp = graph_->max_visible_temp;
     for (const auto& s : series_) {
-        if (s.show_target && s.series_id >= 0) {
+        if (s.show_target && s.series_id != SeriesId::None) {
             for (int j = 0; j < graph_->series_count; j++) {
                 auto& meta = graph_->series_meta[j];
                 if (meta.id == s.series_id && meta.show_target && meta.target_temp > max_temp) {

@@ -284,7 +284,7 @@ class Widget {
 # sit green through every commit that broke it.
 
 @test "gate is wired into quality-checks.sh" {
-    run grep -q "check_namespace_compliance.py" scripts/quality-checks.sh
+    run grep -q "check_namespace_compliance.py" scripts/qc/namespace.sh
     [ "$status" -eq 0 ]
 }
 
@@ -294,7 +294,7 @@ class Widget {
 }
 
 @test "gate wakes on C++ sources" {
-    run bash -c "sed -n '/|qc_namespace|/,/;;/p' scripts/quality-checks.sh"
+    run qc_trigger namespace
     [ "$status" -eq 0 ]
     [[ "$output" == *"cpp"* ]]
 }
@@ -314,6 +314,6 @@ class Widget {
     # The literal above and the literal there are one number. Raising it in
     # quality-checks.sh to clear new violations fails here.
     run grep -F "check_namespace_compliance.py --max-allowed $BASELINE" \
-        scripts/quality-checks.sh
+        scripts/qc/namespace.sh
     [ "$status" -eq 0 ]
 }

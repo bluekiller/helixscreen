@@ -80,11 +80,30 @@ enum ui_temp_graph_feature {
      TEMP_GRAPH_FEATURE_READOUTS | TEMP_GRAPH_FEATURE_TARGET_HISTORY)
 
 /**
+ * Handle to one series, as returned by ui_temp_graph_add_series().
+ *
+ * Handles are never reused, while series_meta[] slots are (a removed series frees
+ * its slot for the next add), so the two disagree after any remove-then-add. An
+ * enum class has no implicit conversion to an index, which is what keeps a handle
+ * out of series_meta[]; resolve it by matching ui_temp_series_meta_t::id.
+ */
+namespace helix {
+enum class SeriesId : int { None = -1 };
+
+/// Lets spdlog/fmt print a SeriesId as its number.
+constexpr int format_as(SeriesId id) {
+    return static_cast<int>(id);
+}
+} // namespace helix
+
+using helix::SeriesId;
+
+/**
  * Temperature series metadata
  * Stores information about each temperature series (heater/sensor)
  */
 struct ui_temp_series_meta_t {
-    int id;                          // Series ID (index in series_meta array)
+    SeriesId id;                     // Series handle (NOT its series_meta slot)
     lv_chart_series_t* chart_series; // LVGL chart series
     lv_color_t color;                // Series color
     char name[32];                   // Series name (e.g., "Nozzle", "Bed")
@@ -245,9 +264,9 @@ static inline bool ui_temp_graph_is_valid(ui_temp_graph_t* graph) {
  * @param graph Graph instance
  * @param name Series name (max 31 chars)
  * @param color Series color (for line and gradient)
- * @return Series ID (>=0 on success, -1 on error)
+ * @return Series handle, or SeriesId::None on error
  */
-int ui_temp_graph_add_series(ui_temp_graph_t* graph, const char* name, lv_color_t color);
+SeriesId ui_temp_graph_add_series(ui_temp_graph_t* graph, const char* name, lv_color_t color);
 
 /**
  * Remove a temperature series from the graph
@@ -255,7 +274,7 @@ int ui_temp_graph_add_series(ui_temp_graph_t* graph, const char* name, lv_color_
  * @param graph Graph instance
  * @param series_id Series ID to remove
  */
-void ui_temp_graph_remove_series(ui_temp_graph_t* graph, int series_id);
+void ui_temp_graph_remove_series(ui_temp_graph_t* graph, SeriesId series_id);
 
 /**
  * Show or hide a temperature series
@@ -264,7 +283,7 @@ void ui_temp_graph_remove_series(ui_temp_graph_t* graph, int series_id);
  * @param series_id Series ID
  * @param visible true to show, false to hide
  */
-void ui_temp_graph_show_series(ui_temp_graph_t* graph, int series_id, bool visible);
+void ui_temp_graph_show_series(ui_temp_graph_t* graph, SeriesId series_id, bool visible);
 
 namespace helix {
 /**
@@ -274,7 +293,7 @@ namespace helix {
  * @param series_id Series ID from ui_temp_graph_add_series()
  * @param name New name, truncated to the metadata buffer
  */
-void temp_graph_set_series_name(ui_temp_graph_t* graph, int series_id, const char* name);
+void temp_graph_set_series_name(ui_temp_graph_t* graph, SeriesId series_id, const char* name);
 } // namespace helix
 
 /**
@@ -289,7 +308,7 @@ void temp_graph_set_series_name(ui_temp_graph_t* graph, int series_id, const cha
  * @param series_id Series ID
  * @param temp Temperature value
  */
-void ui_temp_graph_update_series(ui_temp_graph_t* graph, int series_id, float temp);
+void ui_temp_graph_update_series(ui_temp_graph_t* graph, SeriesId series_id, float temp);
 
 /**
  * Add a single temperature point with timestamp (push mode)
@@ -300,7 +319,7 @@ void ui_temp_graph_update_series(ui_temp_graph_t* graph, int series_id, float te
  * @param temp Temperature value
  * @param timestamp_ms Unix timestamp in milliseconds
  */
-void ui_temp_graph_update_series_with_time(ui_temp_graph_t* graph, int series_id, float temp,
+void ui_temp_graph_update_series_with_time(ui_temp_graph_t* graph, SeriesId series_id, float temp,
                                            int64_t timestamp_ms);
 
 /**
@@ -311,7 +330,7 @@ void ui_temp_graph_update_series_with_time(ui_temp_graph_t* graph, int series_id
  * @param temps Array of temperature values
  * @param count Number of temperatures in array
  */
-void ui_temp_graph_set_series_data(ui_temp_graph_t* graph, int series_id, const float* temps,
+void ui_temp_graph_set_series_data(ui_temp_graph_t* graph, SeriesId series_id, const float* temps,
                                    int count);
 
 /**
@@ -325,7 +344,7 @@ void ui_temp_graph_clear(ui_temp_graph_t* graph);
  * @param graph Graph instance
  * @param series_id Series ID
  */
-void ui_temp_graph_clear_series(ui_temp_graph_t* graph, int series_id);
+void ui_temp_graph_clear_series(ui_temp_graph_t* graph, SeriesId series_id);
 
 /**
  * Target Temperature API
@@ -339,7 +358,7 @@ void ui_temp_graph_clear_series(ui_temp_graph_t* graph, int series_id);
  * @param target Target temperature (in same units as data)
  * @param show true to show target line, false to hide
  */
-void ui_temp_graph_set_series_target(ui_temp_graph_t* graph, int series_id, float target,
+void ui_temp_graph_set_series_target(ui_temp_graph_t* graph, SeriesId series_id, float target,
                                      bool show);
 
 /**
@@ -349,7 +368,7 @@ void ui_temp_graph_set_series_target(ui_temp_graph_t* graph, int series_id, floa
  * @param series_id Series ID
  * @param show true to show, false to hide
  */
-void ui_temp_graph_show_target(ui_temp_graph_t* graph, int series_id, bool show);
+void ui_temp_graph_show_target(ui_temp_graph_t* graph, SeriesId series_id, bool show);
 
 /**
  * Update the "current target" for a series WITHOUT pushing into the history buffer.
@@ -363,7 +382,7 @@ void ui_temp_graph_show_target(ui_temp_graph_t* graph, int series_id, bool show)
  * @param target    Target temperature in degrees
  * @param show      true to show target trace, false to hide
  */
-void ui_temp_graph_set_current_target(ui_temp_graph_t* graph, int series_id, float target,
+void ui_temp_graph_set_current_target(ui_temp_graph_t* graph, SeriesId series_id, float target,
                                       bool show);
 
 /**
@@ -379,7 +398,7 @@ void ui_temp_graph_set_current_target(ui_temp_graph_t* graph, int series_id, flo
  * @param targets   Array of target values (degrees, 0 = heater off)
  * @param count     Number of entries in BOTH arrays
  */
-void ui_temp_graph_set_series_data_with_targets(ui_temp_graph_t* graph, int series_id,
+void ui_temp_graph_set_series_data_with_targets(ui_temp_graph_t* graph, SeriesId series_id,
                                                 const float* temps, const float* targets,
                                                 int count);
 
@@ -430,8 +449,8 @@ void ui_temp_graph_set_point_count(ui_temp_graph_t* graph, int count);
  * @param bottom_opa Bottom opacity (0-255, default 60% = LV_OPA_60)
  * @param top_opa Top opacity (0-255, default 10% = LV_OPA_10)
  */
-void ui_temp_graph_set_series_gradient(ui_temp_graph_t* graph, int series_id, lv_opa_t bottom_opa,
-                                       lv_opa_t top_opa);
+void ui_temp_graph_set_series_gradient(ui_temp_graph_t* graph, SeriesId series_id,
+                                       lv_opa_t bottom_opa, lv_opa_t top_opa);
 
 /**
  * Set Y-axis label configuration

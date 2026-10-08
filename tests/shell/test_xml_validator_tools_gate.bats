@@ -1,7 +1,7 @@
 #!/usr/bin/env bats
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
-# Meta-tests for the qc_xml_tools gate in scripts/quality-checks.sh.
+# Meta-tests for the qc_xml_tools gate, scripts/qc/xml_tools.sh.
 #
 # The constraint: qc_xml_const and qc_xml_attr guard on `[ -x build/bin/... ]`
 # and skip when the binary is missing, and no ordinary build produces those
@@ -23,7 +23,7 @@ setup() {
 }
 
 @test "tool-build gate builds the attribute validator" {
-    run bash -c "sed -n '/^qc_xml_tools() {/,/^}/p' scripts/quality-checks.sh"
+    run bash -c "sed -n '/^qc_xml_tools() {/,/^}/p' scripts/qc/xml_tools.sh"
     [ "$status" -eq 0 ] || fail "qc_xml_tools not extractable"
     contains "validate-xml-attrs" "$output"
 }
@@ -32,14 +32,14 @@ setup() {
 # the CI quality step a cold full build that overruns its time limit. Its check
 # runs in the unit suite instead (#1698).
 @test "tool-build gate does not build the constants validator" {
-    run bash -c "sed -n '/^qc_xml_tools() {/,/^}/p' scripts/quality-checks.sh | grep '^if make'"
+    run bash -c "sed -n '/^qc_xml_tools() {/,/^}/p' scripts/qc/xml_tools.sh | grep '^if make'"
     [ "$status" -eq 0 ] || fail "qc_xml_tools make line not found"
     lacks "validate-xml-constants" "$output"
 }
 
 @test "tool-build gate wakes on the files the validators inspect" {
-    run bash -c "sed -n '/qc_xml_tools)/,/;;/p' scripts/quality-checks.sh"
-    [ "$status" -eq 0 ] || fail "trigger case not extractable"
+    run qc_trigger xml_tools
+    [ -n "$output" ] || fail "qc_xml_tools sets no trigger"
     contains '\.xml$' "$output"
     contains '^tools/validate_xml' "$output"
 }
@@ -47,7 +47,7 @@ setup() {
 # qc_xml_const runs no binary, so it must name where the constants check is
 # enforced, and that test must exist, or the hook points at nothing.
 @test "constants gate names the unit test that enforces it" {
-    run bash -c "sed -n '/^qc_xml_const() {/,/^}/p' scripts/quality-checks.sh"
+    run bash -c "sed -n '/^qc_xml_const() {/,/^}/p' scripts/qc/xml_const.sh"
     [ "$status" -eq 0 ] || fail "qc_xml_const not extractable"
     contains 'ui_xml has no incomplete constant sets' "$output"
     lacks 'not enforced' "$output"

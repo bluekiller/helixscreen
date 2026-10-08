@@ -1,7 +1,7 @@
 #!/usr/bin/env bats
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
-# The shellcheck and clang-format stages of scripts/quality-checks.sh fan their
+# The shellcheck and clang-format stages of the quality gate (scripts/qc/) fan their
 # file lists out through xargs. `xargs -a FILE` is a GNU extension; BSD xargs
 # rejects it with "invalid option -- a", lints nothing, and both stages read
 # an empty result as a clean one (prestonbrown/helixscreen#1488). These cases
@@ -23,18 +23,18 @@ setup() {
 # stubbed and the scratch dir pointed at the test tmpdir.
 run_shellcheck_gate() {
   bash -c '
-    section_time() { :; }
     STAGED_ONLY=false
     QC_TMP="$1"
     QC_COUNTS="$1/counts"
-    eval "$2"
-    eval "$(sed -n "/^qc_shellcheck() {/,/^}/p" scripts/quality-checks.sh)"
+    . scripts/qc/_lib.sh
+    . scripts/qc/shellcheck.sh
+    section_time() { :; }
     qc_shellcheck
-  ' _ "$BATS_TEST_TMPDIR/qc" "$(qc_verdict_defs)"
+  ' _ "$BATS_TEST_TMPDIR/qc"
 }
 
 @test "no gate reads its file list with xargs -a" {
-  run grep -n 'xargs -a' scripts/quality-checks.sh
+  run bash -c "cat scripts/quality-checks.sh scripts/qc/*.sh | grep -n 'xargs -a'"
   [ "$status" -eq 1 ]
 }
 
@@ -71,7 +71,7 @@ run_shellcheck_gate() {
   # The probe lives inside qc_phase2 beside unrelated checks, so it is pinned
   # statically: the worker records every file it saw, and the verdict compares
   # that count against the candidate list.
-  run sed -n '/^qc_phase2() {/,/^}/p' scripts/quality-checks.sh
+  run sed -n '/^qc_phase2() {/,/^}/p' scripts/qc/phase2.sh
   [ "$status" -eq 0 ]
   contains '< "$CF_CAND" xargs' "$output"
   contains 'CF_EXAMINED=$(grep -c . "$CF_SEEN")' "$output"
