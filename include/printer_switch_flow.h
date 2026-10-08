@@ -6,6 +6,7 @@
 #include "async_lifetime_guard.h"
 
 #include <functional>
+#include <lvgl.h>
 #include <string>
 
 class ApplicationTestAccess; // NAMESPACE_OK: test accessor, declared at global scope
@@ -88,6 +89,10 @@ class PrinterSwitchFlow {
 
     /// A "the printer is printing" confirmation is on screen.
     bool m_confirm_pending = false;
+    lv_obj_t* m_confirm_dialog = nullptr;
+
+    /// Whether the confirmation is still up. Clears the flag when its dialog is gone or hidden.
+    bool confirm_pending();
 
     std::string m_wizard_previous_printer_id;
     std::string m_connected_printer_id;

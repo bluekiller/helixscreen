@@ -22,6 +22,8 @@
 
 #include <spdlog/spdlog.h>
 
+#include <functional>
+
 namespace helix::ui {
 
 namespace {
@@ -46,6 +48,16 @@ std::string find_printer_id_from_event(lv_event_t* e) {
         obj = parent;
     }
     return {};
+}
+
+/// Closes the Printers list, then runs `next`. go_back() queues the pop, and the pop hides
+/// every stray child of the screen; queued behind it, whatever `next` opens (a switch
+/// confirmation, the add-printer modal) arrives after that sweep instead of being hidden by it.
+void close_list_then(const char* tag, std::function<void()> next) {
+    queue_update(tag, [tag, next = std::move(next)]() mutable {
+        helix::nav::go_back();
+        queue_update(tag, std::move(next));
+    });
 }
 
 } // namespace
@@ -192,9 +204,8 @@ void PrinterListOverlay::handle_switch_printer(const std::string& printer_id) {
     spdlog::info("[{}] Switching to printer '{}'", get_name(), printer_id);
     helix::ui::drop_held_connection_failed();
 
-    // Defer dismiss + switch — we're inside a click event on a child widget
-    helix::ui::queue_update("PrinterListOverlay::handle_switch_printer", [printer_id]() {
-        helix::nav::go_back();
+    // Deferred: we're inside a click event on a child widget
+    close_list_then("PrinterListOverlay::handle_switch_printer", [printer_id]() {
         NavigationManager::instance().trigger_printer_switch(printer_id);
     });
 }
@@ -223,8 +234,7 @@ void PrinterListOverlay::handle_delete_printer(const std::string& printer_id) {
             auto remaining = cfg->get_printer_ids();
             if (!remaining.empty()) {
                 std::string next_id = remaining.front();
-                helix::ui::queue_update("PrinterListOverlay::handle_delete_printer", [next_id]() {
-                    helix::nav::go_back(); // dismiss overlay
+                close_list_then("PrinterListOverlay::handle_delete_printer", [next_id]() {
                     NavigationManager::instance().trigger_printer_switch(next_id);
                 });
             }
@@ -241,14 +251,9 @@ void PrinterListOverlay::handle_add_printer() {
     spdlog::info("[{}] Add printer requested", get_name());
     helix::ui::drop_held_connection_failed();
 
-    // Defer dismiss + wizard launch — we're inside a click event on a child widget
-    helix::ui::queue_update("PrinterListOverlay::handle_add_printer", []() {
-        helix::nav::go_back();
-        // go_back() queues the pop, and the pop hides every stray screen child.
-        // Queued behind it, the add-printer modal opens after that sweep.
-        helix::ui::queue_update("PrinterListOverlay::trigger_add_printer",
-                                []() { NavigationManager::instance().trigger_add_printer(); });
-    });
+    // Deferred: we're inside a click event on a child widget
+    close_list_then("PrinterListOverlay::handle_add_printer",
+                    []() { NavigationManager::instance().trigger_add_printer(); });
 }
 
 } // namespace helix::ui

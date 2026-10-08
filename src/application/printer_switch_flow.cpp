@@ -61,8 +61,26 @@ bool active_printer_is_printing() {
 PrinterSwitchFlow::PrinterSwitchFlow(Config*& config, AsyncLifetimeGuard& async, Restart restart)
     : m_config(config), m_async(async), m_restart(std::move(restart)) {}
 
+bool PrinterSwitchFlow::confirm_pending() {
+    if (!m_confirm_pending) {
+        return false;
+    }
+    // The dialog's own callbacks clear the flag, but only for closes that reach them. One that
+    // was never shown, hidden from under it, or torn down without a dismissal would otherwise
+    // leave every later pick ignored until a restart.
+    auto& stack = ModalStack::instance();
+    lv_obj_t* backdrop = stack.backdrop_for(m_confirm_dialog);
+    if (backdrop && !stack.is_exiting(backdrop) && !lv_obj_has_flag(backdrop, LV_OBJ_FLAG_HIDDEN)) {
+        return true;
+    }
+    spdlog::warn("[PrinterSwitchFlow] The switch confirmation is no longer on screen");
+    m_confirm_pending = false;
+    m_confirm_dialog = nullptr;
+    return false;
+}
+
 bool PrinterSwitchFlow::request_switch(const std::string& printer_id) {
-    if (m_soft_restart_in_progress || m_confirm_pending) {
+    if (m_soft_restart_in_progress || confirm_pending()) {
         spdlog::warn("[PrinterSwitchFlow] Ignoring switch to '{}': a switch is already running",
                      printer_id);
         return false;
@@ -87,7 +105,7 @@ bool PrinterSwitchFlow::request_switch(const std::string& printer_id) {
     options.on_cancel = [this] { m_confirm_pending = false; };
     options.on_dismiss = [this] { m_confirm_pending = false; };
     options.owner_token = m_async.token();
-    ui::modal_confirm(
+    m_confirm_dialog = ui::modal_confirm(
         lv_tr("Switch Printer"), message.c_str(), ModalSeverity::Warning, lv_tr("Switch Printer"),
         [this, printer_id] {
             m_confirm_pending = false;
@@ -101,7 +119,7 @@ bool PrinterSwitchFlow::request_switch(const std::string& printer_id) {
 }
 
 bool PrinterSwitchFlow::switch_printer(const std::string& printer_id) {
-    if (m_confirm_pending) {
+    if (confirm_pending()) {
         spdlog::warn(
             "[PrinterSwitchFlow] Ignoring switch_printer while a switch is being confirmed");
         return false;
