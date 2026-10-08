@@ -890,6 +890,11 @@ void ui_filament_path_canvas_set_buffer_fault_state(lv_obj_t* obj, int state) {
     }
 }
 
+void helix::ui::filament_path_canvas_release_buffer(lv_obj_t* obj) {
+    if (auto* data = get_data(obj))
+        layered_release_buffer(data);
+}
+
 int helix::ui::filament_path_canvas_buffer_fault_state(lv_obj_t* obj) {
     auto* data = get_data(obj);
     return data ? data->buffer_fault_state : 0;

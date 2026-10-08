@@ -489,6 +489,10 @@ namespace helix::ui {
 /// (-1 untinted, 0 healthy, 1 warning, 2 fault); 0 for a non-canvas object.
 int filament_path_canvas_buffer_fault_state(lv_obj_t* obj);
 
+/// Free the canvas buffer of a path that is no longer on screen. The next time
+/// the widget is drawn, the buffer is allocated once and the path repainted.
+void filament_path_canvas_release_buffer(lv_obj_t* obj);
+
 /**
  * @brief Pure coordinate hit-test for an axis-aligned box.
  *

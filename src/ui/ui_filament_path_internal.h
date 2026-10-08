@@ -486,6 +486,9 @@ void layered_mark_dirty(lv_obj_t* obj);
 // widget could not be seen.
 void layered_on_draw(lv_obj_t* obj, FilamentPathData* data);
 
+// Free the canvas buffer; the next draw allocates it again and repaints.
+void layered_release_buffer(FilamentPathData* data);
+
 /// LV_EVENT_SIZE_CHANGED handler — re-schedules the refresh once layout
 /// assigns a real size (the create-time refresh may have bailed pre-layout).
 void layered_size_changed_cb(lv_event_t* e);

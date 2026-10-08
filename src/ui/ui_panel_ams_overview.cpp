@@ -34,6 +34,7 @@
 #include "helix-xml/src/xml/lv_xml.h"
 #include "i_moonraker_api.h"
 #include "lvgl/src/others/translation/lv_translation.h"
+#include "memory_monitor.h"
 #include "observer_factory.h"
 #include "overlay_base.h"
 #include "printer_detector.h"
@@ -274,6 +275,20 @@ void AmsOverviewPanel::on_activate() {
         // Re-entering while in detail mode — refresh the detail slots
         show_unit_detail(detail_unit_index_);
     }
+}
+
+void AmsOverviewPanel::release_offscreen_memory() {
+    if (detail_path_canvas_) {
+        helix::ui::filament_path_canvas_release_buffer(detail_path_canvas_);
+    }
+}
+
+bool AmsOverviewPanel::rebuild() {
+    if (!panel_ || helix::nav::is_showing(panel_)) {
+        return false;
+    }
+    destroy_ams_overview_panel_ui();
+    return true;
 }
 
 void AmsOverviewPanel::on_deactivating(DeactivateReason) {
@@ -1124,6 +1139,8 @@ void AmsOverviewPanel::clear_panel_reference() {
 // ============================================================================
 
 static lv_obj_t* s_ams_overview_panel_obj = nullptr;
+// Theme generation the cached tree was built under.
+static int s_ams_overview_theme_gen = 0;
 
 // Lazy registration flag for XML component
 static bool s_overview_registered = false;
@@ -1215,8 +1232,15 @@ AmsOverviewPanel& get_global_ams_overview_panel() {
         "AmsOverviewPanel", destroy_ams_overview_panel_ui, get_printer_state(),
         get_moonraker_api());
 
+    const int theme_gen = lv_subject_get_int(theme_manager_get_changed_subject());
+    if (s_ams_overview_panel_obj && s_ams_overview_theme_gen != theme_gen &&
+        !helix::nav::is_showing(s_ams_overview_panel_obj)) {
+        destroy_ams_overview_panel_ui();
+    }
+
     // Lazy create the panel UI if not yet created
     if (!s_ams_overview_panel_obj) {
+        s_ams_overview_theme_gen = theme_gen;
         ensure_overview_registered();
 
         // Initialize AmsState subjects BEFORE XML creation so bindings work
@@ -1236,14 +1260,15 @@ AmsOverviewPanel& get_global_ams_overview_panel() {
             panel.setup(s_ams_overview_panel_obj, screen);
             lv_obj_add_flag(s_ams_overview_panel_obj, LV_OBJ_FLAG_HIDDEN);
 
-            // Register overlay instance for lifecycle management
-            helix::nav::register_overlay(s_ams_overview_panel_obj, &panel);
+            // Kept alive between opens, like the AMS panel (get_global_ams_panel()).
+            helix::nav::register_overlay(s_ams_overview_panel_obj, &panel, true);
+            helix::nav::on_close(s_ams_overview_panel_obj, []() {
+                if (auto* p = helix::lazy_global_if_exists<AmsOverviewPanel>()) {
+                    p->release_offscreen_memory();
+                }
+            });
 
-            // Register close callback to destroy UI when overlay is closed
-            helix::nav::on_close(s_ams_overview_panel_obj,
-                                 []() { destroy_ams_overview_panel_ui(); });
-
-            spdlog::info("[AMS Overview] Lazy-created panel UI with close callback");
+            spdlog::info("[AMS Overview] Lazy-created panel UI");
         } else {
             spdlog::error("[AMS Overview] Failed to create panel from XML");
         }
@@ -1383,6 +1408,39 @@ void AmsOverviewPanel::update_bypass_widgets_position() {
 // Multi-unit Navigation
 // ============================================================================
 
+namespace {
+
+void drop_hidden_ams_panel_ui() {
+    const AmsPanel* detail = get_existing_ams_panel();
+    if (detail && detail->get_panel() && !helix::nav::is_showing(detail->get_panel())) {
+        destroy_ams_panel_ui();
+    }
+}
+
+// Critical memory pressure drops the hidden cached AMS trees, which the small-RAM
+// printers (AD5M/AD5X) need back. Linux only in practice: the monitor is never
+// started on the ESP32.
+void ensure_ams_pressure_responder() {
+    static bool registered = false;
+    if (registered) {
+        return;
+    }
+    registered = true;
+    helix::MemoryMonitor::instance().add_pressure_responder([](helix::MemoryPressureLevel level) {
+        if (level < helix::MemoryPressureLevel::critical) {
+            return;
+        }
+        helix::ui::queue_update("AMS::drop_hidden_ui", []() {
+            drop_hidden_ams_panel_ui();
+            if (s_ams_overview_panel_obj && !helix::nav::is_showing(s_ams_overview_panel_obj)) {
+                destroy_ams_overview_panel_ui();
+            }
+        });
+    });
+}
+
+} // namespace
+
 void navigate_to_ams_panel() {
     auto* backend = AmsState::instance().get_backend();
     if (!backend) {
@@ -1392,6 +1450,15 @@ void navigate_to_ams_panel() {
 
     const AmsSystemInfo info = backend->get_system_info();
     const bool multi_unit = info.is_multi_unit();
+
+    // Only one of the two panels serves a given unit count; the other is dropped
+    // rather than held alongside it.
+    ensure_ams_pressure_responder();
+    if (multi_unit) {
+        drop_hidden_ams_panel_ui();
+    } else if (s_ams_overview_panel_obj && !helix::nav::is_showing(s_ams_overview_panel_obj)) {
+        destroy_ams_overview_panel_ui();
+    }
 
     auto open = [multi_unit, units = info.unit_count()]() {
         if (multi_unit) {

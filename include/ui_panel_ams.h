@@ -132,6 +132,14 @@ class AmsPanel : public PanelBase {
      */
     void clear_panel_reference();
 
+    /// Free what only an on-screen panel needs (the path canvas buffer). The
+    /// widget tree stays, so the next open shows it without a rebuild.
+    void release_offscreen_memory();
+
+    /// A hidden cached tree is dropped instead of rebuilt: the next open builds
+    /// it from the re-registered component. A shown panel is left alone.
+    bool rebuild() override;
+
   private:
     // === Slot Management ===
 
@@ -187,7 +195,8 @@ class AmsPanel : public PanelBase {
     ObserverGuard bypass_active_observer_; ///< Active ring follows bypass engage/disengage
     bool backend_rebuild_pending_ = false; ///< Coalesces rapid backend count changes
     bool slot_creation_pending_ = false;   ///< Coalesces rapid slot count changes
-    bool path_update_pending_ = false;     ///< Coalesces rapid path state changes
+    bool active_ = false; ///< On screen; a hidden panel rebuilds its slots on the next open
+    bool path_update_pending_ = false; ///< Coalesces rapid path state changes
 
     // === Dynamic Slot State ===
 

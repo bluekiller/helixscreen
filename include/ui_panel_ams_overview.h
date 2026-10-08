@@ -89,6 +89,12 @@ class AmsOverviewPanel : public PanelBase {
      */
     void clear_panel_reference();
 
+    /// Free what only an on-screen panel needs (the detail path canvas buffer).
+    void release_offscreen_memory();
+
+    /// A hidden cached tree is dropped instead of rebuilt; a shown one is left.
+    bool rebuild() override;
+
     /**
      * @brief Show detail view for a specific unit (inline, no overlay)
      */

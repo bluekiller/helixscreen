@@ -107,6 +107,7 @@ TEST_CASE_METHOD(XMLTestFixture, "AmsPanel slot material stays correct across na
     REQUIRE(panel_obj != nullptr);
 
     panel.setup(panel_obj, test_screen());
+    panel.on_activate(); // a shown panel builds its slots
     lv_obj_update_layout(test_screen());
     process_lvgl(50);
     panel.refresh_slots();
@@ -139,6 +140,7 @@ TEST_CASE_METHOD(XMLTestFixture, "AmsPanel slot material stays correct across na
     REQUIRE(slot0_material_text(panel) == "PETG");
 
     // Tear down panel UI before the fixture destroys state/subjects.
+    panel.on_deactivate(DeactivateReason::NavigateAway);
     panel.clear_panel_reference();
     lv_obj_delete(panel_obj);
     process_lvgl(10);
@@ -181,6 +183,7 @@ TEST_CASE_METHOD(XMLTestFixture,
     REQUIRE(panel_obj != nullptr);
 
     panel.setup(panel_obj, test_screen());
+    panel.on_activate(); // a shown panel builds its slots
     lv_obj_update_layout(test_screen());
     process_lvgl(50);
     panel.refresh_slots();
@@ -201,6 +204,7 @@ TEST_CASE_METHOD(XMLTestFixture,
     // THE #1065 ASSERTION: the label tracks the new material on the sync frame.
     REQUIRE(slot0_material_text(panel) == "PETG");
 
+    panel.on_deactivate(DeactivateReason::NavigateAway);
     panel.clear_panel_reference();
     lv_obj_delete(panel_obj);
     process_lvgl(10);
@@ -247,6 +251,7 @@ TEST_CASE_METHOD(XMLTestFixture, "AmsPanel activation builds its slots once",
     process_lvgl(50);
     CHECK_FALSE(rebuilt);
 
+    panel.on_deactivate(DeactivateReason::NavigateAway);
     panel.clear_panel_reference();
     lv_obj_delete(panel_obj);
     process_lvgl(10);

@@ -323,12 +323,16 @@ void AmsPanel::init_subjects() {
     slot_count_observer_ = observe<int>(
         AmsState::instance().get_slot_count_subject(), this,
         [](AmsPanel* self, int) {
-            if (!self->panel_)
+            // A hidden panel picks the new count up in on_activate().
+            if (!self->panel_ || !self->active_)
                 return;
             if (!self->slot_creation_pending_) {
                 self->slot_creation_pending_ = true;
                 self->object_lifetime_.defer("AmsPanel::create_slots", [self]() {
                     self->slot_creation_pending_ = false;
+                    if (!self->active_) {
+                        return;
+                    }
                     // Read when the rebuild runs, not when it was queued: this
                     // observer is re-added on every open, and its first, queued
                     // notification lands after on_activate() has already built
@@ -474,6 +478,7 @@ void AmsPanel::setup(lv_obj_t* panel, lv_obj_t* parent_screen) {
 
 void AmsPanel::on_activate() {
     spdlog::debug("[{}] Activated - syncing from backend", get_name());
+    active_ = true;
 
     // Sync state when panel becomes visible
     AmsState::instance().sync_from_backend();
@@ -548,6 +553,7 @@ void AmsPanel::sync_spoolman_active_spool() {
 }
 
 void AmsPanel::on_deactivating(DeactivateReason) {
+    active_ = false;
     if (holds_poll_ref_) {
         SpoolmanManager::instance().stop_spoolman_polling();
         holds_poll_ref_ = false;
@@ -559,8 +565,20 @@ void AmsPanel::on_deactivating(DeactivateReason) {
     }
 
     spdlog::debug("[{}] Deactivated", get_name());
-    // Note: UI destruction is handled by NavigationManager close callback
-    // registered in get_global_ams_panel()
+}
+
+void AmsPanel::release_offscreen_memory() {
+    if (path_canvas_) {
+        helix::ui::filament_path_canvas_release_buffer(path_canvas_);
+    }
+}
+
+bool AmsPanel::rebuild() {
+    if (!panel_ || helix::nav::is_showing(panel_)) {
+        return false;
+    }
+    destroy_ams_panel_ui();
+    return true;
 }
 
 void AmsPanel::clear_panel_reference() {
@@ -1422,6 +1440,9 @@ void AmsPanel::dismiss_error_modal_silently(const char* reason) {
 // ============================================================================
 
 static lv_obj_t* s_ams_panel_obj = nullptr;
+// Theme generation the cached tree was built under; its widgets keep the
+// colours they were created with.
+static int s_ams_panel_theme_gen = 0;
 
 // The shared sequence lives in helix::ui::teardown_overlay_ui(); this site
 // differs from OverlayBase::destroy_overlay_ui() only in the two things a
@@ -1449,8 +1470,15 @@ AmsPanel& get_global_ams_panel() {
     AmsPanel& panel = helix::lazy_global_with_teardown<AmsPanel>(
         "AmsPanel", destroy_ams_panel_ui, get_printer_state(), get_moonraker_api());
 
+    const int theme_gen = lv_subject_get_int(theme_manager_get_changed_subject());
+    if (s_ams_panel_obj && s_ams_panel_theme_gen != theme_gen &&
+        !helix::nav::is_showing(s_ams_panel_obj)) {
+        destroy_ams_panel_ui();
+    }
+
     // Lazy create the panel UI if not yet created
     if (!s_ams_panel_obj) {
+        s_ams_panel_theme_gen = theme_gen;
         // Ensure widgets and XML are registered
         ensure_ams_widgets_registered();
 
@@ -1471,14 +1499,18 @@ AmsPanel& get_global_ams_panel() {
             panel.setup(s_ams_panel_obj, screen);
             lv_obj_add_flag(s_ams_panel_obj, LV_OBJ_FLAG_HIDDEN); // Hidden by default
 
-            helix::nav::register_overlay(s_ams_panel_obj, &panel);
+            // Kept alive between opens: building it is most of an open's cost on
+            // slow hardware. Closing frees only the path canvas buffer; memory
+            // pressure, a theme change, a printer switch and the unit-count flip in
+            // navigate_to_ams_panel() drop the tree.
+            helix::nav::register_overlay(s_ams_panel_obj, &panel, true);
+            helix::nav::on_close(s_ams_panel_obj, []() {
+                if (auto* p = get_existing_ams_panel()) {
+                    p->release_offscreen_memory();
+                }
+            });
 
-            // Destroy on overlay close to free memory on tight devices (AD5M/AD5X
-            // ~107MB RAM). The C++ instance survives as a lazy_global for state
-            // preservation; widgets are recreated on next open.
-            helix::nav::on_close(s_ams_panel_obj, []() { destroy_ams_panel_ui(); });
-
-            spdlog::info("[AMS Panel] Lazy-created panel UI with close callback");
+            spdlog::info("[AMS Panel] Lazy-created panel UI");
         } else {
             spdlog::error("[AMS Panel] Failed to create panel from XML");
         }

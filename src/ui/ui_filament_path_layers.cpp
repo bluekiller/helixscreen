@@ -217,6 +217,18 @@ void layered_mark_dirty(lv_obj_t* obj) {
     lv_obj_invalidate(obj);
 }
 
+void layered_release_buffer(FilamentPathData* data) {
+    LayerState& ls = data->layers;
+    ls.refresh_timer.cancel();
+    if (ls.overlay_canvas)
+        lv_canvas_set_draw_buf(ls.overlay_canvas, empty_canvas_buf());
+    layered_destroy_buffers(data);
+    ls.canvas_w = 0;
+    ls.canvas_h = 0;
+    ls.overlay_dirty = true;
+    ls.refresh_deferred = true;
+}
+
 void layered_on_draw(lv_obj_t* obj, FilamentPathData* data) {
     if (data->layers.refresh_deferred)
         data->layers.refresh_timer.schedule_once([obj]() { layered_refresh(obj); });
