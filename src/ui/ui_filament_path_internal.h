@@ -206,6 +206,10 @@ struct LayerState {
     // reaches -1 once the give-up has been logged.
     helix::ui::CoalescedTimer alloc_retry_timer{1000};
     int alloc_retries_left = 0;
+    // Set when a refresh found the widget hidden or out of view and left the
+    // canvas dirty; the next draw of the widget schedules that refresh.
+    bool refresh_deferred = false;
+    int render_count = 0; // full topology repaints, for tests and logs
 };
 
 // Hit rectangles recorded by the renderer (absolute display coords, with the
@@ -477,6 +481,10 @@ bool layered_setup_canvases(lv_obj_t* obj, FilamentPathData* data);
 /// Mark which layered surfaces need a repaint and schedule an async refresh.
 /// Use this from setters instead of bare lv_obj_invalidate().
 void layered_mark_dirty(lv_obj_t* obj);
+
+// Called from the widget's draw: runs a refresh that was deferred while the
+// widget could not be seen.
+void layered_on_draw(lv_obj_t* obj, FilamentPathData* data);
 
 /// LV_EVENT_SIZE_CHANGED handler — re-schedules the refresh once layout
 /// assigns a real size (the create-time refresh may have bailed pre-layout).

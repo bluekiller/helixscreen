@@ -157,6 +157,7 @@ static void filament_path_draw_cb(lv_event_t* e) {
     if (!data)
         return;
 
+    layered_on_draw(obj, data);
     render_animation_overlay(obj, layer, data);
 }
 
@@ -906,7 +907,7 @@ void ui_filament_path_canvas_set_buffer_info(lv_obj_t* obj, bool present, int st
 
 void ui_filament_path_canvas_set_buffer_bias(lv_obj_t* obj, float bias) {
     auto* data = get_data(obj);
-    if (data) {
+    if (data && data->buffer_bias != bias) {
         data->buffer_bias = bias;
         layered_mark_dirty(obj);
     }
