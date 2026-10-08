@@ -6,9 +6,11 @@
 #include "bed_mesh_probe_parser.h"
 #include "helix_regex.h"
 #include "i_moonraker_client.h"
+#include "leveling_probe_points.h"
 #include "preprint_predictor.h"
 #include "print_start_position_classifier.h"
 #include "print_start_profile.h"
+#include "print_start_purge_shape.h"
 #include "printer_state.h"
 #include "simulated_clock.h"
 #include "thermal_rate_model.h"
@@ -234,10 +236,25 @@ class PrintStartCollector : public std::enable_shared_from_this<PrintStartCollec
      * "Probing Z...", corner tour → "Checking Bed Mesh...", sweep march →
      * BED_MESH entry. Real gcode_response signals always win — this only
      * fills silence.
+     * Whatever the profile, Z descents at two of the printer's configured
+     * gantry-leveling / Z-tilt points show that phase.
      *
      * Thread-safe: observers fire on the main thread (queued subject sets).
      */
     void note_position_sample(float x_mm, float y_mm, float z_mm);
+
+    /**
+     * @brief Sample the toolhead, extruder and filament system for a stationary purge
+     *
+     * Reads the position and extruder-velocity subjects and the filament
+     * system's action/loaded subjects, feeds helix::PurgeFlowTracker and
+     * applies PURGING when helix::is_purge() says so. Called on every
+     * position or extruder-velocity change and every ETA tick, so a purge
+     * that holds everything still is still sampled.
+     *
+     * Main thread only: it reads LVGL subjects.
+     */
+    void check_purge_shape();
 
     /**
      * @brief Set the print start profile for pattern/signal matching
@@ -299,6 +316,11 @@ class PrintStartCollector : public std::enable_shared_from_this<PrintStartCollec
      */
     void apply_profile_match(const PrintStartProfile::MatchResult& match,
                              bool marks_real_signal = true);
+
+    /// Show a gantry-leveling / Z-tilt phase inferred from the configured
+    /// probe points. Inference, not narration: it never mutes the proactive
+    /// detector and never relabels a phase already detected.
+    void apply_leveling_phase(helix::PrintStartPhase phase);
 
     /**
      * @brief Check a status frame for the profile's phase object
@@ -697,6 +719,15 @@ class PrintStartCollector : public std::enable_shared_from_this<PrintStartCollec
     helix::PositionActivity last_position_activity_ = helix::PositionActivity::NONE;
     /// Anchor for the classifier's millisecond sample clock (set in start()).
     helix::sim::SimulatedClock::time_point position_clock_start_{};
+
+    /// [quad_gantry_level]/[z_tilt] probe points, copied from discovery in
+    /// start() (main thread) because probe lines arrive on the WS thread.
+    /// Guarded by state_mutex_.
+    std::vector<helix::LevelingProbePoint> leveling_points_;
+    /// Toolhead descents at leveling points; guarded by state_mutex_.
+    helix::LevelingDescentTracker leveling_descents_;
+    /// Stationary-purge stretch fed by check_purge_shape(); guarded by state_mutex_.
+    helix::PurgeFlowTracker purge_flow_;
 
     /// Max gap between consecutive probe lines before resetting counters.
     /// Handles printers that emit "probe at" for non-mesh operations (e.g.

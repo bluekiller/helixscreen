@@ -5983,7 +5983,8 @@ class SilentVoronReplayFixture : public PrintStartCollectorHeaterFixture {
             }
             if (t >= PURGE_START_S && t < FIRST_LAYER_S) {
                 client().dispatch_status_update(
-                    {{"motion_report", {{"live_extruder_velocity", 2.5}}}});
+                    {{"motion_report",
+                      {{"live_extruder_velocity", 2.5}, {"live_velocity", 50.0}}}});
             } else if (t == FIRST_LAYER_S) {
                 client().dispatch_status_update(
                     {{"motion_report", {{"live_extruder_velocity", 0.0}}}});
@@ -6164,15 +6165,17 @@ TEST_CASE_METHOD(SilentVoronReplayFixture,
     settle();
     tick_fallbacks();
 
-    // A bucket purge or tool load while the nozzle climbs.
-    client().dispatch_status_update({{"motion_report", {{"live_extruder_velocity", 2.5}}}});
+    // Extrusion while the nozzle climbs.
+    client().dispatch_status_update(
+        {{"motion_report", {{"live_extruder_velocity", 2.5}, {"live_velocity", 50.0}}}});
     settle();
     CHECK(get_current_phase() != PrintStartPhase::PURGING);
 
     // The same extrusion once both heaters are at target is the prime line,
     // read from the heater frames without waiting for a tick.
     client().dispatch_status_update({{"extruder", {{"temperature", 269.5}, {"target", 270.0}}}});
-    client().dispatch_status_update({{"motion_report", {{"live_extruder_velocity", 2.5}}}});
+    client().dispatch_status_update(
+        {{"motion_report", {{"live_extruder_velocity", 2.5}, {"live_velocity", 50.0}}}});
     settle();
     CHECK(get_current_phase() == PrintStartPhase::PURGING);
 }
@@ -6223,7 +6226,7 @@ TEST_CASE_METHOD(SilentVoronReplayFixture,
 TEST_CASE_METHOD(SilentVoronReplayFixture,
                  "PrintStartCollector: an early purge does not credit leveling still to come",
                  "[print][collector][preprint][silent_voron][eta]") {
-    // A bucket purge at print temperature, then a silent gantry level and a
+    // A purge line at print temperature, then a silent gantry level and a
     // mesh: this printer's history has all three.
     helix::PreprintEntry past;
     past.total_seconds = 200;
@@ -6246,7 +6249,8 @@ TEST_CASE_METHOD(SilentVoronReplayFixture,
         tick_fallbacks();
     };
 
-    client().dispatch_status_update({{"motion_report", {{"live_extruder_velocity", 2.5}}}});
+    client().dispatch_status_update(
+        {{"motion_report", {{"live_extruder_velocity", 2.5}, {"live_velocity", 50.0}}}});
     settle();
     REQUIRE(get_current_phase() == PrintStartPhase::PURGING);
     client().dispatch_status_update({{"motion_report", {{"live_extruder_velocity", 0.0}}}});
@@ -6276,7 +6280,357 @@ TEST_CASE_METHOD(SilentVoronReplayFixture,
     // after the seed, and Klipper does not send the target again.
     set_all_temps(300, 900, 2700, 2700);
     tick_fallbacks();
-    client().dispatch_status_update({{"motion_report", {{"live_extruder_velocity", 2.5}}}});
+    client().dispatch_status_update(
+        {{"motion_report", {{"live_extruder_velocity", 2.5}, {"live_velocity", 50.0}}}});
     settle();
     CHECK(get_current_phase() != PrintStartPhase::PURGING);
+}
+
+// ============================================================================
+// Gantry leveling / Z tilt from configured probe points
+//
+// Klipper echoes nothing a START_PRINT macro runs, so QUAD_GANTRY_LEVEL and
+// Z_TILT_ADJUST never reach the console by name. Their "probe at X,Y" lines
+// and the toolhead position do, at the XY points [quad_gantry_level] /
+// [z_tilt] configure. tests/fixtures/voron24_qgl_mesh_console.txt is a Voron
+// 2.4's console from Moonraker's gcode_store ("HH:MM:SS line", continuation
+// lines untimed): three QGL passes over four corners, then a 7x7 mesh offset
+// 25mm in Y by the probe. The replay carries no display text at all.
+// ============================================================================
+
+namespace {
+
+class LevelingPointsFixture : public PrintStartCollectorHeaterFixture {
+  public:
+    struct Line {
+        int s;
+        std::string text;
+    };
+
+    void configure(const char* settings) {
+        helix::PrinterDiscovery hw;
+        hw.parse_leveling_probe_points(nlohmann::json::parse(settings));
+        REQUIRE_FALSE(hw.leveling_probe_points().empty());
+        state().set_hardware(hw);
+        drain_async_updates();
+    }
+
+    void configure_voron24() {
+        configure(
+            R"({"quad_gantry_level":{"points":[[25.0,25.0],[25.0,275.0],[275.0,275.0],[275.0,25.0]]}})");
+    }
+
+    static std::vector<Line> load_capture() {
+        const std::string path = collector_fixture_dir() + "voron24_qgl_mesh_console.txt";
+        std::ifstream f(path);
+        INFO("fixture: " << path);
+        REQUIRE(f.is_open());
+        std::vector<Line> lines;
+        for (std::string raw; std::getline(f, raw);) {
+            int h = 0, m = 0, s = 0;
+            if (std::sscanf(raw.c_str(), "%d:%d:%d ", &h, &m, &s) == 3 && raw.size() > 9 &&
+                raw[2] == ':') {
+                lines.push_back({h * 3600 + m * 60 + s, raw.substr(9)});
+            } else {
+                REQUIRE_FALSE(lines.empty());
+                lines.back().text += "\n" + raw;
+            }
+        }
+        return lines;
+    }
+
+    /// Replays lines at their real spacing; `at` runs after each line.
+    template <typename Fn> void replay(const std::vector<Line>& lines, Fn at) {
+        int now = lines.front().s;
+        for (const Line& line : lines) {
+            clock_.advance(std::chrono::seconds(line.s - now));
+            now = line.s;
+            send_gcode_response(line.text);
+            at(line);
+        }
+    }
+
+    helix::sim::SimulatedClock::ManualScope clock_{helix::sim::SimSpeed::of(1.0)};
+};
+
+constexpr int at_time(int h, int m, int s) {
+    return h * 3600 + m * 60 + s;
+}
+
+} // namespace
+
+TEST_CASE_METHOD(LevelingPointsFixture,
+                 "Leveling points: a silent Voron 2.4 QGL shows from its first corner probe, and "
+                 "the mesh after it counts only mesh points",
+                 "[print][collector][voron][leveling]") {
+    configure_voron24();
+    collector().start();
+    drain_async_updates();
+
+    const auto lines = load_capture();
+    REQUIRE(lines.size() > 200);
+    bool saw_first_probe = false;
+    bool saw_qgl_passes_end = false;
+    replay(lines, [&](const Line& line) {
+        if (line.s == at_time(20, 1, 54) && !saw_first_probe) {
+            saw_first_probe = true;
+            CHECK(get_current_phase() == PrintStartPhase::QGL);
+            CHECK(get_current_message() == "Leveling Gantry...");
+        }
+        if (line.s < at_time(20, 1, 54)) {
+            CHECK(get_current_phase() == PrintStartPhase::INITIALIZING);
+        }
+        if (line.s == at_time(20, 2, 49) && line.text.find("Retries: 2/5") != std::string::npos) {
+            saw_qgl_passes_end = true;
+            CHECK(get_current_phase() == PrintStartPhase::QGL);
+        }
+    });
+    REQUIRE(saw_first_probe);
+    REQUIRE(saw_qgl_passes_end);
+
+    // 49 mesh points: the 4 corners probed by QGL are not among them.
+    CHECK(get_current_phase() == PrintStartPhase::BED_MESH);
+    CHECK(PrintStartCollectorTestAccess::get_mesh_probe_current(collector()) == 49);
+    CHECK(get_current_message().rfind("Bed Mesh (49", 0) == 0);
+}
+
+TEST_CASE_METHOD(LevelingPointsFixture,
+                 "Leveling points: without configured points, a named QGL keeps every probe "
+                 "line out of the mesh",
+                 "[print][collector][voron][leveling]") {
+    // No discovery points: the blanket guard is all there is. With QGL named
+    // by the console, every probe line is skipped until the mesh is entered
+    // some other way, so the mesh is never auto-entered from probe lines.
+    collector().start();
+    drain_async_updates();
+    send_gcode_response("QUAD_GANTRY_LEVEL");
+    REQUIRE(get_current_phase() == PrintStartPhase::QGL);
+    replay(load_capture(), [](const Line&) {});
+    CHECK(get_current_phase() == PrintStartPhase::QGL);
+}
+
+TEST_CASE_METHOD(LevelingPointsFixture,
+                 "Leveling points: a three-point Z tilt shows Z_TILT, then a 5x5 mesh counts 25",
+                 "[print][collector][voron][leveling]") {
+    configure(R"({"z_tilt":{"points":[[-50.0,18.0],[150.0,348.0],[350.0,18.0]]}})");
+    collector().start();
+    drain_async_updates();
+
+    // Z_TILT_ADJUST's console at the 2.4 capture's spacing: three samples
+    // a second apart per point, three seconds between points, two passes.
+    std::vector<Line> lines;
+    int t = 0;
+    for (int pass = 0; pass < 2; ++pass) {
+        for (const auto& [x, y] : {std::pair{-50.0, 18.0}, {150.0, 348.0}, {350.0, 18.0}}) {
+            for (int sample = 0; sample < 3; ++sample) {
+                char buf[96];
+                std::snprintf(buf, sizeof(buf), "// probe at %.3f,%.3f is z=%.6f", x, y,
+                              0.1 * sample);
+                lines.push_back({t, buf});
+                t += 1;
+            }
+            t += 2;
+        }
+        lines.push_back({t, "// Making the following Z adjustments:\n// stepper_z = 0.011224"});
+        lines.push_back({t, "// Retries: " + std::to_string(pass) +
+                                "/5 Probed points range: "
+                                "0.010000 tolerance: 0.010000"});
+        t += 3;
+    }
+    t += 8; // the 2.4 capture's gap from the last pass to the mesh
+    lines.push_back({t, "// Adapted probe count: (5,5)"});
+    t += 5;
+    for (int row = 0; row < 5; ++row) {
+        for (int col = 0; col < 5; ++col) {
+            char buf[96];
+            std::snprintf(buf, sizeof(buf), "// probe at %.3f,%.3f is z=-0.5", 30.0 + 60 * col,
+                          10.0 + 60 * row);
+            lines.push_back({t, buf});
+            t += 4;
+        }
+    }
+
+    bool first = true;
+    replay(lines, [&](const Line&) {
+        if (first) {
+            first = false;
+            CHECK(get_current_phase() == PrintStartPhase::Z_TILT);
+            CHECK(get_current_message() == "Z Tilt Adjust...");
+        }
+    });
+    CHECK(get_current_phase() == PrintStartPhase::BED_MESH);
+    CHECK(PrintStartCollectorTestAccess::get_mesh_probe_current(collector()) == 25);
+    CHECK(get_current_message().rfind("Bed Mesh (25", 0) == 0);
+}
+
+TEST_CASE_METHOD(LevelingPointsFixture,
+                 "Leveling points: toolhead descents at two corners show QGL with no console",
+                 "[print][collector][voron][leveling]") {
+    // Two geometries: a 350 at 10mm travel probing to -1.1, and a 250 at
+    // 5mm travel probing to +0.4.
+    double a_x = 25, a_y = 25, b_x = 25, b_y = 275, travel = 10, trigger = -1.1, lift = 2;
+    SECTION("350mm bed") {
+        configure_voron24();
+    }
+    SECTION("250mm bed") {
+        configure(R"({"quad_gantry_level":{"points":[[30,15],[30,205],[220,205],[220,15]]}})");
+        a_x = 220, a_y = 205, b_x = 220, b_y = 15, travel = 5, trigger = 0.4, lift = 1.5;
+    }
+    collector().start();
+    drain_async_updates();
+
+    // The QGL tour as toolhead.position reports it: travel at 10mm, probe
+    // down to the trigger, retract; about a second per touch.
+    const auto touch = [&](double x, double y) {
+        collector().note_position_sample(x, y, travel);
+        drain_async_updates();
+        clock_.advance(std::chrono::seconds(1));
+        collector().note_position_sample(x, y, trigger);
+        drain_async_updates();
+        clock_.advance(std::chrono::seconds(1));
+        collector().note_position_sample(x, y, lift);
+        drain_async_updates();
+        clock_.advance(std::chrono::seconds(2));
+    };
+    touch(a_x, a_y);
+    CHECK(get_current_phase() == PrintStartPhase::INITIALIZING);
+    touch(b_x, b_y);
+    CHECK(get_current_phase() == PrintStartPhase::QGL);
+    CHECK(get_current_message() == "Leveling Gantry...");
+}
+
+TEST_CASE_METHOD(LevelingPointsFixture,
+                 "Leveling points: parking at one leveling corner is not leveling",
+                 "[print][collector][voron][leveling]") {
+    configure_voron24();
+    collector().start();
+    drain_async_updates();
+
+    for (int i = 0; i < 5; ++i) {
+        collector().note_position_sample(275, 275, 20.0f);
+        drain_async_updates();
+        clock_.advance(std::chrono::seconds(2));
+        collector().note_position_sample(275, 275, 5.0f);
+        drain_async_updates();
+        clock_.advance(std::chrono::seconds(2));
+    }
+    CHECK(get_current_phase() == PrintStartPhase::INITIALIZING);
+}
+
+// ============================================================================
+// Stationary purges (blob/poop, waste chute) from motion alone
+//
+// The head holds still and the extruder runs forward without a break: Z climbs
+// for a blob, stays put over a chute. Samples reach the collector as the app
+// delivers them: the motion_report frame on the WebSocket path and the
+// position/velocity subjects on the main thread, where the collector's
+// observers and its 5s ETA tick sample them.
+// ============================================================================
+
+namespace {
+
+class PurgeShapeFixture : public PrintStartCollectorHeaterFixture {
+  public:
+    void start_hot() {
+        set_all_temps(1000, 1000, 2600, 2600);
+        collector().start();
+        drain_async_updates();
+        client().dispatch_status_update(
+            {{"heater_bed", {{"temperature", 100.0}, {"target", 100.0}}},
+             {"extruder", {{"temperature", 260.0}, {"target", 260.0}}}});
+        drain_async_updates();
+        send_gcode_response("BED_MESH_CALIBRATE");
+        REQUIRE(get_current_phase() == PrintStartPhase::BED_MESH);
+    }
+
+    void head(double x, double y, double z) {
+        auto& m = state().motion_state();
+        lv_subject_set_int(m.get_position_x_subject(), static_cast<int>(std::lround(x * 100)));
+        lv_subject_set_int(m.get_position_y_subject(), static_cast<int>(std::lround(y * 100)));
+        lv_subject_set_int(m.get_position_z_subject(), static_cast<int>(std::lround(z * 100)));
+        collector().check_purge_shape(); // the position observers
+        drain_async_updates();
+    }
+
+    /// Klipper reports both speeds in one motion_report; `head_mm_s` is the toolhead's.
+    void extruder(double mm_s, double head_mm_s = 0.0) {
+        client().dispatch_status_update(
+            {{"motion_report", {{"live_extruder_velocity", mm_s}, {"live_velocity", head_mm_s}}}});
+        lv_subject_set_int(state().motion_state().get_live_extruder_velocity_subject(),
+                           static_cast<int>(mm_s * 100));
+        collector().check_purge_shape(); // the extruder-velocity observer
+        drain_async_updates();
+    }
+
+    void wait(int ms) {
+        clock_.advance(std::chrono::milliseconds(ms));
+    }
+
+    void eta_tick() {
+        wait(5000);
+        collector().check_purge_shape();
+        drain_async_updates();
+    }
+
+    helix::sim::SimulatedClock::ManualScope clock_{helix::sim::SimSpeed::of(1.0)};
+};
+
+} // namespace
+
+TEST_CASE_METHOD(PurgeShapeFixture, "Purge shape: a blob purge with no console shows PURGING",
+                 "[print][collector][voron][purge]") {
+    // This Voron's AFC purge spot at 290,293 rising from 0.5mm, and a
+    // front-left bucket rising from 2mm.
+    double x = 290, y = 293, z0 = 0.5;
+    SECTION("rear-right, low start") {}
+    SECTION("front-left, higher start") {
+        x = 4, y = 10, z0 = 2.0;
+    }
+    start_hot();
+    head(x, y, z0);
+    extruder(3.0);
+    for (int i = 1; i <= 8; ++i) {
+        wait(500);
+        head(x, y, z0 + 0.2 * i);
+    }
+    CHECK(get_current_phase() == PrintStartPhase::PURGING);
+    CHECK(get_current_message() == "Purging...");
+}
+
+TEST_CASE_METHOD(PurgeShapeFixture, "Purge shape: continuous flow over a chute shows PURGING",
+                 "[print][collector][voron][purge]") {
+    double x = 150, y = 355, z = 10;
+    SECTION("rear chute") {}
+    SECTION("left chute, other height") {
+        x = -8, y = 120, z = 3;
+    }
+    start_hot();
+    head(x, y, z);
+    extruder(4.0);
+    REQUIRE(get_current_phase() == PrintStartPhase::BED_MESH);
+    eta_tick(); // nothing moves, so only the timer samples it
+    CHECK(get_current_phase() == PrintStartPhase::PURGING);
+}
+
+TEST_CASE_METHOD(PurgeShapeFixture,
+                 "Purge shape: load pulses and retracts with the head still are not a purge",
+                 "[print][collector][voron][purge]") {
+    double x = 290, y = 293, z = 5;
+    SECTION("rear-right") {}
+    SECTION("front-left") {
+        x = 4, y = 10, z = 12;
+    }
+    start_hot();
+    head(x, y, z);
+    for (int i = 0; i < 6; ++i) {
+        extruder(25.0);
+        wait(1500);
+        extruder(0.0);
+        wait(500);
+        extruder(-30.0);
+        wait(800);
+        extruder(0.0);
+        eta_tick();
+    }
+    CHECK(get_current_phase() == PrintStartPhase::BED_MESH);
 }

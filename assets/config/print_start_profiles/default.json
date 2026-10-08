@@ -47,7 +47,8 @@
       "name": "purging",
       "object": "motion_report",
       "when": [
-        { "field": "live_extruder_velocity", "op": "gt", "value": 0 }
+        { "field": "live_extruder_velocity", "op": "gt", "value": 0 },
+        { "field": "live_velocity", "op": "gt", "value": 0 }
       ],
       "phase": "PURGING",
       "message": "Purging...",
