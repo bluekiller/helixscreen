@@ -31,36 +31,70 @@ int32_t layered_overhang(int32_t widget_h) {
     return LV_MAX(50, static_cast<int32_t>(widget_h * CANVAS_TOP_OVERHANG_RATIO));
 }
 
+// A 1x1 transparent buffer the canvas points at while it owns no real one, so
+// freeing the old buffer never leaves the canvas reading freed memory.
+lv_draw_buf_t* empty_canvas_buf() {
+    alignas(64) static uint8_t px[128] = {};
+    static lv_draw_buf_t buf;
+    if (buf.data == nullptr) {
+        lv_draw_buf_init(&buf, 1, 1, LV_COLOR_FORMAT_ARGB8888, 0, px, sizeof(px));
+    }
+    return &buf;
+}
+
 void layered_destroy_buffers(FilamentPathData* data) {
     helix::safe_draw_buf_destroy(data->layers.overlay_buf, "fp_ovl");
 }
 
-// (Re)allocate the canvas buffer to match widget dims. Returns true on success.
-// The buffer is swapped in BEFORE destroying the old one — `lv_canvas_set_draw_buf`
-// reads the old header to drop the cached image source.
-bool layered_ensure_buffers(FilamentPathData* data, int32_t w, int32_t h) {
+constexpr int ALLOC_RETRIES = 5;
+
+// Size the canvas buffer to w x h. Returns true when the canvas has a buffer of
+// exactly that size.
+//
+// Reuses the current allocation when the new shape fits in it, so the resizes a
+// panel goes through while its layout settles cost no allocation. Otherwise the
+// old buffer is freed BEFORE the new one is allocated, so the peak is one buffer,
+// not two. This all runs on the main thread outside the render pass, so no render
+// can read the old buffer between the swap to the placeholder and its free.
+bool layered_ensure_buffers(lv_obj_t* obj, FilamentPathData* data, int32_t w, int32_t h) {
     if (w <= 0 || h <= 0)
         return false;
-    if (data->layers.canvas_w == w && data->layers.canvas_h == h && data->layers.overlay_buf) {
+    LayerState& ls = data->layers;
+    if (ls.canvas_w == w && ls.canvas_h == h && ls.overlay_buf) {
         return true;
     }
 
-    auto* new_overlay = lv_draw_buf_create(w, h, LV_COLOR_FORMAT_ARGB8888, 0);
-    if (!new_overlay) {
-        return false;
+    if (ls.overlay_buf && lv_draw_buf_reshape(ls.overlay_buf, LV_COLOR_FORMAT_ARGB8888, w, h, 0)) {
+        if (ls.overlay_canvas)
+            lv_canvas_set_draw_buf(ls.overlay_canvas, ls.overlay_buf);
+    } else {
+        if (ls.overlay_canvas)
+            lv_canvas_set_draw_buf(ls.overlay_canvas, empty_canvas_buf());
+        layered_destroy_buffers(data);
+        ls.canvas_w = 0;
+        ls.canvas_h = 0;
+
+        ls.overlay_buf = lv_draw_buf_create(w, h, LV_COLOR_FORMAT_ARGB8888, 0);
+        if (!ls.overlay_buf) {
+            // The canvas stays on the empty placeholder: drawing nothing beats
+            // drawing a topology scaled for some other size.
+            spdlog::warn("[FilamentPath] No memory for a {}x{} path canvas ({} KB); {}", w, h,
+                         w * h * 4 / 1024,
+                         ls.alloc_retries_left > 0 ? "retrying in 1s" : "giving up");
+            if (ls.alloc_retries_left > 0) {
+                --ls.alloc_retries_left;
+                ls.alloc_retry_timer.schedule_once([obj]() { layered_mark_dirty(obj); });
+            }
+            return false;
+        }
+        if (ls.overlay_canvas)
+            lv_canvas_set_draw_buf(ls.overlay_canvas, ls.overlay_buf);
     }
 
-    auto* old_overlay = data->layers.overlay_buf;
-    data->layers.overlay_buf = new_overlay;
-    if (data->layers.overlay_canvas)
-        lv_canvas_set_draw_buf(data->layers.overlay_canvas, new_overlay);
-    // The render thread may still be compositing the previous frame's canvas
-    // contents from the old buffer.
-    helix::safe_draw_buf_destroy(old_overlay, "fp_ovl");
-
-    data->layers.canvas_w = w;
-    data->layers.canvas_h = h;
-    data->layers.overlay_dirty = true;
+    ls.alloc_retries_left = ALLOC_RETRIES;
+    ls.canvas_w = w;
+    ls.canvas_h = h;
+    ls.overlay_dirty = true;
     return true;
 }
 
@@ -115,7 +149,7 @@ void layered_refresh(lv_obj_t* obj) {
     int32_t total_h = h + overhang;
 
     if (w != data->layers.canvas_w || total_h != data->layers.canvas_h) {
-        if (!layered_ensure_buffers(data, w, total_h))
+        if (!layered_ensure_buffers(obj, data, w, total_h))
             return;
         lv_obj_set_size(data->layers.overlay_canvas, w, total_h);
         lv_obj_set_pos(data->layers.overlay_canvas, 0, -overhang);
@@ -162,7 +196,9 @@ void layered_mark_dirty(lv_obj_t* obj) {
     lv_obj_invalidate(obj);
 }
 
-// Create the canvas child, configure styles, schedule the first render.
+// Create the canvas child, configure styles, schedule the first render. The
+// canvas starts on the empty placeholder: its buffer is allocated by the first
+// refresh that sees the widget's laid-out size.
 bool layered_setup_canvases(lv_obj_t* obj, FilamentPathData* data) {
     int32_t w = lv_obj_get_width(obj);
     int32_t h = lv_obj_get_height(obj);
@@ -173,19 +209,16 @@ bool layered_setup_canvases(lv_obj_t* obj, FilamentPathData* data) {
     int32_t overhang = layered_overhang(h);
     int32_t total_h = h + overhang;
 
-    if (!layered_ensure_buffers(data, w, total_h))
-        return false;
-
     // Canvases extend above the widget — needs OVERFLOW_VISIBLE on parent so
     // LVGL doesn't clip them to the widget's bounds.
     lv_obj_add_flag(obj, LV_OBJ_FLAG_OVERFLOW_VISIBLE);
 
     lv_obj_t* c = lv_canvas_create(obj);
     if (!c) {
-        layered_destroy_buffers(data);
         return false;
     }
     data->layers.overlay_canvas = c;
+    data->layers.alloc_retries_left = ALLOC_RETRIES;
 
     lv_obj_set_size(c, w, total_h);
     lv_obj_set_pos(c, 0, -overhang);
@@ -194,8 +227,7 @@ bool layered_setup_canvases(lv_obj_t* obj, FilamentPathData* data) {
     lv_obj_set_style_pad_all(c, 0, 0);
     lv_obj_clear_flag(c, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_clear_flag(c, LV_OBJ_FLAG_SCROLLABLE);
-    lv_canvas_set_draw_buf(c, data->layers.overlay_buf);
-    lv_canvas_fill_bg(c, lv_color_black(), LV_OPA_TRANSP);
+    lv_canvas_set_draw_buf(c, empty_canvas_buf());
 
     // Schedule initial render — layout may not be complete yet at create
     // time; the deferred callback retries when layout has settled.
