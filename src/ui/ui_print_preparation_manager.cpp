@@ -209,6 +209,7 @@ void PrintPreparationManager::on_klippy_state(int state) {
 
 void PrintPreparationManager::refresh_macro_analysis() {
     macro_analysis_.reset();
+    publish_macro_option_count();
     if (macro_analysis_in_progress_) {
         macro_analysis_stale_ = true;
         return;

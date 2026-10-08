@@ -16,6 +16,11 @@
 // pre-start send state.
 class PrintPreparationManagerTestAccess {
   public:
+    /// What a reconnect or a Klipper restart runs.
+    static void refresh_macro_analysis(helix::ui::PrintPreparationManager& m) {
+        m.refresh_macro_analysis();
+    }
+
     static std::vector<std::pair<std::string, std::string>>
     get_skip_params(const helix::ui::PrintPreparationManager& m) {
         return m.collect_macro_skip_params();
