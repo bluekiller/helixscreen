@@ -13,6 +13,7 @@
 #include "system/crash_handler.h"
 #include "system/helix_paths.h"
 #include "text_io.h"
+#include "thumbnail_rules.h"
 
 #include <spdlog/spdlog.h>
 
@@ -174,13 +175,8 @@ void ThumbnailCache::load_config() {
                   disk_low_ / (1024 * 1024));
 }
 
-std::string ThumbnailCache::compute_hash(const std::string& path) {
-    const std::string scoped = std::to_string(helix::http_epoch::printer_key()) + '\n' + path;
-    return std::to_string(std::hash<std::string>{}(scoped));
-}
-
-std::string ThumbnailCache::get_cache_path(const std::string& relative_path) const {
-    return cache_dir_ + "/" + compute_hash(relative_path) + ".png";
+std::string ThumbnailCache::get_cache_path(const std::string& cache_id) const {
+    return cache_dir_ + "/" + thumbnail_file_name(thumbnail_hash(cache_id), nullptr);
 }
 
 bool ThumbnailCache::is_lvgl_path(const std::string& path) {
@@ -215,12 +211,11 @@ std::string ThumbnailCache::get_if_cached(const std::string& relative_path,
         return "";
     }
 
-    // If source_modified provided, validate cache freshness
     if (source_modified > 0) {
         if (const auto mtime = helix::fs::mtime_ns(cache_path)) {
             const time_t cache_epoch = static_cast<time_t>(*mtime / 1'000'000'000);
 
-            if (cache_epoch < source_modified) {
+            if (!is_fresh(cache_epoch, source_modified)) {
                 spdlog::debug("[ThumbnailCache] Cache stale for {} (cached: {}, source: {})",
                               relative_path, cache_epoch, source_modified);
                 // Invalidate by removing the file (const_cast needed for invalidation)
@@ -651,7 +646,8 @@ ThumbnailCache::ErrorCallback ThumbnailCache::on_main_err(ErrorCallback cb) {
 }
 
 void ThumbnailCache::fetch(IMoonrakerAPI* api, const std::string& relative_path,
-                           SuccessCallback on_success, ErrorCallback on_error) {
+                           SuccessCallback on_success, ErrorCallback on_error,
+                           time_t source_modified) {
     // Marshal once, at the boundary — see on_main() for why per-path wrapping
     // does not hold. Everything below may now deliver from any thread.
     on_success = on_main(std::move(on_success));
@@ -688,7 +684,7 @@ void ThumbnailCache::fetch(IMoonrakerAPI* api, const std::string& relative_path,
     }
 
     // Check cache
-    std::string cached = get_if_cached(relative_path);
+    std::string cached = get_if_cached(relative_path, source_modified);
     if (!cached.empty()) {
         if (on_success) {
             on_success(cached, /*degraded=*/false);
@@ -714,6 +710,13 @@ void ThumbnailCache::fetch(IMoonrakerAPI* api, const std::string& relative_path,
         return;
     }
 
+    if (is_refused(relative_path, source_modified)) {
+        if (on_error) {
+            on_error("Unsupported thumbnail format: " + relative_path);
+        }
+        return;
+    }
+
     // Evict old files before downloading new one
     evict_if_needed();
 
@@ -735,31 +738,30 @@ void ThumbnailCache::fetch(IMoonrakerAPI* api, const std::string& relative_path,
             }
         },
         // Error callback
-        [on_error, relative_path](const MoonrakerError& error) {
+        [this, on_error, relative_path](const MoonrakerError& error) {
             spdlog::warn("[ThumbnailCache] Failed to download {}: {}", relative_path,
                          error.message);
+            note_download_error(relative_path, error);
             if (on_error) {
                 on_error(error.message);
             }
         });
 }
 
-std::string ThumbnailCache::save_raw_png(const std::string& source_identifier,
+std::string ThumbnailCache::save_raw_png(ThumbnailSource source, const std::string& id,
                                          const std::vector<uint8_t>& png_data) {
-    if (source_identifier.empty()) {
+    const std::string source_identifier = thumbnail_cache_id(source, id);
+    if (id.empty()) {
         spdlog::warn("[ThumbnailCache] Empty source identifier for save_raw_png");
         return "";
     }
 
-    if (png_data.size() < 8) {
-        spdlog::warn("[ThumbnailCache] PNG data too small ({} bytes)", png_data.size());
-        return "";
-    }
-
-    // Validate PNG magic bytes: 89 50 4E 47 0D 0A 1A 0A
-    static const uint8_t png_magic[] = {0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A};
-    if (std::memcmp(png_data.data(), png_magic, sizeof(png_magic)) != 0) {
-        spdlog::warn("[ThumbnailCache] Invalid PNG magic bytes in save_raw_png");
+    // The file is named .png and LVGL picks its decoder by that name, so a
+    // JPEG is re-encoded and anything else is refused.
+    const std::vector<uint8_t> png = helix::ensure_png(png_data);
+    if (png.empty()) {
+        spdlog::warn("[ThumbnailCache] save_raw_png: {} is not a PNG or decodable JPEG ({} bytes)",
+                     source_identifier, png_data.size());
         return "";
     }
 
@@ -783,7 +785,6 @@ std::string ThumbnailCache::save_raw_png(const std::string& source_identifier,
     // Evict old files before saving new one
     evict_if_needed();
 
-    // Generate cache path using same hash scheme as downloaded thumbnails
     std::string cache_path = get_cache_path(source_identifier);
 
     // One lock scope for the write and the bin sweep. What it buys: every
@@ -801,20 +802,20 @@ std::string ThumbnailCache::save_raw_png(const std::string& source_identifier,
         std::lock_guard<std::mutex> lock(mutex_);
 
         // Write PNG data to cache file
-        if (!helix::text_io::write_file(
-                cache_path, {reinterpret_cast<const char*>(png_data.data()), png_data.size()})) {
+        if (!helix::text_io::write_file(cache_path,
+                                        {reinterpret_cast<const char*>(png.data()), png.size()})) {
             spdlog::error("[ThumbnailCache] Failed to create cache file: {}", cache_path);
             return "";
         }
 
-        spdlog::debug("[ThumbnailCache] Saved {} bytes from gcode extraction: {}", png_data.size(),
+        spdlog::debug("[ThumbnailCache] Saved {} bytes from gcode extraction: {}", png.size(),
                       cache_path);
 
         // The pre-scaled .bin variants still on disk were derived from
         // whatever PNG previously sat at this key. Nothing else invalidates
         // them for callers that pass no source_modified, so a re-slice under
         // the same name would keep being served through them.
-        const auto dropped = remove_bin_variants_locked(compute_hash(source_identifier));
+        const auto dropped = remove_bin_variants_locked(thumbnail_hash(source_identifier));
         if (!dropped) {
             // The fresh PNG is on disk; a failed sweep only risks a stale
             // bin, which the next source_modified-checked fetch catches.
@@ -832,6 +833,63 @@ std::string ThumbnailCache::save_raw_png(const std::string& source_identifier,
     note_write_and_evict(cache_path);
 
     return to_lvgl_path(cache_path);
+}
+
+std::string ThumbnailCache::save_prescaled(ThumbnailSource source, const std::string& id,
+                                           const std::vector<uint8_t>& image_data,
+                                           const ThumbnailTarget& target, time_t source_modified) {
+    // A rescan of an unchanged file: rewriting the PNG would drop this .bin
+    // and blank the card until the decode below replaced it.
+    if (std::string bin = get_if_optimized(thumbnail_cache_id(source, id), target, source_modified);
+        !bin.empty()) {
+        return bin;
+    }
+    const std::string png_path = save_raw_png(source, id, image_data);
+#if !defined(HELIX_PLATFORM_ESP32)
+    if (!png_path.empty()) {
+        const ProcessResult result = ThumbnailProcessor::instance().process_sync(
+            image_data, thumbnail_cache_id(source, id), target);
+        if (result.success) {
+            return result.output_path;
+        }
+        spdlog::warn("[ThumbnailCache] Pre-scaling {} failed ({}), keeping the PNG", id,
+                     result.error);
+    }
+#else
+    (void)target;
+#endif
+    return png_path;
+}
+
+std::string ThumbnailCache::unsupported_marker_path(const std::string& cache_id) const {
+    return cache_dir_ + "/" + thumbnail_hash(cache_id) + ".unsupported";
+}
+
+bool ThumbnailCache::is_refused(const std::string& cache_id, time_t source_modified) {
+    const std::string marker = unsupported_marker_path(cache_id);
+    const auto mtime = helix::fs::mtime_ns(marker);
+    if (!mtime) {
+        return false;
+    }
+    const bool fresh = is_fresh(static_cast<time_t>(*mtime / 1'000'000'000), source_modified);
+    if (!fresh) {
+        std::lock_guard<std::mutex> lock(mutex_);
+        helix::fs::remove(marker);
+        forget_file_locked(marker);
+    }
+    return fresh;
+}
+
+void ThumbnailCache::note_download_error(const std::string& cache_id, const MoonrakerError& error) {
+    // VALIDATION_ERROR is the download refusing the bytes it got; anything
+    // else (a 404, a dropped connection) is worth retrying.
+    if (error.type != MoonrakerErrorType::VALIDATION_ERROR) {
+        return;
+    }
+    const std::string marker = unsupported_marker_path(cache_id);
+    if (helix::text_io::write_file(marker, "")) {
+        note_write_and_evict(marker);
+    }
 }
 
 size_t ThumbnailCache::clear_cache() {
@@ -902,18 +960,18 @@ std::optional<size_t> ThumbnailCache::remove_bin_variants_locked(const std::stri
     return count;
 }
 
-size_t ThumbnailCache::invalidate(const std::string& relative_path) {
-    if (relative_path.empty()) {
+size_t ThumbnailCache::invalidate(const std::string& cache_id) {
+    if (cache_id.empty()) {
         return 0;
     }
 
     // Same directory, same reason as clear_cache().
     std::lock_guard<std::mutex> lock(mutex_);
     size_t count = 0;
-    std::string hash = compute_hash(relative_path);
+    std::string hash = thumbnail_hash(cache_id);
 
     // Delete the PNG file
-    std::string png_path = cache_dir_ + "/" + hash + ".png";
+    std::string png_path = cache_dir_ + "/" + thumbnail_file_name(hash, nullptr);
     bool failed = false;
     if (helix::fs::exists(png_path)) {
         if (helix::fs::remove(png_path) || errno == ENOENT) {
@@ -923,6 +981,12 @@ size_t ThumbnailCache::invalidate(const std::string& relative_path) {
         } else {
             failed = true;
         }
+    }
+
+    const std::string marker = unsupported_marker_path(cache_id);
+    if (helix::fs::remove(marker)) {
+        forget_file_locked(marker);
+        ++count;
     }
 
     // Delete all pre-scaled .bin variants (e.g., {hash}_120x120_RGB565.bin)
@@ -935,13 +999,13 @@ size_t ThumbnailCache::invalidate(const std::string& relative_path) {
     }
 
     if (failed) {
-        spdlog::warn("[ThumbnailCache] Error invalidating cache for {}: {}", relative_path,
+        spdlog::warn("[ThumbnailCache] Error invalidating cache for {}: {}", cache_id,
                      std::strerror(errno));
         // Removed an unknown subset before failing. Over-counting until the
         // next reconcile is safe; asserting a total we cannot justify is not.
         index_primed_ = false;
     } else if (count > 0) {
-        spdlog::info("[ThumbnailCache] Invalidated {} cached files for {}", count, relative_path);
+        spdlog::info("[ThumbnailCache] Invalidated {} cached files for {}", count, cache_id);
     }
 
     return count;
@@ -982,7 +1046,7 @@ std::string ThumbnailCache::get_if_optimized(const std::string& relative_path,
         if (const auto mtime = helix::fs::mtime_ns(fs_path)) {
             const time_t cache_epoch = static_cast<time_t>(*mtime / 1'000'000'000);
 
-            if (cache_epoch < source_modified) {
+            if (!is_fresh(cache_epoch, source_modified)) {
                 spdlog::debug(
                     "[ThumbnailCache] Optimized cache stale for {} (cached: {}, source: {})",
                     relative_path, cache_epoch, source_modified);
@@ -1055,6 +1119,13 @@ void ThumbnailCache::fetch_optimized(IMoonrakerAPI* api, const std::string& rela
         return;
     }
 
+    if (is_refused(relative_path, source_modified)) {
+        if (on_error) {
+            on_error("Unsupported thumbnail format: " + relative_path);
+        }
+        return;
+    }
+
     evict_if_needed();
 
     std::string cache_path = get_cache_path(relative_path);
@@ -1078,9 +1149,10 @@ void ThumbnailCache::fetch_optimized(IMoonrakerAPI* api, const std::string& rela
             process_and_callback(lvgl_path, relative_path, target, on_success, on_error);
         },
         // Error callback - download failed
-        [on_error, relative_path](const MoonrakerError& error) {
+        [this, on_error, relative_path](const MoonrakerError& error) {
             spdlog::warn("[ThumbnailCache] Optimized fetch failed for {}: {}", relative_path,
                          error.message);
+            note_download_error(relative_path, error);
             if (on_error) {
                 on_error(error.message);
             }
@@ -1164,23 +1236,24 @@ void ThumbnailCache::fetch(const ThumbnailRequest& req, ThumbnailLoadContext ctx
         // the thing that was asked for, never the degraded fallback that
         // process_and_callback reports when a pre-scale FAILS.
         fetch(
-            req.api, req.key,
+            req.api, thumbnail_cache_id(req.source, req.key),
             [guarded_success](const std::string& path, bool /*degraded*/) {
                 guarded_success(path, /*degraded=*/false);
             },
-            std::move(guarded_error));
+            std::move(guarded_error), req.source_modified);
         return;
     }
 
-    fetch_optimized(req.api, req.key, req.target, std::move(guarded_success),
-                    std::move(guarded_error), req.source_modified);
+    fetch_optimized(req.api, thumbnail_cache_id(req.source, req.key), req.target,
+                    std::move(guarded_success), std::move(guarded_error), req.source_modified);
 }
 
 std::string ThumbnailCache::get_if_cached(const ThumbnailRequest& req) const {
+    const std::string cache_id = thumbnail_cache_id(req.source, req.key);
     if (req.format == ThumbnailRequest::ThumbnailFormat::FullPng) {
-        return get_if_cached(req.key, req.source_modified);
+        return get_if_cached(cache_id, req.source_modified);
     }
-    return get_if_optimized(req.key, req.target, req.source_modified);
+    return get_if_optimized(cache_id, req.target, req.source_modified);
 }
 
 void helix::fetch_thumbnail_from_gcode(const std::string& gcode_path, size_t max_header_bytes,
@@ -1227,9 +1300,8 @@ void helix::fetch_thumbnail_from_gcode(const std::string& gcode_path, size_t max
             spdlog::debug("[ThumbnailCache] Extracted {}x{} thumbnail ({} bytes) from {}",
                           best.width, best.height, best.png_data.size(), gcode_path);
 
-            // Save to cache using the gcode path as identifier
-            std::string cache_key = gcode_path + "_extracted";
-            std::string lvgl_path = get_thumbnail_cache().save_raw_png(cache_key, best.png_data);
+            std::string lvgl_path = get_thumbnail_cache().save_raw_png(
+                ThumbnailSource::GcodeExtract, gcode_path, best.png_data);
             if (lvgl_path.empty()) {
                 spdlog::warn("[ThumbnailCache] Failed to cache extracted thumbnail for {}",
                              gcode_path);
@@ -1241,7 +1313,8 @@ void helix::fetch_thumbnail_from_gcode(const std::string& gcode_path, size_t max
             // runtime scaling on every frame). fetch marshals the callbacks
             // to the main thread and drops a superseded load via ctx.
             ThumbnailRequest req;
-            req.key = cache_key;
+            req.key = gcode_path;
+            req.source = ThumbnailSource::GcodeExtract;
             req.target = target;
             req.api = api;
 

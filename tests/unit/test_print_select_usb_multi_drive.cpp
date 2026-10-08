@@ -19,6 +19,7 @@
 #include "../test_helpers/usb_scan_wait.h"
 #include "helix-xml/src/xml/lv_xml.h"
 #include "print_file_data.h"
+#include "thumbnail_cache.h"
 #include "usb_backend_mock.h"
 #include "usb_manager.h"
 
@@ -207,17 +208,51 @@ TEST_CASE("scan_usb_drives stops as soon as it is cancelled", "[usb][usb_async]"
     REQUIRE(drives.size() == 2);
 
     SECTION("cancelled before it starts, it reads nothing") {
-        auto scan = helix::ui::scan_usb_drives(*backend, drives, [] { return true; });
+        auto scan = helix::ui::scan_usb_drives(*backend, drives, {}, [] { return true; });
         CHECK(backend->scan_count() == 0);
         CHECK(scan.files.empty());
     }
 
     SECTION("cancelled after the first drive, it skips the second") {
         int polls = 0;
-        auto scan = helix::ui::scan_usb_drives(*backend, drives, [&] { return ++polls > 1; });
+        auto scan = helix::ui::scan_usb_drives(*backend, drives, {}, [&] { return ++polls > 1; });
         CHECK(backend->scan_count() == 1);
         CHECK(scan.thumbnails.empty());
     }
 
+    manager.stop();
+}
+
+// A USB card draws a pre-scaled .bin like every other card, never the raw PNG
+// at its native size.
+TEST_CASE("scan_usb_drives pre-scales each header thumbnail to the card target",
+          "[usb][usb_async][thumbnail]") {
+    UsbManager manager(true);
+    REQUIRE(manager.start());
+    auto* backend = static_cast<UsbBackendMock*>(manager.get_backend());
+    REQUIRE(backend != nullptr);
+    backend->simulate_drive_insert(drive("/media/usb0", "STICK"));
+    const std::string gcode =
+        std::filesystem::absolute("assets/test_gcodes/calicat_calico.gcode").string();
+    const std::string bare =
+        std::filesystem::absolute("assets/test_gcodes/no_thumb.gcode").string();
+    backend->set_mock_files("/media/usb0", {{gcode, "calicat_calico.gcode", 100, 1000},
+                                            {bare, "no_thumb.gcode", 100, 1000}});
+    std::vector<UsbDrive> drives;
+    REQUIRE(backend->get_connected_drives(drives).success());
+
+    helix::ThumbnailTarget target;
+    target.width = 124;
+    target.height = 124;
+    auto scan = helix::ui::scan_usb_drives(*backend, drives, target, [] { return false; });
+
+    REQUIRE(scan.thumbnails.size() == 2);
+    const std::string& path = scan.thumbnails[0];
+    CHECK(path == "A:" + get_thumbnail_cache().get_cache_dir() + "/" +
+                      helix::thumbnail_key(helix::ThumbnailSource::Usb, gcode, &target));
+    CHECK(std::filesystem::exists(path.substr(2)));
+    CHECK(scan.thumbnails[1].empty()); // no file, so no thumbnail
+
+    get_thumbnail_cache().invalidate(helix::thumbnail_cache_id(helix::ThumbnailSource::Usb, gcode));
     manager.stop();
 }

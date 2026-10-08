@@ -224,7 +224,8 @@ TEST_CASE("Steady-state eviction checks do not re-walk the cache directory",
     // near the limit, so every one of these checks should be pure arithmetic.
     constexpr int WRITES = 30;
     for (int i = 0; i < WRITES; ++i) {
-        const std::string lvgl = cache.save_raw_png("index_steady_" + std::to_string(i), TINY_PNG);
+        const std::string lvgl = cache.save_raw_png(helix::ThumbnailSource::Moonraker,
+                                                    "index_steady_" + std::to_string(i), TINY_PNG);
         REQUIRE(!lvgl.empty());
     }
 
@@ -459,7 +460,7 @@ TEST_CASE("A cache hit keeps the entry it served out of the next eviction",
         };
     }
     SECTION("raw PNG") {
-        card = cache.save_raw_png("card", TINY_PNG);
+        card = cache.save_raw_png(helix::ThumbnailSource::Moonraker, "card", TINY_PNG);
         REQUIRE_FALSE(card.empty());
         read_card = [&cache]() { return cache.get_if_cached("card"); };
     }
