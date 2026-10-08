@@ -40,6 +40,13 @@ const std::unordered_set<std::string> HALTING_MACROS = {
     "EMERGENCY_STOP",
 };
 
+// Klipper's own LED commands (SET_LED) and the klipper-led_effect plugin's.
+const std::unordered_set<std::string> LED_COMMANDS = {
+    "SET_LED",
+    "SET_LED_EFFECT",
+    "STOP_LED_EFFECTS",
+};
+
 // The union, and still the set that decides whether to confirm before running:
 // both families are equally worth a confirmation, they differ only in what is
 // said once the rpc comes back dropped.
@@ -313,6 +320,10 @@ analyze_host_restarting_macros(const nlohmann::json& config_settings) {
 
 std::unordered_set<std::string> analyze_host_halting_macros(const nlohmann::json& config_settings) {
     return analyze_macros_reaching(config_settings, HALTING_MACROS);
+}
+
+std::unordered_set<std::string> analyze_led_driving_macros(const nlohmann::json& config_settings) {
+    return analyze_macros_reaching(config_settings, LED_COMMANDS);
 }
 
 const std::unordered_set<std::string>& host_restarting_command_names() {

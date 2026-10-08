@@ -3825,6 +3825,7 @@ translations:
     depois nas Configurações.
   You have unsaved changes. Discard them?: Você tem alterações não salvas. Descartar?
   Your completed prints will appear here: Suas impressões concluídas aparecerão aqui
+  Your print start or end macro also sets LEDs. It and Automatic LED Control may override each other.: 'Sua macro de início ou fim de impressão também controla os LEDs. Ela e o controle automático de LED podem se sobrepor.'
   Your printer at a glance: Sua impressora num relance
   Your printer has an automatic filament changer: Sua impressora possui um trocador
     automático de filamento

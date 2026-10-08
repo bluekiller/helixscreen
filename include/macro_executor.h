@@ -100,6 +100,11 @@ analyze_host_restarting_macros(const nlohmann::json& config_settings);
 [[nodiscard]] std::unordered_set<std::string>
 analyze_host_halting_macros(const nlohmann::json& config_settings);
 
+/// Same call-graph walk, seeded with the LED commands (SET_LED, SET_LED_EFFECT,
+/// STOP_LED_EFFECTS): the macros that set lights on their own.
+[[nodiscard]] std::unordered_set<std::string>
+analyze_led_driving_macros(const nlohmann::json& config_settings);
+
 /// Check if a macro name is potentially dangerous (SAVE_CONFIG, FIRMWARE_RESTART, etc.).
 [[nodiscard]] bool is_dangerous_macro(const std::string& name);
 

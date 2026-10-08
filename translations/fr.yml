@@ -3855,6 +3855,7 @@ translations:
   You have unsaved changes. Discard them?: Vous avez des modifications non enregistrées.
     Les abandonner ?
   Your completed prints will appear here: Vos impressions terminées apparaîtront ici
+  Your print start or end macro also sets LEDs. It and Automatic LED Control may override each other.: 'Votre macro de début ou de fin d''impression contrôle aussi les LED. Elle et le contrôle automatique des LED peuvent s''annuler mutuellement.'
   Your printer at a glance: Votre imprimante en un coup d'œil
   Your printer has an automatic filament changer: Votre imprimante dispose d'un changeur
     de filament automatique
