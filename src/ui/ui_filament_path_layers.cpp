@@ -77,13 +77,24 @@ bool layered_ensure_buffers(lv_obj_t* obj, FilamentPathData* data, int32_t w, in
         ls.overlay_buf = lv_draw_buf_create(w, h, LV_COLOR_FORMAT_ARGB8888, 0);
         if (!ls.overlay_buf) {
             // The canvas stays on the empty placeholder: drawing nothing beats
-            // drawing a topology scaled for some other size.
-            spdlog::warn("[FilamentPath] No memory for a {}x{} path canvas ({} KB); {}", w, h,
-                         w * h * 4 / 1024,
-                         ls.alloc_retries_left > 0 ? "retrying in 1s" : "giving up");
+            // drawing a topology scaled for some other size. After the timed
+            // retries, only a state change or resize asks again (one attempt per
+            // coalesced refresh), and only the first failure of each run warns.
+            const int kb = w * h * 4 / 1024;
             if (ls.alloc_retries_left > 0) {
+                if (ls.alloc_retries_left == ALLOC_RETRIES)
+                    spdlog::warn("[FilamentPath] No memory for a {}x{} path canvas ({} KB); "
+                                 "retrying",
+                                 w, h, kb);
                 --ls.alloc_retries_left;
                 ls.alloc_retry_timer.schedule_once([obj]() { layered_mark_dirty(obj); });
+            } else if (ls.alloc_retries_left == 0) {
+                spdlog::warn("[FilamentPath] No memory for a {}x{} path canvas ({} KB); giving up "
+                             "until the next state change",
+                             w, h, kb);
+                ls.alloc_retries_left = -1;
+            } else {
+                spdlog::debug("[FilamentPath] No memory for a {}x{} path canvas ({} KB)", w, h, kb);
             }
             return false;
         }
@@ -250,11 +261,12 @@ void layered_size_changed_cb(lv_event_t* e) {
 
 // Widget teardown: cancel any pending refresh (it would fire with a stale obj)
 // and free the canvas buffer. The lv_canvas child itself is deleted by
-// LVGL as the parent tears down. ~LayerState cancels the timer too — this is the
+// LVGL as the parent tears down. ~LayerState cancels the timers too — this is the
 // explicit half of the pair, so teardown order stays readable at the call site.
 void layered_teardown(lv_obj_t* obj, FilamentPathData* data) {
     LV_UNUSED(obj);
     data->layers.refresh_timer.cancel();
+    data->layers.alloc_retry_timer.cancel();
     layered_destroy_buffers(data);
     data->layers.overlay_canvas = nullptr;
 }

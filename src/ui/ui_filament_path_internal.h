@@ -202,7 +202,8 @@ struct LayerState {
     // scheduled repaint can never reach a freed widget.
     helix::ui::CoalescedTimer refresh_timer{0};
     // Re-attempts a canvas buffer allocation that failed; bounded by
-    // alloc_retries_left so a heap that never frees cannot retry forever.
+    // alloc_retries_left so a heap that never frees cannot retry forever. It
+    // reaches -1 once the give-up has been logged.
     helix::ui::CoalescedTimer alloc_retry_timer{1000};
     int alloc_retries_left = 0;
 };

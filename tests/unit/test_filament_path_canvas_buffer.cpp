@@ -187,3 +187,24 @@ TEST_CASE_METHOD(LVGLTestFixture, "FilamentPath: a growth the heap cannot fit dr
     lv_obj_delete(path);
     process_lvgl(30);
 }
+
+TEST_CASE_METHOD(LVGLTestFixture, "FilamentPath: deleting the widget drops a pending retry",
+                 "[filament_path][canvas_buffer]") {
+    BufAllocSpy spy;
+    lv_obj_t* path = ui_filament_path_canvas_create(test_screen());
+    REQUIRE(path != nullptr);
+
+    spy.refuse_big = true;
+    lv_obj_set_size(path, 470, 294);
+    lv_obj_update_layout(path);
+    process_lvgl(60);
+    auto* data = helix::ui::fpath::get_data(path);
+    REQUIRE(data != nullptr);
+    REQUIRE(data->layers.alloc_retry_timer.pending());
+
+    const int attempts = spy.attempts;
+    lv_obj_delete(path);
+    process_lvgl(3000);
+
+    CHECK(spy.attempts == attempts);
+}
